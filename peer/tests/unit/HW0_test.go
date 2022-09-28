@@ -485,13 +485,13 @@ func Test_HW0_Messaging_Relaying(t *testing.T) {
 			fake := z.NewFakeMessage(t)
 			handler, status := fake.GetHandler(t)
 
-			node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithMessage(fake, nil))
+			node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:48601", z.WithMessage(fake, nil))
 			defer node1.Stop()
 
-			node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithMessage(fake, nil))
+			node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:48602", z.WithMessage(fake, nil))
 			defer node2.Stop()
 
-			node3 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithMessage(fake, handler))
+			node3 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:48603", z.WithMessage(fake, handler))
 			defer node3.Stop()
 
 			//          relay
