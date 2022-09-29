@@ -47,12 +47,12 @@ func (n *UDP) CreateSocket(address string) (transport.ClosableSocket, error) {
 		return nil, xerrors.Errorf("Invalid address %s", address)
 	}
 
-	udpAddr, err := net.ResolveUDPAddr("udp", address)
+	UDPAddr, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenUDP("udp", udpAddr)
+	conn, err := net.ListenUDP("udp", UDPAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -92,22 +92,28 @@ func (s *Socket) Send(dest string, pkt transport.Packet, timeout time.Duration) 
 	if !checkValidAddr(dest) {
 		return xerrors.Errorf("Invalid address %s", dest)
 	}
-	destUdpAddr, err := net.ResolveUDPAddr("udp", dest)
+	destUDPAddr, err := net.ResolveUDPAddr("udp", dest)
 	if err != nil {
 		return err
 	}
 
 	if timeout != 0 {
-		s.conn.SetWriteDeadline(time.Now().Add(timeout))
+		err := s.conn.SetWriteDeadline(time.Now().Add(timeout))
+		if err != nil {
+			return err
+		}
 	} else {
-		s.conn.SetWriteDeadline(time.Time{})
+		err := s.conn.SetWriteDeadline(time.Time{})
+		if err != nil {
+			return err
+		}
 	}
 
 	bytes, err := pkt.Marshal()
 	if err != nil {
 		return err
 	}
-	_, err = s.conn.WriteToUDP(bytes, destUdpAddr)
+	_, err = s.conn.WriteToUDP(bytes, destUDPAddr)
 	if errors.Is(err, os.ErrDeadlineExceeded) {
 		return transport.TimeoutError(timeout)
 	}
@@ -125,9 +131,15 @@ func (s *Socket) Recv(timeout time.Duration) (transport.Packet, error) {
 	pkt := transport.Packet{}
 
 	if timeout != 0 {
-		s.conn.SetReadDeadline(time.Now().Add(timeout))
+		err := s.conn.SetReadDeadline(time.Now().Add(timeout))
+		if err != nil {
+			return pkt, err
+		}
 	} else {
-		s.conn.SetReadDeadline(time.Time{})
+		err := s.conn.SetReadDeadline(time.Time{})
+		if err != nil {
+			return pkt, err
+		}
 	}
 
 	buffer := make([]byte, bufSize)

@@ -95,26 +95,9 @@ func (n *node) Start() error {
 				if err != nil {
 					continue
 				}
-
-				pkt_dst := pkt.Header.Destination
-				if pkt_dst == n.conf.Socket.GetAddress() {
-					// use register to process the message if the node is dest
-					err = n.conf.MessageRegistry.ProcessPacket(pkt)
-					if err != nil {
-						continue
-					}
-				} else {
-					// relay to the next peer
-					pkt.Header.RelayedBy = n.conf.Socket.GetAddress()
-					next_peer, ok := n.routingTable.get(pkt_dst)
-					if !ok {
-						// no routing information. Just drop the packet
-						continue
-					}
-					err = n.conf.Socket.Send(next_peer, pkt, time.Millisecond*100)
-					if err != nil {
-						continue
-					}
+				err = n.HandlePkt(pkt)
+				if err != nil {
+					continue
 				}
 			}
 		}
@@ -139,12 +122,11 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 		0)
 	pkt := transport.Packet{Header: &header, Msg: &msg}
 	// Send the msg even if the dst is self
-	next_peer, ok := n.routingTable.get(dest)
-	if !ok {
-		// no routing information. Just drop the packet
-		return xerrors.Errorf("No routing information to %s", dest)
+	nextPeer, err := n.GetRoutingInfo(dest)
+	if err != nil {
+		return err
 	}
-	err := n.conf.Socket.Send(next_peer, pkt, time.Millisecond*100)
+	err = n.conf.Socket.Send(nextPeer, pkt, time.Millisecond*100)
 	return err
 }
 
@@ -158,7 +140,6 @@ func (n *node) AddPeer(addr ...string) {
 		// otherwise, update the routing table
 		n.SetRoutingEntry(peerAddr, peerAddr)
 	}
-
 }
 
 // GetRoutingTable implements peer.Service
@@ -175,6 +156,40 @@ func (n *node) SetRoutingEntry(origin, relayAddr string) {
 	}
 	// Otherwise, update the table
 	n.routingTable.add(origin, relayAddr)
+}
+
+func (n *node) HandlePkt(pkt transport.Packet) error {
+	pktDst := pkt.Header.Destination
+	if pktDst == n.conf.Socket.GetAddress() {
+		// use register to process the message if the node is dest
+		err := n.conf.MessageRegistry.ProcessPacket(pkt)
+		if err != nil {
+			return err
+		}
+	} else {
+		// relay to the next peer
+		pkt.Header.RelayedBy = n.conf.Socket.GetAddress()
+		nextPeer, err := n.GetRoutingInfo(pktDst)
+		if err != nil {
+			// no routing information. Just drop the packet
+			return err
+		}
+		err = n.conf.Socket.Send(nextPeer, pkt, time.Millisecond*100)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// get routing information from routing table or error if entry not exists
+func (n *node) GetRoutingInfo(dst string) (string, error) {
+	nextHop, ok := n.routingTable.get(dst)
+	if !ok {
+		// no routing information. Just drop the packet
+		return "", xerrors.Errorf("No routing information to %s", dst)
+	}
+	return nextHop, nil
 }
 
 // callback function to handle received chat message
