@@ -2,7 +2,6 @@ package udp
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"strconv"
@@ -18,16 +17,13 @@ const bufSize = 65000
 
 // NewUDP returns a new udp transport implementation.
 func NewUDP() transport.Transport {
-	udp := UDP{sync.RWMutex{}, nil}
-	return &udp
+	return &UDP{}
 }
 
 // UDP implements a transport layer using UDP
 //
 // - implements transport.Transport
 type UDP struct {
-	sync.RWMutex
-	conn *net.UDPConn
 }
 
 func checkValidAddr(address string) bool {
@@ -61,11 +57,9 @@ func (n *UDP) CreateSocket(address string) (transport.ClosableSocket, error) {
 		return nil, err
 	}
 	address = conn.LocalAddr().String()
-	// n.addConn(address, conn)
-	n.conn = conn
 
 	return &Socket{
-		UDP:    n,
+		conn:   conn,
 		myAddr: address,
 		ins:    packets{},
 		outs:   packets{},
@@ -77,7 +71,7 @@ func (n *UDP) CreateSocket(address string) (transport.ClosableSocket, error) {
 // - implements transport.Socket
 // - implements transport.ClosableSocket
 type Socket struct {
-	*UDP
+	conn   *net.UDPConn
 	myAddr string
 	ins    packets
 	outs   packets
@@ -121,9 +115,6 @@ func (s *Socket) Send(dest string, pkt transport.Packet, timeout time.Duration) 
 		return err
 	}
 	s.outs.add(pkt)
-	fmt.Println("Src: ", s.myAddr, " Dest: ", destUdpAddr)
-	fmt.Println(s.myAddr, "Send ", len(s.outs.data), len(s.ins.data))
-	// fmt.Println(pkt)
 	return nil
 }
 
@@ -152,7 +143,6 @@ func (s *Socket) Recv(timeout time.Duration) (transport.Packet, error) {
 		return pkt, err
 	}
 	s.ins.add(pkt)
-	fmt.Println(s.myAddr, "Receive ", len(s.outs.data), len(s.ins.data))
 	return pkt, nil
 }
 

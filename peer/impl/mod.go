@@ -91,10 +91,8 @@ func (n *node) Start() error {
 				// use context to determine when to stop the goroutine
 				return
 			default:
-				//TODO: determine timeout
 				pkt, err := n.conf.Socket.Recv(time.Millisecond * 100)
 				if err != nil {
-					// fmt.Println(n.conf.Socket.GetAddress(), err)
 					continue
 				}
 
@@ -128,7 +126,6 @@ func (n *node) Start() error {
 
 // Stop implements peer.Service
 func (n *node) Stop() error {
-	// panic("to be implemented in HW0")
 	n.stopSig()
 	return nil
 }
@@ -147,7 +144,7 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 		// no routing information. Just drop the packet
 		return xerrors.Errorf("No routing information to %s", dest)
 	}
-	err := n.conf.Socket.Send(next_peer, pkt, time.Millisecond*1)
+	err := n.conf.Socket.Send(next_peer, pkt, time.Millisecond*100)
 	return err
 }
 
@@ -159,7 +156,6 @@ func (n *node) AddPeer(addr ...string) {
 			continue
 		}
 		// otherwise, update the routing table
-		// TODO: check if the key and value should be the same
 		n.SetRoutingEntry(peerAddr, peerAddr)
 	}
 
