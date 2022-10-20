@@ -201,6 +201,7 @@ func (n *node) RegisterTimer(pkt *transport.Packet, duration time.Duration) {
 	go func() {
 		select {
 		case <-done:
+			return
 		case <-timer.C:
 			close(done)
 			n.timerController.remove(pkt.Header.PacketID)
