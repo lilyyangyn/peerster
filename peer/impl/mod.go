@@ -318,7 +318,7 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 			oldRelay, ok := n.routingTable.get(rumor.Origin)
 			if !ok || oldRelay != rumor.Origin {
 				// only update when the origin node is not neighbor
-				n.routingTable.add(rumor.Origin, pkt.Header.RelayedBy)
+				n.SetRoutingEntry(rumor.Origin, pkt.Header.RelayedBy)
 			}
 
 			// process message
