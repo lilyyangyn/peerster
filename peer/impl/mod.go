@@ -357,7 +357,7 @@ func (n *node) ProcessStatusMsg(msg types.Message, pkt transport.Packet) error {
 
 	if catchUp {
 		// send a status message to the remote peer
-		err := n.SendStatusMessage(pkt.Header.Source)
+		err := n.SendStatusMessage(pkt.Header.RelayedBy)
 		return err
 	}
 	if len(rumors) > 0 {
@@ -367,13 +367,13 @@ func (n *node) ProcessStatusMsg(msg types.Message, pkt transport.Packet) error {
 		if err != nil {
 			return err
 		}
-		err = n.SendToNeighbor(pkt.Header.Source, msg)
+		err = n.SendToNeighbor(pkt.Header.RelayedBy, msg)
 		// no expect of ACK
 		return err
 	}
 	if !catchUp && len(rumors) == 0 {
 		// Both peers have the same view. ContinueMongering
-		return n.ContinueMongering(pkt.Header.Source)
+		return n.ContinueMongering(pkt.Header.RelayedBy)
 	}
 	return nil
 }
@@ -387,5 +387,14 @@ func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
 	// stop timer
 	n.CancelTimer(pkt.Header.PacketID)
 	// process status message
-	return n.ProcessStatusMsg(&ACKkMsg.Status, pkt)
+	newMsg, err := n.CreateMsg(&ACKkMsg.Status)
+	if err != nil {
+		return err
+	}
+	newPkt := transport.Packet{
+		Header: pkt.Header,
+		Msg:    &newMsg,
+	}
+	return n.conf.MessageRegistry.ProcessPacket(newPkt)
+	// return n.ProcessStatusMsg(&ACKkMsg.Status, pkt)
 }
