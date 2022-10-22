@@ -334,7 +334,7 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 	}
 	// send RumorsMsg to a random neighbor
 	if toNeighbor {
-		neighbor, ok := n.GetRandomNeighbor(pkt.Header.Source)
+		neighbor, ok := n.GetRandomNeighbor(pkt.Header.RelayedBy)
 		if ok {
 			err := n.SendRumorsMessage(neighbor, &rumorsMsg.Rumors)
 			if err != nil {

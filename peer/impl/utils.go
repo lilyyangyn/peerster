@@ -313,12 +313,7 @@ func (n *node) ContinueMongering(pktOrigin string) error {
 	}
 	randomNeighbor, ok := n.GetRandomNeighbor(pktOrigin)
 	if ok {
-		payload := types.StatusMessage(n.rumorsTable.getStatus())
-		msg, err := n.CreateMsg(payload)
-		if err != nil {
-			return err
-		}
-		return n.SendToNeighbor(randomNeighbor, msg)
+		return n.SendStatusMessage(randomNeighbor)
 	}
 	return nil
 }
