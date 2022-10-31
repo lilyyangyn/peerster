@@ -1,56 +1,18 @@
 package impl
 
 import (
+	"context"
 	"encoding/json"
 	"math/rand"
 	"sync"
 	"time"
 
-	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
 /** Safe Structure **/
-
-// SafeRoutingTable implements a thread-safe routing table
-type SafeRoutingTable struct {
-	*sync.RWMutex
-	table peer.RoutingTable
-}
-
-func (t SafeRoutingTable) add(key string, val string) {
-	t.Lock()
-	defer t.Unlock()
-	t.table[key] = val
-}
-func (t SafeRoutingTable) remove(key string) {
-	t.Lock()
-	defer t.Unlock()
-	delete(t.table, key)
-}
-func (t SafeRoutingTable) get(key string) (string, bool) {
-	t.RLock()
-	val, ok := t.table[key]
-	t.RUnlock()
-	return val, ok
-}
-func (t SafeRoutingTable) getAll() peer.RoutingTable {
-	routingTable := peer.RoutingTable{}
-	t.RLock()
-	for key, value := range t.table {
-		routingTable[key] = value
-	}
-	t.RUnlock()
-	return routingTable
-}
-
-func NewSafeRoutingTable(addr string) *SafeRoutingTable {
-	rt := SafeRoutingTable{&sync.RWMutex{}, peer.RoutingTable{}}
-	rt.add(addr, addr)
-	return &rt
-}
 
 type RumorsTable map[string][]types.Rumor
 
@@ -132,17 +94,188 @@ func NewTimeController() *TimerController {
 	return &rt
 }
 
-/** Private Helpfer Functions **/
-
-// GetRoutingInfo gets routing information from routing table or error if entry not exists
-func (n *node) GetRoutingInfo(dst string) (string, error) {
-	nextHop, ok := n.routingTable.get(dst)
-	if !ok {
-		// no routing information. Just drop the packet
-		return "", xerrors.Errorf("No routing information to %s", dst)
+// HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
+func (n *node) HeartBeatMecahnism(interval time.Duration) error {
+	if interval == 0 {
+		// the heartbeat mechanism must not be activated
+		return nil
 	}
-	return nextHop, nil
+	n.heartbeatTicker = time.NewTicker(interval)
+	ctx, cancel := context.WithCancel(context.Background())
+	n.heartbeatStopSig = cancel
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-n.heartbeatTicker.C:
+				payload := types.EmptyMessage{}
+				data, err := json.Marshal(&payload)
+				if err != nil {
+					continue
+				}
+				msg := transport.Message{Type: payload.Name(), Payload: data}
+				err = n.Broadcast(msg)
+				if err != nil {
+					continue
+				}
+			}
+		}
+	}()
+	return nil
 }
+
+/** Feature functions **/
+
+// AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
+func (n *node) AntiEntropyMechanism(interval time.Duration) error {
+	if interval == 0 {
+		// the anti-entropy mechanism must not be activated
+		return nil
+	}
+	n.antiEntropyTicker = time.NewTicker(interval)
+	ctx, cancel := context.WithCancel(context.Background())
+	n.antiEntropyStopSig = cancel
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-n.antiEntropyTicker.C:
+				neighbor, ok := n.GetRandomNeighbor("")
+				if !ok {
+					// no available neighbor
+					continue
+				}
+				err := n.SendStatusMessage(neighbor)
+				if err != nil {
+					continue
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+// ProcessPrivateMsg is a callback function to handle received private message
+func (n *node) ProcessPrivateMsg(msg types.Message, pkt transport.Packet) error {
+	privateMsg, ok := msg.(*types.PrivateMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	_, ok = privateMsg.Recipients[n.conf.Socket.GetAddress()]
+	if ok {
+		// process the message if in the recipients list
+		newPkt := transport.Packet{
+			Header: pkt.Header,
+			Msg:    privateMsg.Msg,
+		}
+		err := n.conf.MessageRegistry.ProcessPacket(newPkt)
+		return err
+	}
+	return nil
+}
+
+// ProcessRumorsMsg is a callback function to handle received rumors message
+func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
+	rumorsMsg, ok := msg.(*types.RumorsMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+	toNeighbor := false
+	// process RumorsMsg
+	for _, rumor := range rumorsMsg.Rumors {
+		// ignore unexpected rumor. Otherwise, update table
+		if n.rumorsTable.add(rumor) {
+			toNeighbor = true
+			// update routing table
+			oldRelay, ok := n.routingTable.get(rumor.Origin)
+			if !ok || oldRelay != rumor.Origin {
+				// only update when the origin node is not neighbor
+				n.SetRoutingEntry(rumor.Origin, pkt.Header.RelayedBy)
+			}
+
+			// process message
+			newPkt := transport.Packet{
+				Header: pkt.Header,
+				Msg:    rumor.Msg,
+			}
+			err := n.conf.MessageRegistry.ProcessPacket(newPkt)
+			if err != nil {
+				continue
+			}
+		}
+	}
+	// send RumorsMsg to a random neighbor
+	if toNeighbor {
+		neighbor, ok := n.GetRandomNeighbor(pkt.Header.RelayedBy)
+		if ok {
+			err := n.SendRumorsMessage(neighbor, &rumorsMsg.Rumors)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// send ACK
+	err := n.SendAckMessage(pkt.Header.RelayedBy, pkt.Header.PacketID)
+	return err
+}
+
+// ProcessStatusMsg is a callback function to handle received status message
+func (n *node) ProcessStatusMsg(msg types.Message, pkt transport.Packet) error {
+	statusMsg, ok := msg.(*types.StatusMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+	rumors, catchUp := n.CheckSyncStatus(statusMsg)
+
+	if catchUp {
+		// send a status message to the remote peer
+		err := n.SendStatusMessage(pkt.Header.RelayedBy)
+		return err
+	}
+	if len(rumors) > 0 {
+		// send all the missing Rumors (increasing seqID) in a single RumorsMessage
+		payload := types.RumorsMessage{Rumors: rumors}
+		msg, err := n.CreateMsg(payload)
+		if err != nil {
+			return err
+		}
+		err = n.SendToNeighbor(pkt.Header.RelayedBy, msg)
+		// no expect of ACK
+		return err
+	}
+	if !catchUp && len(rumors) == 0 {
+		// Both peers have the same view. ContinueMongering
+		return n.ContinueMongering(pkt.Header.RelayedBy)
+	}
+	return nil
+}
+
+// ProcessAckMsg is a callback function to handle received ack message
+func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
+	ACKkMsg, ok := msg.(*types.AckMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+	// stop timer
+	n.CancelTimer(pkt.Header.PacketID)
+	// process status message
+	newMsg, err := n.CreateMsg(&ACKkMsg.Status)
+	if err != nil {
+		return err
+	}
+	newPkt := transport.Packet{
+		Header: pkt.Header,
+		Msg:    &newMsg,
+	}
+	return n.conf.MessageRegistry.ProcessPacket(newPkt)
+	// return n.ProcessStatusMsg(&ACKkMsg.Status, pkt)
+}
+
+/** Private Helpfer Functions **/
 
 // GetRandomNeighbor randomly returns a neighbor
 func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
@@ -234,6 +367,18 @@ func (n *node) CancelTimer(pktID string) {
 		close(done)
 		n.timerController.remove(pktID)
 	}
+}
+
+// SendToNeighbor randomly select a neighbor and send the packet
+func (n *node) SendToNeighbor(dest string, msg transport.Message) error {
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		dest,
+		0)
+	pkt := transport.Packet{Header: &header, Msg: &msg}
+	err := n.conf.Socket.Send(dest, pkt, WriteTimeout)
+	return err
 }
 
 // SendAckMessage sends an ACK packet to neighbor
