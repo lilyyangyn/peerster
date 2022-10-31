@@ -132,6 +132,10 @@ func (n *node) Start() error {
 
 // Stop implements peer.Service
 func (n *node) Stop() error {
+	if n.stopSig == nil {
+		return nil
+	}
+
 	if n.conf.HeartbeatInterval != 0 {
 		n.heartbeatStopSig()
 		n.heartbeatTicker.Stop()
