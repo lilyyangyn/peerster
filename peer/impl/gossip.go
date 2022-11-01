@@ -218,28 +218,6 @@ func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
 
 /** Private Helpfer Functions **/
 
-// GetRandomNeighbor randomly returns a neighbor
-func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
-	n.routingTable.RLock()
-	neighbors := []string{}
-	for key, val := range n.routingTable.table {
-		if key == n.conf.Socket.GetAddress() {
-			continue
-		}
-		if key == exclude {
-			continue
-		}
-		if key == val {
-			neighbors = append(neighbors, key)
-		}
-	}
-	n.routingTable.RUnlock()
-	if len(neighbors) == 0 {
-		return "", false
-	}
-	return neighbors[rand.Intn(len(neighbors))], true
-}
-
 // CreateRumor creates a new rumor with expected seqID and add it to rumorsTable
 func (n *node) CreateRumor(msg *transport.Message) types.Rumor {
 	n.rumorsTable.Lock()
@@ -298,18 +276,6 @@ func (n *node) CancelTimer(pktID string) {
 		close(done)
 		n.timerController.remove(pktID)
 	}
-}
-
-// SendToNeighbor randomly select a neighbor and send the packet
-func (n *node) SendToNeighbor(dest string, msg transport.Message) error {
-	header := transport.NewHeader(
-		n.conf.Socket.GetAddress(),
-		n.conf.Socket.GetAddress(),
-		dest,
-		0)
-	pkt := transport.Packet{Header: &header, Msg: &msg}
-	err := n.conf.Socket.Send(dest, pkt, WriteTimeout)
-	return err
 }
 
 // SendAckMessage sends an ACK packet to neighbor

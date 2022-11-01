@@ -3,6 +3,7 @@ package impl
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -31,7 +32,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 
 	// datasharing-related
 	n.catalog = *NewSafeCatalog()
-	n.dataChannels = *NewSafeChannTable()
+	n.replyChannels = *NewSafeChannTable()
 
 	n.RegisterMessageHandler()
 
@@ -55,8 +56,8 @@ type node struct {
 	antiEntropyTicker  *time.Ticker
 	antiEntropyStopSig context.CancelFunc
 
-	catalog      SafeCatalog
-	dataChannels SafeChannTable
+	catalog       SafeCatalog
+	replyChannels SafeChannTable
 }
 
 /** Feature Functions **/
@@ -214,6 +215,8 @@ func (n *node) RegisterMessageHandler() {
 	// datasharing-related
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ProcessDataRequestMessage)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DataReplyMessage{}, n.ProcessDataReplyMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchRequestMessage{}, n.ProcessSearchRequestMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchReplyMessage{}, n.ProcessSearchReplyMessage)
 }
 
 // GetRoutingInfo gets routing information from routing table or error if entry not exists
@@ -226,6 +229,35 @@ func (n *node) GetRoutingInfo(dst string) (string, error) {
 	return nextHop, nil
 }
 
+// GetNeighbors returns a list of all neighbors
+func (n *node) GetNeighbors(exclude string) (neighbors []string) {
+	n.routingTable.RLock()
+	neighbors = []string{}
+	for key, val := range n.routingTable.table {
+		if key == n.conf.Socket.GetAddress() {
+			continue
+		}
+		if key == exclude {
+			continue
+		}
+		if key == val {
+			neighbors = append(neighbors, key)
+		}
+	}
+	n.routingTable.RUnlock()
+
+	return
+}
+
+// GetRandomNeighbor randomly returns a neighbor
+func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
+	neighbors := n.GetNeighbors(exclude)
+	if len(neighbors) == 0 {
+		return "", false
+	}
+	return neighbors[rand.Intn(len(neighbors))], true
+}
+
 // CreateMsg creates a new transport message for the given payload
 func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
 	data, err := json.Marshal(&payload)
@@ -234,4 +266,16 @@ func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
 	}
 	msg := transport.Message{Type: payload.Name(), Payload: data}
 	return msg, nil
+}
+
+// SendToNeighbor randomly select a neighbor and send the packet
+func (n *node) SendToNeighbor(dest string, msg transport.Message) error {
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		dest,
+		0)
+	pkt := transport.Packet{Header: &header, Msg: &msg}
+	err := n.conf.Socket.Send(dest, pkt, WriteTimeout)
+	return err
 }

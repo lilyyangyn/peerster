@@ -160,10 +160,10 @@ func NewSafeCatalog() *SafeCatalog {
 // SafeChannTable implements a thread-safe channel table
 type SafeChannTable struct {
 	*sync.RWMutex
-	channels map[string]*chan []byte
+	channels map[string]*chan bool
 }
 
-func (t SafeChannTable) add(key string, val *chan []byte) {
+func (t SafeChannTable) add(key string, val *chan bool) {
 	t.Lock()
 	defer t.Unlock()
 	t.channels[key] = val
@@ -173,13 +173,13 @@ func (t SafeChannTable) remove(key string) {
 	defer t.Unlock()
 	delete(t.channels, key)
 }
-func (t *SafeChannTable) get(key string) (*chan []byte, bool) {
+func (t *SafeChannTable) get(key string) (*chan bool, bool) {
 	t.RLock()
 	val, ok := t.channels[key]
 	t.RUnlock()
 	return val, ok
 }
 func NewSafeChannTable() *SafeChannTable {
-	channels := SafeChannTable{&sync.RWMutex{}, map[string]*chan []byte{}}
+	channels := SafeChannTable{&sync.RWMutex{}, map[string]*chan bool{}}
 	return &channels
 }
