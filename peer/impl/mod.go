@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -24,15 +25,16 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.conf = conf
 	n.stopSig = nil
 	n.routingTable = *NewSafeRoutingTable(n.conf.Socket.GetAddress())
+
+	// gossip-related
 	n.rumorsTable = *NewSafeRumorsTable()
 	n.timerController = *NewTimeController()
 
-	// register handler
-	n.conf.MessageRegistry.RegisterMessageCallback(types.ChatMessage{}, n.ProcessChatMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.PrivateMessage{}, n.ProcessPrivateMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.StatusMessage{}, n.ProcessStatusMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.RumorsMessage{}, n.ProcessRumorsMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.AckMessage{}, n.ProcessAckMsg)
+	// datasharing-related
+	n.catalog = *NewSafeCatalog()
+	n.dataChannels = *NewSafeChannTable()
+
+	n.RegisterMessageHandler()
 
 	return &n
 }
@@ -44,15 +46,18 @@ type node struct {
 	peer.Peer
 	conf peer.Configuration
 
-	stopSig         context.CancelFunc
-	routingTable    SafeRoutingTable
-	rumorsTable     SafeRumorsTable
-	timerController TimerController
+	stopSig      context.CancelFunc
+	routingTable SafeRoutingTable
 
+	rumorsTable        SafeRumorsTable
+	timerController    TimerController
 	heartbeatTicker    *time.Ticker
 	heartbeatStopSig   context.CancelFunc
 	antiEntropyTicker  *time.Ticker
 	antiEntropyStopSig context.CancelFunc
+
+	catalog      SafeCatalog
+	dataChannels SafeChannTable
 }
 
 /** Safe Structure **/
@@ -63,23 +68,23 @@ type SafeRoutingTable struct {
 	table peer.RoutingTable
 }
 
-func (t SafeRoutingTable) add(key string, val string) {
+func (t *SafeRoutingTable) add(key string, val string) {
 	t.Lock()
 	defer t.Unlock()
 	t.table[key] = val
 }
-func (t SafeRoutingTable) remove(key string) {
+func (t *SafeRoutingTable) remove(key string) {
 	t.Lock()
 	defer t.Unlock()
 	delete(t.table, key)
 }
-func (t SafeRoutingTable) get(key string) (string, bool) {
+func (t *SafeRoutingTable) get(key string) (string, bool) {
 	t.RLock()
 	val, ok := t.table[key]
 	t.RUnlock()
 	return val, ok
 }
-func (t SafeRoutingTable) getAll() peer.RoutingTable {
+func (t *SafeRoutingTable) getAll() peer.RoutingTable {
 	routingTable := peer.RoutingTable{}
 	t.RLock()
 	for key, value := range t.table {
@@ -88,14 +93,13 @@ func (t SafeRoutingTable) getAll() peer.RoutingTable {
 	t.RUnlock()
 	return routingTable
 }
-
 func NewSafeRoutingTable(addr string) *SafeRoutingTable {
 	rt := SafeRoutingTable{&sync.RWMutex{}, peer.RoutingTable{}}
 	rt.add(addr, addr)
 	return &rt
 }
 
-/** Feature functions **/
+/** Feature Functions **/
 
 // Start implements peer.Service
 func (n *node) Start() error {
@@ -165,28 +169,6 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 	return err
 }
 
-// Broadcast implements peer.Messaging
-func (n *node) Broadcast(msg transport.Message) error {
-	// sendout the message in rumor
-	rumor := n.CreateRumor(&msg)
-	neighbor, ok := n.GetRandomNeighbor("")
-	if ok {
-		// no available neighbors
-		err := n.SendRumorsMessage(neighbor, &[]types.Rumor{rumor})
-		if err != nil {
-			return err
-		}
-	}
-	// process the message locally
-	header := transport.NewHeader(
-		n.conf.Socket.GetAddress(),
-		n.conf.Socket.GetAddress(),
-		n.conf.Socket.GetAddress(),
-		0)
-	pkt := transport.Packet{Header: &header, Msg: &msg}
-	return n.conf.MessageRegistry.ProcessPacket(pkt)
-}
-
 // AddPeer implements peer.Service
 func (n *node) AddPeer(addr ...string) {
 	for _, peerAddr := range addr {
@@ -215,6 +197,25 @@ func (n *node) SetRoutingEntry(origin, relayAddr string) {
 	n.routingTable.add(origin, relayAddr)
 }
 
+/** Message Handler **/
+
+// ProcessChatMessage is a callback function to handle received chat message
+func (n *node) ProcessChatMessage(msg types.Message, pkt transport.Packet) error {
+	// cast the message to its actual type. You assume it is the right type.
+	chatMsg, ok := msg.(*types.ChatMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	log.Info().Msgf("%s received a chat message from: %s. Msg: %s",
+		n.conf.Socket.GetAddress(),
+		pkt.Header.Source,
+		chatMsg.Message)
+	return nil
+}
+
+/** Private Helpfer Functions **/
+
 // ProcessPkt processes packet received
 func (n *node) ProcessPkt(pkt transport.Packet) error {
 	pktDst := pkt.Header.Destination
@@ -240,22 +241,20 @@ func (n *node) ProcessPkt(pkt transport.Packet) error {
 	return nil
 }
 
-// ProcessChatMessage is a callback function to handle received chat message
-func (n *node) ProcessChatMessage(msg types.Message, pkt transport.Packet) error {
-	// cast the message to its actual type. You assume it is the right type.
-	chatMsg, ok := msg.(*types.ChatMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
+// RegisterMessageHandler registers handlers for different message types
+func (n *node) RegisterMessageHandler() {
+	n.conf.MessageRegistry.RegisterMessageCallback(types.ChatMessage{}, n.ProcessChatMessage)
 
-	log.Info().Msgf("%s received a chat message from: %s. Msg: %s",
-		n.conf.Socket.GetAddress(),
-		pkt.Header.Source,
-		chatMsg.Message)
-	return nil
+	// gossip-related
+	n.conf.MessageRegistry.RegisterMessageCallback(types.PrivateMessage{}, n.ProcessPrivateMsg)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.StatusMessage{}, n.ProcessStatusMsg)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.RumorsMessage{}, n.ProcessRumorsMsg)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.AckMessage{}, n.ProcessAckMsg)
+
+	// datasharing-related
+	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ProcessDataRequestMessage)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.DataReplyMessage{}, n.ProcessDataReplyMessage)
 }
-
-/** Private Helpfer Functions **/
 
 // GetRoutingInfo gets routing information from routing table or error if entry not exists
 func (n *node) GetRoutingInfo(dst string) (string, error) {
@@ -265,4 +264,14 @@ func (n *node) GetRoutingInfo(dst string) (string, error) {
 		return "", xerrors.Errorf("No routing information to %s", dst)
 	}
 	return nextHop, nil
+}
+
+// CreateMsg creates a new transport message for the given payload
+func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
+	data, err := json.Marshal(&payload)
+	if err != nil {
+		return transport.Message{}, err
+	}
+	msg := transport.Message{Type: payload.Name(), Payload: data}
+	return msg, nil
 }

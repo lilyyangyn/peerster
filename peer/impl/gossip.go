@@ -22,7 +22,7 @@ type SafeRumorsTable struct {
 	table RumorsTable
 }
 
-func (t SafeRumorsTable) add(rumor types.Rumor) bool {
+func (t *SafeRumorsTable) add(rumor types.Rumor) bool {
 	t.Lock()
 	defer t.Unlock()
 
@@ -32,13 +32,13 @@ func (t SafeRumorsTable) add(rumor types.Rumor) bool {
 	t.table[rumor.Origin] = append(t.table[rumor.Origin], rumor)
 	return true
 }
-func (t SafeRumorsTable) getExpectedSeq(key string) uint {
+func (t *SafeRumorsTable) getExpectedSeq(key string) uint {
 	t.RLock()
 	rumors := t.table[key]
 	t.RUnlock()
 	return uint(len(rumors)) + 1
 }
-func (t SafeRumorsTable) getRumorsFrom(key string, seqID uint) ([]types.Rumor, bool) {
+func (t *SafeRumorsTable) getRumorsFrom(key string, seqID uint) ([]types.Rumor, bool) {
 	rumors := []types.Rumor{}
 	t.RLock()
 	length := uint(len(t.table[key]))
@@ -51,7 +51,7 @@ func (t SafeRumorsTable) getRumorsFrom(key string, seqID uint) ([]types.Rumor, b
 	t.RUnlock()
 	return rumors, true
 }
-func (t SafeRumorsTable) getStatus() map[string]uint {
+func (t *SafeRumorsTable) getStatus() map[string]uint {
 	statusTable := make(map[string]uint)
 	t.RLock()
 	for key, value := range t.table {
@@ -73,17 +73,17 @@ type TimerController struct {
 	table TimerTable
 }
 
-func (t TimerController) add(pktID string, done chan struct{}) {
+func (t *TimerController) add(pktID string, done chan struct{}) {
 	t.Lock()
 	defer t.Unlock()
 	t.table[pktID] = done
 }
-func (t TimerController) remove(key string) {
+func (t *TimerController) remove(key string) {
 	t.Lock()
 	defer t.Unlock()
 	delete(t.table, key)
 }
-func (t TimerController) get(key string) (chan struct{}, bool) {
+func (t *TimerController) get(key string) (chan struct{}, bool) {
 	t.RLock()
 	val, ok := t.table[key]
 	t.RUnlock()
@@ -92,6 +92,30 @@ func (t TimerController) get(key string) (chan struct{}, bool) {
 func NewTimeController() *TimerController {
 	rt := TimerController{&sync.RWMutex{}, TimerTable{}}
 	return &rt
+}
+
+/** Feature Functions **/
+
+// Broadcast implements peer.Messaging
+func (n *node) Broadcast(msg transport.Message) error {
+	// sendout the message in rumor
+	rumor := n.CreateRumor(&msg)
+	neighbor, ok := n.GetRandomNeighbor("")
+	if ok {
+		// no available neighbors
+		err := n.SendRumorsMessage(neighbor, &[]types.Rumor{rumor})
+		if err != nil {
+			return err
+		}
+	}
+	// process the message locally
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		0)
+	pkt := transport.Packet{Header: &header, Msg: &msg}
+	return n.conf.MessageRegistry.ProcessPacket(pkt)
 }
 
 // HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
@@ -125,8 +149,6 @@ func (n *node) HeartBeatMecahnism(interval time.Duration) error {
 	return nil
 }
 
-/** Feature functions **/
-
 // AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
 func (n *node) AntiEntropyMechanism(interval time.Duration) error {
 	if interval == 0 {
@@ -157,6 +179,8 @@ func (n *node) AntiEntropyMechanism(interval time.Duration) error {
 
 	return nil
 }
+
+/** Message Handler **/
 
 // ProcessPrivateMsg is a callback function to handle received private message
 func (n *node) ProcessPrivateMsg(msg types.Message, pkt transport.Packet) error {
@@ -311,16 +335,6 @@ func (n *node) CreateRumor(msg *transport.Message) types.Rumor {
 	}
 	n.rumorsTable.table[rumor.Origin] = append(n.rumorsTable.table[rumor.Origin], rumor)
 	return rumor
-}
-
-// CreateMsg creates a new transport message for the given payload
-func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
-	data, err := json.Marshal(&payload)
-	if err != nil {
-		return transport.Message{}, err
-	}
-	msg := transport.Message{Type: payload.Name(), Payload: data}
-	return msg, nil
 }
 
 // RegisterTimer registers a timer to resend the packet after a certain period
