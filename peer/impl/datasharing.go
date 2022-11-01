@@ -16,7 +16,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// SafeRoutingTable implements a thread-safe routing table
+// SafeCatalog implements a thread-safe catalog table
 type SafeCatalog struct {
 	*sync.RWMutex
 	catalog peer.Catalog
@@ -49,7 +49,7 @@ func NewSafeCatalog() *SafeCatalog {
 	return &catalog
 }
 
-// SafeRoutingTable implements a thread-safe routing table
+// SafeChannTable implements a thread-safe channel table
 type SafeChannTable struct {
 	*sync.RWMutex
 	channels map[string]*chan []byte
@@ -133,6 +133,19 @@ func (n *node) Download(metahash string) (data []byte, err error) {
 		}
 		data = append(data, chunkData...)
 	}
+
+	return
+}
+
+// Tag implements peer.Tag
+func (n *node) Tag(name string, mh string) error {
+	n.conf.Storage.GetNamingStore().Set(name, []byte(mh))
+	return nil
+}
+
+// Resolve implements peer.Resolve
+func (n *node) Resolve(name string) (metahash string) {
+	metahash = string(n.conf.Storage.GetNamingStore().Get(name))
 
 	return
 }
