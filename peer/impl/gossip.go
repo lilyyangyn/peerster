@@ -4,95 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
-	"sync"
 	"time"
 
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
-
-/** Safe Structure **/
-
-type RumorsTable map[string][]types.Rumor
-
-// SafeRoutingTable implements a thread-safe routing table
-type SafeRumorsTable struct {
-	*sync.RWMutex
-	table RumorsTable
-}
-
-func (t *SafeRumorsTable) add(rumor types.Rumor) bool {
-	t.Lock()
-	defer t.Unlock()
-
-	if uint(len(t.table[rumor.Origin]))+1 != rumor.Sequence {
-		return false
-	}
-	t.table[rumor.Origin] = append(t.table[rumor.Origin], rumor)
-	return true
-}
-func (t *SafeRumorsTable) getExpectedSeq(key string) uint {
-	t.RLock()
-	rumors := t.table[key]
-	t.RUnlock()
-	return uint(len(rumors)) + 1
-}
-func (t *SafeRumorsTable) getRumorsFrom(key string, seqID uint) ([]types.Rumor, bool) {
-	rumors := []types.Rumor{}
-	t.RLock()
-	length := uint(len(t.table[key]))
-	if seqID > length {
-		return rumors, false
-	}
-	for i := seqID - 1; i < length; i++ {
-		rumors = append(rumors, t.table[key][i])
-	}
-	t.RUnlock()
-	return rumors, true
-}
-func (t *SafeRumorsTable) getStatus() map[string]uint {
-	statusTable := make(map[string]uint)
-	t.RLock()
-	for key, value := range t.table {
-		statusTable[key] = uint(len(value))
-	}
-	t.RUnlock()
-	return statusTable
-}
-func NewSafeRumorsTable() *SafeRumorsTable {
-	rt := SafeRumorsTable{&sync.RWMutex{}, RumorsTable{}}
-	return &rt
-}
-
-type TimerTable map[string]chan struct{}
-
-// TimerController implements a thread-safe table for timer
-type TimerController struct {
-	*sync.RWMutex
-	table TimerTable
-}
-
-func (t *TimerController) add(pktID string, done chan struct{}) {
-	t.Lock()
-	defer t.Unlock()
-	t.table[pktID] = done
-}
-func (t *TimerController) remove(key string) {
-	t.Lock()
-	defer t.Unlock()
-	delete(t.table, key)
-}
-func (t *TimerController) get(key string) (chan struct{}, bool) {
-	t.RLock()
-	val, ok := t.table[key]
-	t.RUnlock()
-	return val, ok
-}
-func NewTimeController() *TimerController {
-	rt := TimerController{&sync.RWMutex{}, TimerTable{}}
-	return &rt
-}
 
 /** Feature Functions **/
 

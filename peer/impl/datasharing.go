@@ -6,7 +6,6 @@ import (
 	"io"
 	"math/rand"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rs/xid"
@@ -15,66 +14,6 @@ import (
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
-
-// SafeCatalog implements a thread-safe catalog table
-type SafeCatalog struct {
-	*sync.RWMutex
-	catalog peer.Catalog
-}
-
-func (c *SafeCatalog) add(key string, val string) {
-	c.Lock()
-	defer c.Unlock()
-	if _, ok := c.catalog[key]; ok {
-		c.catalog[key][val] = struct{}{}
-	} else {
-		c.catalog[key] = map[string]struct{}{val: {}}
-	}
-}
-func (c *SafeCatalog) getAll() peer.Catalog {
-	catalog := peer.Catalog{}
-	c.RLock()
-	for key, value := range c.catalog {
-		innerMap := make(map[string]struct{}, len(value))
-		for innerKey, _ := range value {
-			innerMap[innerKey] = struct{}{}
-		}
-		catalog[key] = innerMap
-	}
-	c.RUnlock()
-	return catalog
-}
-func NewSafeCatalog() *SafeCatalog {
-	catalog := SafeCatalog{&sync.RWMutex{}, peer.Catalog{}}
-	return &catalog
-}
-
-// SafeChannTable implements a thread-safe channel table
-type SafeChannTable struct {
-	*sync.RWMutex
-	channels map[string]*chan []byte
-}
-
-func (t SafeChannTable) add(key string, val *chan []byte) {
-	t.Lock()
-	defer t.Unlock()
-	t.channels[key] = val
-}
-func (t SafeChannTable) remove(key string) {
-	t.Lock()
-	defer t.Unlock()
-	delete(t.channels, key)
-}
-func (t *SafeChannTable) get(key string) (*chan []byte, bool) {
-	t.RLock()
-	val, ok := t.channels[key]
-	t.RUnlock()
-	return val, ok
-}
-func NewSafeChannTable() *SafeChannTable {
-	channels := SafeChannTable{&sync.RWMutex{}, map[string]*chan []byte{}}
-	return &channels
-}
 
 /** Feature Functions **/
 

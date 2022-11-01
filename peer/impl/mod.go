@@ -3,7 +3,6 @@ package impl
 import (
 	"context"
 	"encoding/json"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -58,45 +57,6 @@ type node struct {
 
 	catalog      SafeCatalog
 	dataChannels SafeChannTable
-}
-
-/** Safe Structure **/
-
-// SafeRoutingTable implements a thread-safe routing table
-type SafeRoutingTable struct {
-	*sync.RWMutex
-	table peer.RoutingTable
-}
-
-func (t *SafeRoutingTable) add(key string, val string) {
-	t.Lock()
-	defer t.Unlock()
-	t.table[key] = val
-}
-func (t *SafeRoutingTable) remove(key string) {
-	t.Lock()
-	defer t.Unlock()
-	delete(t.table, key)
-}
-func (t *SafeRoutingTable) get(key string) (string, bool) {
-	t.RLock()
-	val, ok := t.table[key]
-	t.RUnlock()
-	return val, ok
-}
-func (t *SafeRoutingTable) getAll() peer.RoutingTable {
-	routingTable := peer.RoutingTable{}
-	t.RLock()
-	for key, value := range t.table {
-		routingTable[key] = value
-	}
-	t.RUnlock()
-	return routingTable
-}
-func NewSafeRoutingTable(addr string) *SafeRoutingTable {
-	rt := SafeRoutingTable{&sync.RWMutex{}, peer.RoutingTable{}}
-	rt.add(addr, addr)
-	return &rt
 }
 
 /** Feature Functions **/
