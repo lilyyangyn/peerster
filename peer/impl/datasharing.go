@@ -236,6 +236,9 @@ func (n *node) GetData(cid string) (data []byte, err error) {
 				if data == nil {
 					err = xerrors.Errorf("Empty value in response for %s", cid)
 				}
+				// update local storage
+				n.conf.Storage.GetDataBlobStore().Set(cid, data)
+
 				return
 			case <-time.After(backoffInfo.Initial):
 				// no reply. Exponential backoff
