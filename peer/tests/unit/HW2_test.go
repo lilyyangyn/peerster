@@ -1226,7 +1226,7 @@ func Test_HW2_SearchFirst_Expanding(t *testing.T) {
 
 	n2outs := node2.GetOuts()
 
-	require.Len(t, n1outs, 2)
+	require.Len(t, n2outs, 2)
 
 	msg2 := z.GetSearchReply(t, n2outs[0].Msg)
 
