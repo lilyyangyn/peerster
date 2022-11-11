@@ -102,7 +102,8 @@ func (n *node) UpdateCatalog(key string, peer string) {
 // SearchAll implements peer.SearchAll
 func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
 	// search in remote naming store
-	err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), budget, timeout)
+	rid := xid.New().String()
+	err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), budget, rid, timeout)
 	if err != nil {
 		return
 	}
@@ -199,7 +200,7 @@ func (n *node) ProcessSearchRequestMessage(msg types.Message, pkt transport.Pack
 	// check timeout
 	budget := requestMsg.Budget - 1
 	if budget > 0 {
-		err = n.RequestRemoteNames(*reg, requestMsg.Origin, budget, 0)
+		err = n.RequestRemoteNames(*reg, requestMsg.Origin, budget, requestMsg.RequestID, 0)
 		if err != nil {
 			return err
 		}
@@ -404,14 +405,13 @@ func (n *node) RequestRemoteData(cid string, provider string, timeout time.Durat
 }
 
 // RequestRemoteNames requests remote peers for matched names
-func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint, timeout time.Duration) (err error) {
+func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint, rid string, timeout time.Duration) (err error) {
 	neighbors := n.GetNeighbors(origin)
 	if len(neighbors) == 0 {
 		return
 	}
 
 	base, extra := FairBudget(budget, uint(len(neighbors)))
-	rid := xid.New().String()
 	var channel chan bool
 	if timeout > 0 {
 		channel = make(chan bool)
@@ -465,7 +465,8 @@ func (n *node) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.Expandin
 		}
 
 		// expanding-ring search
-		err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), conf.Initial*backoffMult, conf.Timeout)
+		rid := xid.New().String()
+		err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), conf.Initial*backoffMult, rid, conf.Timeout)
 		if err != nil {
 			return
 		}
@@ -510,11 +511,6 @@ func (n *node) SendDataReplyMessage(dst string, rid string, cid string, data []b
 		return err
 	}
 	err = n.Unicast(dst, msg)
-	// if err != nil {
-	// 	fmt.Println(n.conf.Socket.GetAddress())
-	// 	fmt.Println(dst)
-	// 	fmt.Println(n.routingTable.table)
-	// }
 	return err
 }
 

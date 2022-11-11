@@ -67,7 +67,7 @@ type node struct {
 // Start implements peer.Service
 func (n *node) Start() error {
 	//start a new loop to listen to the message (non-blocking)
-	rand.Seed(time.Now().UnixNano())
+	// rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
 	go func(ctx context.Context) {
@@ -248,6 +248,7 @@ func (n *node) GetNeighbors(exclude string) (neighbors []string) {
 		}
 	}
 	n.routingTable.RUnlock()
+	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
 
 	return
 }
@@ -258,7 +259,8 @@ func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
 	if len(neighbors) == 0 {
 		return "", false
 	}
-	return neighbors[rand.Intn(len(neighbors))], true
+
+	return neighbors[0], true
 }
 
 // CreateMsg creates a new transport message for the given payload

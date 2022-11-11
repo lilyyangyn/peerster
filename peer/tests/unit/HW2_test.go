@@ -1620,19 +1620,15 @@ func Test_HW2_Scenario(t *testing.T) {
 
 			nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
 			defer nodeA.Stop()
-			fmt.Println("A:", nodeA.GetAddr())
 
 			nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
 			defer nodeB.Stop()
-			fmt.Println("B:", nodeB.GetAddr())
 
 			nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
 			defer nodeC.Stop()
-			fmt.Println("C:", nodeC.GetAddr())
 
 			nodeD := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
 			defer nodeD.Stop()
-			fmt.Println("D:", nodeD.GetAddr())
 
 			nodeA.AddPeer(nodeB.GetAddr())
 			nodeB.AddPeer(nodeA.GetAddr())
