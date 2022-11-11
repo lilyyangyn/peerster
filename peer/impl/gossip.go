@@ -147,6 +147,11 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 			}
 		}
 	}
+	// send ACK
+	err := n.SendAckMessage(pkt.Header.RelayedBy, pkt.Header.PacketID)
+	if err != nil {
+		return err
+	}
 	// send RumorsMsg to a random neighbor
 	if toNeighbor {
 		neighbor, ok := n.GetRandomNeighbor(pkt.Header.RelayedBy)
@@ -158,8 +163,7 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 		}
 	}
 	// send ACK
-	err := n.SendAckMessage(pkt.Header.RelayedBy, pkt.Header.PacketID)
-	return err
+	return nil
 }
 
 // ProcessStatusMsg is a callback function to handle received status message
