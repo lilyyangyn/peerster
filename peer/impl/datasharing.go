@@ -3,7 +3,6 @@ package impl
 import (
 	"crypto"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"math/rand"
 	"regexp"
@@ -121,6 +120,31 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	return
 }
 
+// SearchFirst implements peer.SearchFirst
+func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+	// check local
+	success := false
+	regMatch := func(key string, val []byte) bool {
+		if pattern.MatchString(key) {
+			if n.IsFullyKnown(string(val)) {
+				name = key
+				success = true
+				return false
+			}
+		}
+		return true
+	}
+	n.conf.Storage.GetNamingStore().ForEach(regMatch)
+	if success {
+		return
+	}
+
+	// check remote
+	name, err = n.RequestRemoteFullyKnownFile(pattern, conf)
+
+	return
+}
+
 /** Message Handler **/
 
 // ProcessDataRequestMessage is a callback function to handle received data request message
@@ -162,8 +186,8 @@ func (n *node) ProcessSearchRequestMessage(msg types.Message, pkt transport.Pack
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 
-	// not process the request message from self
-	if requestMsg.Origin == n.conf.Socket.GetAddress() {
+	// check duplication
+	if n.messageRecords.add(requestMsg.RequestID) {
 		return nil
 	}
 
@@ -172,11 +196,13 @@ func (n *node) ProcessSearchRequestMessage(msg types.Message, pkt transport.Pack
 	if err != nil {
 		return err
 	}
-	// TODO check timeout
+	// check timeout
 	budget := requestMsg.Budget - 1
 	if budget > 0 {
-		fmt.Println(requestMsg.Origin, budget)
-		n.RequestRemoteNames(*reg, requestMsg.Origin, budget, 100*time.Millisecond)
+		err = n.RequestRemoteNames(*reg, requestMsg.Origin, budget, 0)
+		if err != nil {
+			return err
+		}
 	}
 
 	// construct file info
@@ -193,7 +219,7 @@ func (n *node) ProcessSearchRequestMessage(msg types.Message, pkt transport.Pack
 	n.conf.Storage.GetNamingStore().ForEach(regMatch)
 
 	// send reply
-	err = n.SendSearchReplyMessage(requestMsg.Origin, requestMsg.RequestID, fileinfos)
+	err = n.SendSearchReplyMessage(requestMsg.Origin, pkt.Header.RelayedBy, requestMsg.RequestID, fileinfos)
 	if err != nil {
 		return err
 	}
@@ -213,11 +239,16 @@ func (n *node) ProcessSearchReplyMessage(msg types.Message, pkt transport.Packet
 		n.conf.Storage.GetNamingStore().Set(fileinfo.Name, []byte(fileinfo.Metahash))
 		// update catalog
 		n.catalog.add(fileinfo.Metahash, pkt.Header.Source)
+		isFullyKnown := true
 		for _, chunkCID := range fileinfo.Chunks {
 			if chunkCID == nil {
+				isFullyKnown = false
 				continue
 			}
 			n.catalog.add(string(chunkCID), pkt.Header.Source)
+		}
+		if isFullyKnown {
+			n.catalog.addFullyKnown(fileinfo.Name, pkt.Header.Source)
 		}
 	}
 	if channel, ok := n.replyChannels.get(replyMsg.RequestID); ok {
@@ -251,10 +282,16 @@ func FairBudget(budget uint, pieces uint) (base uint, extra int) {
 func (n *node) GetData(cid string) (data []byte, err error) {
 	var backoffMult uint = 1
 	backoffInfo := n.conf.BackoffDataRequest
+	provider, ok := n.GetRandomProvider(cid)
 	for i := 0; i < int(backoffInfo.Retry); i++ {
 		// check local storage
 		if content := n.conf.Storage.GetDataBlobStore().Get(cid); content != nil {
 			data = content
+			return
+		}
+
+		if !ok {
+			err = xerrors.Errorf("No available provider for %s has been found.", cid)
 			return
 		}
 
@@ -265,7 +302,7 @@ func (n *node) GetData(cid string) (data []byte, err error) {
 		}
 
 		// send request to another peer
-		data, err = n.RequestRemoteData(cid, backoffInfo.Initial)
+		data, err = n.RequestRemoteData(cid, provider, backoffInfo.Initial)
 		if err != nil || data != nil {
 			return
 		}
@@ -301,6 +338,28 @@ func (n *node) GetLocalFileInfo(name string, metahash string) (fileinfo types.Fi
 	return
 }
 
+// IsFullKnown checks if the peer has all chunks of the file locally
+func (n *node) IsFullyKnown(metahash string) (ok bool) {
+	metadata := n.conf.Storage.GetDataBlobStore().Get(metahash)
+	if metadata == nil {
+		ok = false
+		return
+	}
+
+	// get chunks
+	chunkCIDs := strings.Split(string(metadata), peer.MetafileSep)
+	for _, chunkCID := range chunkCIDs {
+		chunkData := n.conf.Storage.GetDataBlobStore().Get(chunkCID)
+		if chunkData == nil {
+			ok = false
+			return
+		}
+	}
+	ok = true
+
+	return
+}
+
 // GetRandomNeighbor randomly returns a neighbor
 func (n *node) GetRandomProvider(cid string) (provider string, ok bool) {
 	n.catalog.RLock()
@@ -319,30 +378,26 @@ func (n *node) GetRandomProvider(cid string) (provider string, ok bool) {
 }
 
 // RequestRemoteData sends a data request to a random provider and wait until timeout
-func (n *node) RequestRemoteData(cid string, timeout time.Duration) (data []byte, err error) {
-	if provider, ok := n.GetRandomProvider(cid); ok {
-		// wait for response
-		rid := xid.New().String()
-		err = n.SendDataRequestMessage(provider, rid, cid)
-		if err != nil {
-			return
+func (n *node) RequestRemoteData(cid string, provider string, timeout time.Duration) (data []byte, err error) {
+	// wait for response
+	rid := xid.New().String()
+	err = n.SendDataRequestMessage(provider, rid, cid)
+	if err != nil {
+		return
+	}
+	channel := make(chan bool)
+	n.replyChannels.add(rid, &channel)
+	select {
+	case <-channel:
+		// get reply
+		n.replyChannels.remove(rid)
+		data = n.conf.Storage.GetDataBlobStore().Get(cid)
+		if data == nil {
+			err = xerrors.Errorf("Empty value in response for %s", cid)
 		}
-		channel := make(chan bool)
-		n.replyChannels.add(rid, &channel)
-		select {
-		case <-channel:
-			// get reply
-			n.replyChannels.remove(rid)
-			data = n.conf.Storage.GetDataBlobStore().Get(cid)
-			if data == nil {
-				err = xerrors.Errorf("Empty value in response for %s", cid)
-			}
-		case <-time.After(timeout):
-			// no reply.
-			data = nil
-		}
-	} else {
-		err = xerrors.Errorf("No available provider for %s has been found.", cid)
+	case <-time.After(timeout):
+		// no reply.
+		data = nil
 	}
 
 	return
@@ -356,29 +411,83 @@ func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint,
 	}
 
 	base, extra := FairBudget(budget, uint(len(neighbors)))
+	rid := xid.New().String()
+	var channel chan bool
+	if timeout > 0 {
+		channel = make(chan bool)
+		n.replyChannels.add(rid, &channel)
+	}
+
 	for i, neighbor := range neighbors {
-		rid := xid.New().String()
+		myBudget := base
 		if i < extra {
-			err = n.SendSearchRequestMessage(neighbor, rid, origin, reg, base+1)
+			myBudget = base + 1
 		} else {
-			if base == 0 {
+			if myBudget == 0 {
 				break
 			}
-			err = n.SendSearchRequestMessage(neighbor, rid, origin, reg, base)
 		}
+		err = n.SendSearchRequestMessage(neighbor, rid, origin, reg, myBudget)
 		if err != nil {
 			return
 		}
-		channel := make(chan bool)
-		n.replyChannels.add(rid, &channel)
-		select {
-		case <-channel:
-			// get reply
-			n.replyChannels.remove(rid)
-		case <-time.After(timeout):
-			// no reply.
+	}
+	if timeout > 0 {
+		var replyNum uint = 0
+		for {
+			select {
+			case <-channel:
+				// get reply
+				replyNum++
+				if replyNum == budget {
+					n.replyChannels.remove(rid)
+					return
+				}
+			case <-time.After(timeout):
+				// no reply.
+				n.replyChannels.remove(rid)
+				return
+			}
 		}
 	}
+
+	return
+}
+
+func (n *node) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+	// expanding-ring search
+	var backoffMult uint = 1
+	for i := 0; i < int(conf.Retry); i++ {
+		// sleep for exponential backoff
+		if i > 0 {
+			time.Sleep(conf.Timeout * time.Duration(backoffMult-1))
+			backoffMult *= conf.Factor
+		}
+
+		// expanding-ring search
+		err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), conf.Initial*backoffMult, conf.Timeout)
+		if err != nil {
+			return
+		}
+
+		// check local catalog
+		success := false
+		regMatch := func(key string, val map[string]struct{}) bool {
+			if reg.MatchString(key) {
+				if len(val) > 0 {
+					name = key
+					success = true
+					return false
+				}
+			}
+			return true
+		}
+		n.catalog.forEachFullyKnown(regMatch)
+		if success {
+			return
+		}
+	}
+
 	return
 }
 
@@ -401,6 +510,11 @@ func (n *node) SendDataReplyMessage(dst string, rid string, cid string, data []b
 		return err
 	}
 	err = n.Unicast(dst, msg)
+	// if err != nil {
+	// 	fmt.Println(n.conf.Socket.GetAddress())
+	// 	fmt.Println(dst)
+	// 	fmt.Println(n.routingTable.table)
+	// }
 	return err
 }
 
@@ -414,17 +528,26 @@ func (n *node) SendSearchRequestMessage(dst string, rid string, origin string, r
 		return err
 	}
 	err = n.SendToNeighbor(dst, msg)
+	if err == nil {
+		n.messageRecords.add(rid)
+	}
 	return err
 }
 
 // SendSearchReplyMessage sends a search reply packet to the given dst
-func (n *node) SendSearchReplyMessage(dst string, rid string, fileinfos []types.FileInfo) error {
+func (n *node) SendSearchReplyMessage(dst string, nextHop string, rid string, fileinfos []types.FileInfo) error {
 	payload := types.SearchReplyMessage{
 		RequestID: rid, Responses: fileinfos}
 	msg, err := n.CreateMsg(payload)
 	if err != nil {
 		return err
 	}
-	err = n.SendToNeighbor(dst, msg)
+	header := transport.NewHeader(
+		n.conf.Socket.GetAddress(),
+		n.conf.Socket.GetAddress(),
+		dst,
+		0)
+	pkt := transport.Packet{Header: &header, Msg: &msg}
+	err = n.conf.Socket.Send(nextHop, pkt, WriteTimeout)
 	return err
 }

@@ -2,7 +2,6 @@ package impl
 
 import (
 	"context"
-	"encoding/json"
 	"math/rand"
 	"time"
 
@@ -32,7 +31,11 @@ func (n *node) Broadcast(msg transport.Message) error {
 		n.conf.Socket.GetAddress(),
 		0)
 	pkt := transport.Packet{Header: &header, Msg: &msg}
-	return n.conf.MessageRegistry.ProcessPacket(pkt)
+	err := n.conf.MessageRegistry.ProcessPacket(pkt)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
@@ -45,18 +48,13 @@ func (n *node) HeartBeatMecahnism(interval time.Duration) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.heartbeatStopSig = cancel
 	go func() {
+		n.SendHeartbeatMessage(types.EmptyMessage{})
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-n.heartbeatTicker.C:
-				payload := types.EmptyMessage{}
-				data, err := json.Marshal(&payload)
-				if err != nil {
-					continue
-				}
-				msg := transport.Message{Type: payload.Name(), Payload: data}
-				err = n.Broadcast(msg)
+				err := n.SendHeartbeatMessage(types.EmptyMessage{})
 				if err != nil {
 					continue
 				}
@@ -276,6 +274,15 @@ func (n *node) CancelTimer(pktID string) {
 		close(done)
 		n.timerController.remove(pktID)
 	}
+}
+
+// SendHeartbeatMessage sends a heartbeat message with the given payload
+func (n *node) SendHeartbeatMessage(payload types.Message) error {
+	msg, err := n.CreateMsg(payload)
+	if err != nil {
+		return err
+	}
+	return n.Broadcast(msg)
 }
 
 // SendAckMessage sends an ACK packet to neighbor

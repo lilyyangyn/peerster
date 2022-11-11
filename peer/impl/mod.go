@@ -33,6 +33,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	// datasharing-related
 	n.catalog = *NewSafeCatalog()
 	n.replyChannels = *NewSafeChannTable()
+	n.messageRecords = *NewSafeMsgRecord()
 
 	n.RegisterMessageHandler()
 
@@ -56,8 +57,9 @@ type node struct {
 	antiEntropyTicker  *time.Ticker
 	antiEntropyStopSig context.CancelFunc
 
-	catalog       SafeCatalog
-	replyChannels SafeChannTable
+	catalog        SafeCatalog
+	replyChannels  SafeChannTable
+	messageRecords SafeMsgRecord
 }
 
 /** Feature Functions **/
@@ -65,6 +67,7 @@ type node struct {
 // Start implements peer.Service
 func (n *node) Start() error {
 	//start a new loop to listen to the message (non-blocking)
+	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
 	go func(ctx context.Context) {
