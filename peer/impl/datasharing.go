@@ -32,7 +32,7 @@ func (n *node) Upload(data io.Reader) (metahash string, err error) {
 			break
 		} else if readErr != nil {
 			err = readErr
-			return
+			return metahash, err
 		}
 
 		// compute CID
@@ -51,7 +51,7 @@ func (n *node) Upload(data io.Reader) (metahash string, err error) {
 	_, metahash = ComputeCID(metakey)
 	blobStorage.Set(metahash, metadata)
 
-	return
+	return metahash, err
 }
 
 // Download implements peer.Download
@@ -60,7 +60,7 @@ func (n *node) Download(metahash string) (data []byte, err error) {
 	metadata, readErr := n.GetData(metahash)
 	if readErr != nil {
 		err = readErr
-		return
+		return data, err
 	}
 	// get chunks
 	chunkCIDs := strings.Split(string(metadata), peer.MetafileSep)
@@ -69,12 +69,12 @@ func (n *node) Download(metahash string) (data []byte, err error) {
 		chunkData, readErr := n.GetData(chunkCID)
 		if readErr != nil {
 			err = readErr
-			return
+			return data, err
 		}
 		data = append(data, chunkData...)
 	}
 
-	return
+	return data, err
 }
 
 // Tag implements peer.Tag
@@ -84,9 +84,8 @@ func (n *node) Tag(name string, mh string) error {
 }
 
 // Resolve implements peer.Resolve
-func (n *node) Resolve(name string) (metahash string) {
-	metahash = string(n.conf.Storage.GetNamingStore().Get(name))
-	return
+func (n *node) Resolve(name string) string {
+	return string(n.conf.Storage.GetNamingStore().Get(name))
 }
 
 // GetCatalog implements peer.GetCatalog
@@ -105,7 +104,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	rid := xid.New().String()
 	err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), budget, rid, timeout)
 	if err != nil {
-		return
+		return names, err
 	}
 
 	// search in local naming store
@@ -118,7 +117,7 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 	}
 	n.conf.Storage.GetNamingStore().ForEach(regMatch)
 
-	return
+	return names, err
 }
 
 // SearchFirst implements peer.SearchFirst
@@ -137,13 +136,13 @@ func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name
 	}
 	n.conf.Storage.GetNamingStore().ForEach(regMatch)
 	if success {
-		return
+		return name, err
 	}
 
 	// check remote
 	name, err = n.RequestRemoteFullyKnownFile(pattern, conf)
 
-	return
+	return name, err
 }
 
 /** Message Handler **/
@@ -268,7 +267,7 @@ func ComputeCID(data []byte) (hash []byte, hashHex string) {
 	hash = h.Sum(nil)
 	hashHex = hex.EncodeToString(hash)
 
-	return
+	return hash, hashHex
 }
 
 // FairBudget distributes budget as fairly as possible to pieces
@@ -276,7 +275,7 @@ func FairBudget(budget uint, pieces uint) (base uint, extra int) {
 	base = budget / pieces
 	extra = int(budget % pieces)
 
-	return
+	return base, extra
 }
 
 // GetData returns an byte araay of the given encoded hash
@@ -288,12 +287,12 @@ func (n *node) GetData(cid string) (data []byte, err error) {
 		// check local storage
 		if content := n.conf.Storage.GetDataBlobStore().Get(cid); content != nil {
 			data = content
-			return
+			return data, err
 		}
 
 		if !ok {
 			err = xerrors.Errorf("No available provider for %s has been found.", cid)
-			return
+			return data, err
 		}
 
 		// sleep for exponential backoff
@@ -305,12 +304,12 @@ func (n *node) GetData(cid string) (data []byte, err error) {
 		// send request to another peer
 		data, err = n.RequestRemoteData(cid, provider, backoffInfo.Initial)
 		if err != nil || data != nil {
-			return
+			return data, err
 		}
 	}
 	err = xerrors.Errorf("Data request timed out for %s", cid)
 
-	return
+	return data, err
 }
 
 // GetLocalFileInfo constructs a list of fileinfo from local storage
@@ -318,7 +317,7 @@ func (n *node) GetLocalFileInfo(name string, metahash string) (fileinfo types.Fi
 	metadata := n.conf.Storage.GetDataBlobStore().Get(metahash)
 	if metadata == nil {
 		ok = false
-		return
+		return fileinfo, ok
 	}
 
 	// get chunks
@@ -336,7 +335,7 @@ func (n *node) GetLocalFileInfo(name string, metahash string) (fileinfo types.Fi
 	fileinfo = types.FileInfo{Name: name, Metahash: metahash, Chunks: chunks}
 	ok = true
 
-	return
+	return fileinfo, ok
 }
 
 // IsFullKnown checks if the peer has all chunks of the file locally
@@ -344,7 +343,7 @@ func (n *node) IsFullyKnown(metahash string) (ok bool) {
 	metadata := n.conf.Storage.GetDataBlobStore().Get(metahash)
 	if metadata == nil {
 		ok = false
-		return
+		return ok
 	}
 
 	// get chunks
@@ -353,29 +352,29 @@ func (n *node) IsFullyKnown(metahash string) (ok bool) {
 		chunkData := n.conf.Storage.GetDataBlobStore().Get(chunkCID)
 		if chunkData == nil {
 			ok = false
-			return
+			return ok
 		}
 	}
 	ok = true
 
-	return
+	return ok
 }
 
 // GetRandomNeighbor randomly returns a neighbor
 func (n *node) GetRandomProvider(cid string) (provider string, ok bool) {
 	n.catalog.RLock()
 	providers := []string{}
-	for key, _ := range n.catalog.catalog[cid] {
+	for key := range n.catalog.catalog[cid] {
 		providers = append(providers, key)
 	}
 	n.catalog.RUnlock()
 	if len(providers) == 0 {
 		ok = false
-		return
+		return provider, ok
 	}
 	provider, ok = providers[rand.Intn(len(providers))], true
 
-	return
+	return provider, ok
 }
 
 // RequestRemoteData sends a data request to a random provider and wait until timeout
@@ -384,7 +383,7 @@ func (n *node) RequestRemoteData(cid string, provider string, timeout time.Durat
 	rid := xid.New().String()
 	err = n.SendDataRequestMessage(provider, rid, cid)
 	if err != nil {
-		return
+		return data, err
 	}
 	channel := make(chan bool)
 	n.replyChannels.add(rid, &channel)
@@ -401,14 +400,14 @@ func (n *node) RequestRemoteData(cid string, provider string, timeout time.Durat
 		data = nil
 	}
 
-	return
+	return data, err
 }
 
 // RequestRemoteNames requests remote peers for matched names
 func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint, rid string, timeout time.Duration) (err error) {
 	neighbors := n.GetNeighbors(origin)
 	if len(neighbors) == 0 {
-		return
+		return nil
 	}
 
 	base, extra := FairBudget(budget, uint(len(neighbors)))
@@ -429,11 +428,11 @@ func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint,
 		}
 		err = n.SendSearchRequestMessage(neighbor, rid, origin, reg, myBudget)
 		if err != nil {
-			return
+			return err
 		}
 	}
 	if timeout > 0 {
-		var replyNum uint = 0
+		var replyNum uint
 		for {
 			select {
 			case <-channel:
@@ -441,17 +440,17 @@ func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint,
 				replyNum++
 				if replyNum == budget {
 					n.replyChannels.remove(rid)
-					return
+					return nil
 				}
 			case <-time.After(timeout):
 				// no reply.
 				n.replyChannels.remove(rid)
-				return
+				return nil
 			}
 		}
 	}
 
-	return
+	return err
 }
 
 func (n *node) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
@@ -468,7 +467,7 @@ func (n *node) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.Expandin
 		rid := xid.New().String()
 		err = n.RequestRemoteNames(reg, n.conf.Socket.GetAddress(), conf.Initial*backoffMult, rid, conf.Timeout)
 		if err != nil {
-			return
+			return name, err
 		}
 
 		// check local catalog
@@ -485,11 +484,11 @@ func (n *node) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.Expandin
 		}
 		n.catalog.forEachFullyKnown(regMatch)
 		if success {
-			return
+			return name, err
 		}
 	}
 
-	return
+	return name, err
 }
 
 // SendStatusMessage sends a data request packet to the given dst

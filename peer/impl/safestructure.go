@@ -164,7 +164,7 @@ func (c *SafeCatalog) getAll() peer.Catalog {
 	c.RLock()
 	for key, value := range c.catalog {
 		innerMap := make(map[string]struct{}, len(value))
-		for innerKey, _ := range value {
+		for innerKey := range value {
 			innerMap[innerKey] = struct{}{}
 		}
 		catalog[key] = innerMap

@@ -46,7 +46,7 @@ func (n *node) HeartBeatMecahnism(interval time.Duration, ctx context.Context) e
 	}
 	heartbeatTicker := time.NewTicker(interval)
 	go func() {
-		n.SendHeartbeatMessage(types.EmptyMessage{})
+		_ = n.SendHeartbeatMessage(types.EmptyMessage{})
 		for {
 			select {
 			case <-ctx.Done():

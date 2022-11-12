@@ -239,7 +239,7 @@ func (n *node) GetNeighbors(exclude string) (neighbors []string) {
 	n.routingTable.RUnlock()
 	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
 
-	return
+	return neighbors
 }
 
 // GetRandomNeighbor randomly returns a neighbor
