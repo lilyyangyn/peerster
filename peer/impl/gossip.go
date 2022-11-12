@@ -45,11 +45,12 @@ func (n *node) HeartBeatMecahnism(interval time.Duration, ctx context.Context) e
 		return nil
 	}
 	heartbeatTicker := time.NewTicker(interval)
+	_ = n.SendHeartbeatMessage(types.EmptyMessage{})
 	go func() {
-		_ = n.SendHeartbeatMessage(types.EmptyMessage{})
 		for {
 			select {
 			case <-ctx.Done():
+				heartbeatTicker.Stop()
 				return
 			case <-heartbeatTicker.C:
 				err := n.SendHeartbeatMessage(types.EmptyMessage{})
@@ -73,6 +74,7 @@ func (n *node) AntiEntropyMechanism(interval time.Duration, ctx context.Context)
 		for {
 			select {
 			case <-ctx.Done():
+				antiEntropyTicker.Stop()
 				return
 			case <-antiEntropyTicker.C:
 				neighbor, ok := n.GetRandomNeighbor("")
@@ -139,7 +141,7 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 			}
 			err := n.conf.MessageRegistry.ProcessPacket(newPkt)
 			if err != nil {
-				continue
+				return err
 			}
 		}
 	}
@@ -152,7 +154,7 @@ func (n *node) ProcessRumorsMsg(msg types.Message, pkt transport.Packet) error {
 	if toNeighbor {
 		neighbor, ok := n.GetRandomNeighbor(pkt.Header.RelayedBy)
 		if ok {
-			err := n.SendRumorsMessage(neighbor, &rumorsMsg.Rumors)
+			err := n.SendDirectMessageWithACK(neighbor, *pkt.Msg)
 			if err != nil {
 				return err
 			}
@@ -173,18 +175,22 @@ func (n *node) ProcessStatusMsg(msg types.Message, pkt transport.Packet) error {
 	if catchUp {
 		// send a status message to the remote peer
 		err := n.SendStatusMessage(pkt.Header.RelayedBy)
-		return err
+		if err != nil {
+			return err
+		}
 	}
 	if len(rumors) > 0 {
 		// send all the missing Rumors (increasing seqID) in a single RumorsMessage
 		payload := types.RumorsMessage{Rumors: rumors}
-		msg, err := n.CreateMsg(payload)
+		msg, err := n.conf.MessageRegistry.MarshalMessage(payload)
 		if err != nil {
 			return err
 		}
 		err = n.SendToNeighbor(pkt.Header.RelayedBy, msg)
 		// no expect of ACK
-		return err
+		if err != nil {
+			return err
+		}
 	}
 	if !catchUp && len(rumors) == 0 {
 		// Both peers have the same view. ContinueMongering
@@ -202,7 +208,7 @@ func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
 	// stop timer
 	n.CancelTimer(pkt.Header.PacketID)
 	// process status message
-	newMsg, err := n.CreateMsg(&ACKkMsg.Status)
+	newMsg, err := n.conf.MessageRegistry.MarshalMessage(&ACKkMsg.Status)
 	if err != nil {
 		return err
 	}
@@ -211,11 +217,15 @@ func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
 		Msg:    &newMsg,
 	}
 	return n.conf.MessageRegistry.ProcessPacket(newPkt)
-	// return n.ProcessStatusMsg(&ACKkMsg.Status, pkt)
 }
 
 // ProcessEmptyMsg takes the empty message and do nothing
 func (n *node) ProcessEmptyMsg(msg types.Message, pkt transport.Packet) error {
+	_, ok := msg.(*types.EmptyMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
 	return nil
 }
 
@@ -283,7 +293,7 @@ func (n *node) CancelTimer(pktID string) {
 
 // SendHeartbeatMessage sends a heartbeat message with the given payload
 func (n *node) SendHeartbeatMessage(payload types.Message) error {
-	msg, err := n.CreateMsg(payload)
+	msg, err := n.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
@@ -293,7 +303,7 @@ func (n *node) SendHeartbeatMessage(payload types.Message) error {
 // SendAckMessage sends an ACK packet to neighbor
 func (n *node) SendAckMessage(dst string, ACKPktID string) error {
 	payload := types.AckMessage{AckedPacketID: ACKPktID, Status: types.StatusMessage(n.rumorsTable.getStatus())}
-	msg, err := n.CreateMsg(payload)
+	msg, err := n.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
@@ -304,7 +314,7 @@ func (n *node) SendAckMessage(dst string, ACKPktID string) error {
 // SendStatusMessage sends an status packet to neighbor
 func (n *node) SendStatusMessage(dst string) error {
 	payload := types.StatusMessage(n.rumorsTable.getStatus())
-	msg, err := n.CreateMsg(payload)
+	msg, err := n.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
@@ -315,10 +325,15 @@ func (n *node) SendStatusMessage(dst string) error {
 // SendRumorsMessage unicasts an rumors packet
 func (n *node) SendRumorsMessage(dst string, rumors *[]types.Rumor) error {
 	payload := types.RumorsMessage{Rumors: *rumors}
-	msg, err := n.CreateMsg(payload)
+	msg, err := n.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
+	return n.SendDirectMessageWithACK(dst, msg)
+}
+
+// SendDirectMessageWithACK sends a packet to neighbor and wait for ack
+func (n *node) SendDirectMessageWithACK(dst string, msg transport.Message) error {
 	header := transport.NewHeader(
 		n.conf.Socket.GetAddress(),
 		n.conf.Socket.GetAddress(),
@@ -326,7 +341,7 @@ func (n *node) SendRumorsMessage(dst string, rumors *[]types.Rumor) error {
 		0)
 	pkt := transport.Packet{Header: &header, Msg: &msg}
 	n.RegisterTimer(&pkt, n.conf.AckTimeout)
-	err = n.conf.Socket.Send(dst, pkt, WriteTimeout)
+	err := n.conf.Socket.Send(dst, pkt, WriteTimeout)
 	return err
 }
 

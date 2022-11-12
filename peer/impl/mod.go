@@ -237,7 +237,6 @@ func (n *node) GetNeighbors(exclude string) (neighbors []string) {
 		}
 	}
 	n.routingTable.RUnlock()
-	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
 
 	return neighbors
 }
@@ -249,7 +248,7 @@ func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
 		return "", false
 	}
 
-	return neighbors[0], true
+	return neighbors[rand.Intn(len(neighbors))], true
 }
 
 // CreateMsg creates a new transport message for the given payload

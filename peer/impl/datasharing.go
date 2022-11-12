@@ -406,6 +406,7 @@ func (n *node) RequestRemoteData(cid string, provider string, timeout time.Durat
 // RequestRemoteNames requests remote peers for matched names
 func (n *node) RequestRemoteNames(reg regexp.Regexp, origin string, budget uint, rid string, timeout time.Duration) (err error) {
 	neighbors := n.GetNeighbors(origin)
+	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
 	if len(neighbors) == 0 {
 		return nil
 	}
