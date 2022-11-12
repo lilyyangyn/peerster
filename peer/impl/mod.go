@@ -66,7 +66,7 @@ func (n *node) Start() error {
 	// rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
-	go func(ctx context.Context) {
+	go func() {
 		for {
 			select {
 			case <-ctx.Done():
@@ -83,13 +83,13 @@ func (n *node) Start() error {
 				}
 			}
 		}
-	}(ctx)
+	}()
 
-	err := n.HeartBeatMecahnism(n.conf.HeartbeatInterval, ctx)
+	err := n.HeartBeatMecahnism(ctx, n.conf.HeartbeatInterval)
 	if err != nil {
 		return err
 	}
-	err = n.AntiEntropyMechanism(n.conf.AntiEntropyInterval, ctx)
+	err = n.AntiEntropyMechanism(ctx, n.conf.AntiEntropyInterval)
 	// return once ready to use
 	return err
 }

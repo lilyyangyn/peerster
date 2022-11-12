@@ -39,7 +39,7 @@ func (n *node) Broadcast(msg transport.Message) error {
 }
 
 // HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
-func (n *node) HeartBeatMecahnism(interval time.Duration, ctx context.Context) error {
+func (n *node) HeartBeatMecahnism(ctx context.Context, interval time.Duration) error {
 	if interval == 0 {
 		// the heartbeat mechanism must not be activated
 		return nil
@@ -64,7 +64,7 @@ func (n *node) HeartBeatMecahnism(interval time.Duration, ctx context.Context) e
 }
 
 // AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
-func (n *node) AntiEntropyMechanism(interval time.Duration, ctx context.Context) error {
+func (n *node) AntiEntropyMechanism(ctx context.Context, interval time.Duration) error {
 	if interval == 0 {
 		// the anti-entropy mechanism must not be activated
 		return nil
