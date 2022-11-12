@@ -50,12 +50,8 @@ type node struct {
 	stopSig      context.CancelFunc
 	routingTable SafeRoutingTable
 
-	rumorsTable        SafeRumorsTable
-	timerController    TimerController
-	heartbeatTicker    *time.Ticker
-	heartbeatStopSig   context.CancelFunc
-	antiEntropyTicker  *time.Ticker
-	antiEntropyStopSig context.CancelFunc
+	rumorsTable     SafeRumorsTable
+	timerController TimerController
 
 	catalog        SafeCatalog
 	replyChannels  SafeChannTable
@@ -89,11 +85,11 @@ func (n *node) Start() error {
 		}
 	}(ctx)
 
-	err := n.HeartBeatMecahnism(n.conf.HeartbeatInterval)
+	err := n.HeartBeatMecahnism(n.conf.HeartbeatInterval, ctx)
 	if err != nil {
 		return err
 	}
-	err = n.AntiEntropyMechanism(n.conf.AntiEntropyInterval)
+	err = n.AntiEntropyMechanism(n.conf.AntiEntropyInterval, ctx)
 	// return once ready to use
 	return err
 }
@@ -104,14 +100,6 @@ func (n *node) Stop() error {
 		return nil
 	}
 
-	if n.conf.HeartbeatInterval != 0 {
-		n.heartbeatStopSig()
-		n.heartbeatTicker.Stop()
-	}
-	if n.conf.AntiEntropyInterval != 0 {
-		n.antiEntropyStopSig()
-		n.antiEntropyTicker.Stop()
-	}
 	n.stopSig()
 	return nil
 }
@@ -214,6 +202,7 @@ func (n *node) RegisterMessageHandler() {
 	n.conf.MessageRegistry.RegisterMessageCallback(types.StatusMessage{}, n.ProcessStatusMsg)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.RumorsMessage{}, n.ProcessRumorsMsg)
 	n.conf.MessageRegistry.RegisterMessageCallback(types.AckMessage{}, n.ProcessAckMsg)
+	n.conf.MessageRegistry.RegisterMessageCallback(types.EmptyMessage{}, n.ProcessEmptyMsg)
 
 	// datasharing-related
 	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ProcessDataRequestMessage)

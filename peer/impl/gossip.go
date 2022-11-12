@@ -39,21 +39,19 @@ func (n *node) Broadcast(msg transport.Message) error {
 }
 
 // HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
-func (n *node) HeartBeatMecahnism(interval time.Duration) error {
+func (n *node) HeartBeatMecahnism(interval time.Duration, ctx context.Context) error {
 	if interval == 0 {
 		// the heartbeat mechanism must not be activated
 		return nil
 	}
-	n.heartbeatTicker = time.NewTicker(interval)
-	ctx, cancel := context.WithCancel(context.Background())
-	n.heartbeatStopSig = cancel
+	heartbeatTicker := time.NewTicker(interval)
 	go func() {
 		n.SendHeartbeatMessage(types.EmptyMessage{})
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-n.heartbeatTicker.C:
+			case <-heartbeatTicker.C:
 				err := n.SendHeartbeatMessage(types.EmptyMessage{})
 				if err != nil {
 					continue
@@ -65,20 +63,18 @@ func (n *node) HeartBeatMecahnism(interval time.Duration) error {
 }
 
 // AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
-func (n *node) AntiEntropyMechanism(interval time.Duration) error {
+func (n *node) AntiEntropyMechanism(interval time.Duration, ctx context.Context) error {
 	if interval == 0 {
 		// the anti-entropy mechanism must not be activated
 		return nil
 	}
-	n.antiEntropyTicker = time.NewTicker(interval)
-	ctx, cancel := context.WithCancel(context.Background())
-	n.antiEntropyStopSig = cancel
+	antiEntropyTicker := time.NewTicker(interval)
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-n.antiEntropyTicker.C:
+			case <-antiEntropyTicker.C:
 				neighbor, ok := n.GetRandomNeighbor("")
 				if !ok {
 					// no available neighbor
@@ -216,6 +212,11 @@ func (n *node) ProcessAckMsg(msg types.Message, pkt transport.Packet) error {
 	}
 	return n.conf.MessageRegistry.ProcessPacket(newPkt)
 	// return n.ProcessStatusMsg(&ACKkMsg.Status, pkt)
+}
+
+// ProcessEmptyMsg takes the empty message and do nothing
+func (n *node) ProcessEmptyMsg(msg types.Message, pkt transport.Packet) error {
+	return nil
 }
 
 /** Private Helpfer Functions **/
