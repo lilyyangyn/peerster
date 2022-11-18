@@ -2,15 +2,12 @@ package impl
 
 import (
 	"context"
-	"encoding/json"
-	"math/rand"
+	"io"
+	"regexp"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
-	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 const ReadTimeout = time.Millisecond * 100
@@ -21,21 +18,15 @@ const WriteTimeout = time.Millisecond * 100
 func NewPeer(conf peer.Configuration) peer.Peer {
 	// here you must return a struct that implements the peer.Peer functions.
 	// Therefore, you are free to rename and change it as you want.
-	n := node{}
-	n.conf = conf
-	n.stopSig = nil
+	n := node{
+		conf:    conf,
+		stopSig: nil,
+	}
 	n.routingTable = *NewSafeRoutingTable(n.conf.Socket.GetAddress())
 
-	// gossip-related
-	n.rumorsTable = *NewSafeRumorsTable()
-	n.timerController = *NewTimeController()
-
-	// datasharing-related
-	n.catalog = *NewSafeCatalog()
-	n.replyChannels = *NewSafeChannTable()
-	n.messageRecords = *NewSafeMsgRecord()
-
-	n.RegisterMessageHandler()
+	n.ChatModule = NewChatModule(&n)
+	n.GossipModule = NewGossipModule(&n)
+	n.DataSharingModule = NewDataSharingModule(&n)
 
 	return &n
 }
@@ -47,15 +38,12 @@ type node struct {
 	peer.Peer
 	conf peer.Configuration
 
+	*ChatModule
+	*GossipModule
+	*DataSharingModule
+
 	stopSig      context.CancelFunc
 	routingTable SafeRoutingTable
-
-	rumorsTable     SafeRumorsTable
-	timerController TimerController
-
-	catalog        SafeCatalog
-	replyChannels  SafeChannTable
-	messageRecords SafeMsgRecord
 }
 
 /** Feature Functions **/
@@ -66,41 +54,21 @@ func (n *node) Start() error {
 	// rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				// use context to determine when to stop the goroutine
-				return
-			default:
-				pkt, err := n.conf.Socket.Recv(ReadTimeout)
-				if err != nil {
-					continue
-				}
-				err = n.ProcessPkt(pkt)
-				if err != nil {
-					continue
-				}
-			}
-		}
-	}()
 
-	err := n.HeartBeatMecahnism(ctx, n.conf.HeartbeatInterval)
-	if err != nil {
-		return err
-	}
-	err = n.AntiEntropyMechanism(ctx, n.conf.AntiEntropyInterval)
+	go n.MessagingDaemon(ctx)
+	go n.HeartBeatDaemon(ctx, n.conf.HeartbeatInterval)
+	go n.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+
 	// return once ready to use
-	return err
+	return nil
 }
 
 // Stop implements peer.Service
 func (n *node) Stop() error {
-	if n.stopSig == nil {
-		return nil
+	if n.stopSig != nil {
+		n.stopSig()
 	}
 
-	n.stopSig()
 	return nil
 }
 
@@ -119,6 +87,11 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 	}
 	err = n.conf.Socket.Send(nextPeer, pkt, WriteTimeout)
 	return err
+}
+
+// Broadcast implements peer.Messaging
+func (n *node) Broadcast(msg transport.Message) error {
+	return n.GossipModule.Broadcast(msg)
 }
 
 // AddPeer implements peer.Service
@@ -149,126 +122,42 @@ func (n *node) SetRoutingEntry(origin, relayAddr string) {
 	n.routingTable.add(origin, relayAddr)
 }
 
-/** Message Handler **/
-
-// ProcessChatMessage is a callback function to handle received chat message
-func (n *node) ProcessChatMessage(msg types.Message, pkt transport.Packet) error {
-	// cast the message to its actual type. You assume it is the right type.
-	chatMsg, ok := msg.(*types.ChatMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
-	log.Info().Msgf("%s received a chat message from: %s. Msg: %s",
-		n.conf.Socket.GetAddress(),
-		pkt.Header.Source,
-		chatMsg.Message)
-	return nil
+// Upload implements peer.Upload
+func (n *node) Upload(data io.Reader) (metahash string, err error) {
+	return n.DataSharingModule.Upload(data)
 }
 
-/** Private Helpfer Functions **/
-
-// ProcessPkt processes packet received
-func (n *node) ProcessPkt(pkt transport.Packet) error {
-	pktDst := pkt.Header.Destination
-	if pktDst == n.conf.Socket.GetAddress() {
-		// use register to process the message if the node is dest
-		err := n.conf.MessageRegistry.ProcessPacket(pkt)
-		if err != nil {
-			return err
-		}
-	} else {
-		// relay to the next peer
-		pkt.Header.RelayedBy = n.conf.Socket.GetAddress()
-		nextPeer, err := n.GetRoutingInfo(pktDst)
-		if err != nil {
-			// no routing information. Just drop the packet
-			return err
-		}
-		err = n.conf.Socket.Send(nextPeer, pkt, WriteTimeout)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+// Download implements peer.Download
+func (n *node) Download(metahash string) (data []byte, err error) {
+	return n.DataSharingModule.Download(metahash)
 }
 
-// RegisterMessageHandler registers handlers for different message types
-func (n *node) RegisterMessageHandler() {
-	n.conf.MessageRegistry.RegisterMessageCallback(types.ChatMessage{}, n.ProcessChatMessage)
-
-	// gossip-related
-	n.conf.MessageRegistry.RegisterMessageCallback(types.PrivateMessage{}, n.ProcessPrivateMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.StatusMessage{}, n.ProcessStatusMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.RumorsMessage{}, n.ProcessRumorsMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.AckMessage{}, n.ProcessAckMsg)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.EmptyMessage{}, n.ProcessEmptyMsg)
-
-	// datasharing-related
-	n.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, n.ProcessDataRequestMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.DataReplyMessage{}, n.ProcessDataReplyMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchRequestMessage{}, n.ProcessSearchRequestMessage)
-	n.conf.MessageRegistry.RegisterMessageCallback(types.SearchReplyMessage{}, n.ProcessSearchReplyMessage)
+// Tag implements peer.Tag
+func (n *node) Tag(name string, mh string) error {
+	return n.DataSharingModule.Tag(name, mh)
 }
 
-// GetRoutingInfo gets routing information from routing table or error if entry not exists
-func (n *node) GetRoutingInfo(dst string) (string, error) {
-	nextHop, ok := n.routingTable.get(dst)
-	if !ok {
-		// no routing information. Just drop the packet
-		return "", xerrors.Errorf("No routing information to %s", dst)
-	}
-	return nextHop, nil
+// Resolve implements peer.Resolve
+func (n *node) Resolve(name string) string {
+	return n.DataSharingModule.Resolve(name)
 }
 
-// GetNeighbors returns a list of all neighbors
-func (n *node) GetNeighbors(exclude string) (neighbors []string) {
-	n.routingTable.RLock()
-	neighbors = []string{}
-	for key, val := range n.routingTable.table {
-		if key == n.conf.Socket.GetAddress() {
-			continue
-		}
-		if key == exclude {
-			continue
-		}
-		if key == val {
-			neighbors = append(neighbors, key)
-		}
-	}
-	n.routingTable.RUnlock()
-
-	return neighbors
+// GetCatalog implements peer.GetCatalog
+func (n *node) GetCatalog() peer.Catalog {
+	return n.DataSharingModule.GetCatalog()
 }
 
-// GetRandomNeighbor randomly returns a neighbor
-func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
-	neighbors := n.GetNeighbors(exclude)
-	if len(neighbors) == 0 {
-		return "", false
-	}
-
-	return neighbors[rand.Intn(len(neighbors))], true
+// UpdateCatalog implements peer.UpdateCatalog
+func (n *node) UpdateCatalog(key string, peer string) {
+	n.DataSharingModule.UpdateCatalog(key, peer)
 }
 
-// CreateMsg creates a new transport message for the given payload
-func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
-	data, err := json.Marshal(&payload)
-	if err != nil {
-		return transport.Message{}, err
-	}
-	msg := transport.Message{Type: payload.Name(), Payload: data}
-	return msg, nil
+// SearchAll implements peer.SearchAll
+func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+	return n.DataSharingModule.SearchAll(reg, budget, timeout)
 }
 
-// SendToNeighbor randomly select a neighbor and send the packet
-func (n *node) SendToNeighbor(dest string, msg transport.Message) error {
-	header := transport.NewHeader(
-		n.conf.Socket.GetAddress(),
-		n.conf.Socket.GetAddress(),
-		dest,
-		0)
-	pkt := transport.Packet{Header: &header, Msg: &msg}
-	err := n.conf.Socket.Send(dest, pkt, WriteTimeout)
-	return err
+// SearchFirst implements peer.SearchFirst
+func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+	return n.DataSharingModule.SearchFirst(pattern, conf)
 }
