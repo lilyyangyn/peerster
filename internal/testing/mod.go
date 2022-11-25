@@ -698,6 +698,16 @@ func ValidateBlockchain(t *testing.T, store storage.Store) {
 	require.Equal(t, uint(0), block.Index)
 }
 
+// MustDecode decodes an hex string and panic if it fails
+func MustDecode(hexStr string) []byte {
+	buff, err := hex.DecodeString(hexStr)
+	if err != nil {
+		panic("failed to decode: " + err.Error())
+	}
+
+	return buff
+}
+
 // GetRandBytes returns random bytes.
 func GetRandBytes(t *testing.T) []byte {
 	res := make([]byte, 12)
@@ -752,14 +762,4 @@ func GetSocket(t *testing.T, transp transport.Transport, addr string) transport.
 // if this is a binnode.
 type Terminable interface {
 	Terminate() error
-}
-
-// MustDecode decodes an hex string and panic if it fails
-func MustDecode(hexStr string) []byte {
-	buff, err := hex.DecodeString(hexStr)
-	if err != nil {
-		panic("failed to decode: " + err.Error())
-	}
-
-	return buff
 }
