@@ -55,6 +55,7 @@ func (m *GossipModule) Broadcast(msg transport.Message) error {
 	pkt := transport.Packet{Header: &header, Msg: &msg}
 	err := m.conf.MessageRegistry.ProcessPacket(pkt)
 	if err != nil {
+		// return
 		return err
 	}
 	return nil

@@ -21,6 +21,8 @@ type DataSharingModule struct {
 	catalog        SafeCatalog
 	replyChannels  SafeChannTable
 	messageRecords SafeMsgRecord
+
+	*PaxosModule
 }
 
 func NewDataSharingModule(n *node) *DataSharingModule {
@@ -29,6 +31,8 @@ func NewDataSharingModule(n *node) *DataSharingModule {
 		catalog:        *NewSafeCatalog(),
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
+
+		PaxosModule: NewPaxosModule(n),
 	}
 
 	// message registery
@@ -103,8 +107,12 @@ func (m *DataSharingModule) Download(metahash string) (data []byte, err error) {
 
 // Tag implements peer.Tag
 func (m *DataSharingModule) Tag(name string, mh string) error {
-	m.conf.Storage.GetNamingStore().Set(name, []byte(mh))
-	return nil
+	if m.conf.TotalPeers == 1 {
+		m.conf.Storage.GetNamingStore().Set(name, []byte(mh))
+		return nil
+	}
+
+	return m.InitTagConensus(name, mh)
 }
 
 // Resolve implements peer.Resolve
