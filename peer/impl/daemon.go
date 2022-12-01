@@ -9,27 +9,30 @@ import (
 
 // MessagingDaemon starts a new loop to listen to the message
 func (n *node) MessagingDaemon(ctx context.Context) error {
-out:
-	for {
-		select {
-		case <-ctx.Done():
-			// use context to determine when to stop the goroutine
-			break out
-		default:
-			pkt, err := n.conf.Socket.Recv(ReadTimeout)
-			if err != nil {
-				continue
-			}
-			go func() {
-				err = n.ProcessPkt(pkt)
+	go func() {
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				// use context to determine when to stop the goroutine
+				break out
+			default:
+				pkt, err := n.conf.Socket.Recv(ReadTimeout)
 				if err != nil {
-					return
-					// continue
+					continue
 				}
-			}()
+				go func() {
+					err = n.ProcessPkt(pkt)
+					if err != nil {
+						return
+						// continue
+					}
+				}()
 
+			}
 		}
-	}
+	}()
+
 	return nil
 }
 
@@ -40,20 +43,26 @@ func (n *node) HeartBeatDaemon(ctx context.Context, interval time.Duration) erro
 		return nil
 	}
 	heartbeatTicker := time.NewTicker(interval)
-	_ = n.SendHeartbeatMessage(types.EmptyMessage{})
-out:
-	for {
-		select {
-		case <-ctx.Done():
-			heartbeatTicker.Stop()
-			break out
-		case <-heartbeatTicker.C:
-			err := n.SendHeartbeatMessage(types.EmptyMessage{})
-			if err != nil {
-				continue
+	err := n.SendHeartbeatMessage(types.EmptyMessage{})
+	if err != nil {
+		return err
+	}
+
+	go func() {
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				heartbeatTicker.Stop()
+				break out
+			case <-heartbeatTicker.C:
+				err := n.SendHeartbeatMessage(types.EmptyMessage{})
+				if err != nil {
+					continue
+				}
 			}
 		}
-	}
+	}()
 
 	return nil
 }
@@ -65,24 +74,27 @@ func (n *node) AntiEntropyDaemon(ctx context.Context, interval time.Duration) er
 		return nil
 	}
 	antiEntropyTicker := time.NewTicker(interval)
-out:
-	for {
-		select {
-		case <-ctx.Done():
-			antiEntropyTicker.Stop()
-			break out
-		case <-antiEntropyTicker.C:
-			neighbor, ok := n.GetRandomNeighbor("")
-			if !ok {
-				// no available neighbor
-				continue
-			}
-			err := n.SendStatusMessage(neighbor)
-			if err != nil {
-				continue
+
+	go func() {
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				antiEntropyTicker.Stop()
+				break out
+			case <-antiEntropyTicker.C:
+				neighbor, ok := n.GetRandomNeighbor("")
+				if !ok {
+					// no available neighbor
+					continue
+				}
+				err := n.SendStatusMessage(neighbor)
+				if err != nil {
+					continue
+				}
 			}
 		}
-	}
+	}()
 
 	return nil
 }

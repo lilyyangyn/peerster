@@ -131,7 +131,8 @@ func (m *DataSharingModule) UpdateCatalog(key string, peer string) {
 }
 
 // SearchAll implements peer.SearchAll
-func (m *DataSharingModule) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+func (m *DataSharingModule) SearchAll(reg regexp.Regexp, budget uint,
+	timeout time.Duration) (names []string, err error) {
 	// search in remote naming store
 	rid := xid.New().String()
 	err = m.RequestRemoteNames(reg, m.conf.Socket.GetAddress(), budget, rid, timeout)
@@ -410,7 +411,8 @@ func (m *DataSharingModule) GetRandomProvider(cid string) (provider string, ok b
 }
 
 // RequestRemoteData sends a data request to a random provider and wait until timeout
-func (m *DataSharingModule) RequestRemoteData(cid string, provider string, timeout time.Duration) (data []byte, err error) {
+func (m *DataSharingModule) RequestRemoteData(cid string, provider string,
+	timeout time.Duration) (data []byte, err error) {
 	// wait for response
 	rid := xid.New().String()
 	err = m.SendDataRequestMessage(provider, rid, cid)
@@ -487,7 +489,8 @@ func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
 	return err
 }
 
-func (m *DataSharingModule) RequestRemoteFullyKnownFile(reg regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+func (m *DataSharingModule) RequestRemoteFullyKnownFile(reg regexp.Regexp,
+	conf peer.ExpandingRing) (name string, err error) {
 	// expanding-ring search
 	var backoffMult uint = 1
 	for i := 0; i < int(conf.Retry); i++ {
@@ -548,7 +551,8 @@ func (m *DataSharingModule) SendDataReplyMessage(dst string, rid string, cid str
 }
 
 // SendSearchRequestMessage sends a search request packet to the given dst
-func (m *DataSharingModule) SendSearchRequestMessage(dst string, rid string, origin string, reg regexp.Regexp, budget uint) error {
+func (m *DataSharingModule) SendSearchRequestMessage(dst string, rid string, origin string,
+	reg regexp.Regexp, budget uint) error {
 	payload := types.SearchRequestMessage{
 		RequestID: rid, Origin: origin,
 		Pattern: reg.String(), Budget: budget}
@@ -564,7 +568,8 @@ func (m *DataSharingModule) SendSearchRequestMessage(dst string, rid string, ori
 }
 
 // SendSearchReplyMessage sends a search reply packet to the given dst
-func (m *DataSharingModule) SendSearchReplyMessage(dst string, nextHop string, rid string, fileinfos []types.FileInfo) error {
+func (m *DataSharingModule) SendSearchReplyMessage(dst string, nextHop string, rid string,
+	fileinfos []types.FileInfo) error {
 	payload := types.SearchReplyMessage{
 		RequestID: rid, Responses: fileinfos}
 	msg, err := m.CreateMsg(payload)

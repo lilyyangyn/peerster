@@ -138,6 +138,13 @@ func (multipaxos *MultiPaxos) RecordBlock(step uint, block *types.BlockchainBloc
 }
 
 func (multipaxos *MultiPaxos) AppendBlock(block *types.BlockchainBlock) error {
+	if multipaxos.state != ReadyToSwitch {
+		return nil
+	}
+	if block.Index != multipaxos.TLC {
+		return nil
+	}
+
 	blockKey := hex.EncodeToString(block.Hash)
 
 	// add to store
@@ -153,15 +160,10 @@ func (multipaxos *MultiPaxos) AppendBlock(block *types.BlockchainBlock) error {
 	return nil
 }
 
-func (multipaxos *MultiPaxos) AdvanceClock(block *types.BlockchainBlock) ([]*types.BlockchainBlock, bool) {
+func (multipaxos *MultiPaxos) AdvanceClock() ([]*types.BlockchainBlock, bool) {
 	if multipaxos.state != ReadyToSwitch {
 		return nil, false
 	}
-	if block.Index != multipaxos.TLC {
-		return nil, false
-	}
-
-	multipaxos.AppendBlock(block)
 
 	multipaxos.TLC++
 	multipaxos.Paxos = NewPaxos()
@@ -183,20 +185,6 @@ func (multipaxos *MultiPaxos) isCatchUp() bool {
 	}
 
 	return counter > 0
-}
-
-func (multipaxos *MultiPaxos) recordBlock(block *types.BlockchainBlock, threshold int) bool {
-	if block.Index != multipaxos.TLC {
-		return false
-	}
-
-	multipaxos.blockCounter++
-	if multipaxos.blockCounter >= threshold {
-		multipaxos.state = ReadyToSwitch
-		return true
-	}
-
-	return false
 }
 
 func (multipaxos *MultiPaxos) createBlock(val *types.PaxosValue) *types.BlockchainBlock {

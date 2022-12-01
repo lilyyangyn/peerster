@@ -1,7 +1,6 @@
 package impl
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -29,10 +28,11 @@ type PaxosModule struct {
 func NewPaxosModule(n *node) *PaxosModule {
 	lock := sync.RWMutex{}
 	m := PaxosModule{
-		node:       n,
-		RWMutex:    &lock,
-		cond:       sync.NewCond(&lock),
-		MultiPaxos: paxos.NewMultiPaxos(n.conf.Storage.GetBlockchainStore()),
+		node:            n,
+		RWMutex:         &lock,
+		cond:            sync.NewCond(&lock),
+		MultiPaxos:      paxos.NewMultiPaxos(n.conf.Storage.GetBlockchainStore()),
+		paxosTLCAdvChan: make(chan PaxosResult, 5),
 	}
 
 	// message registery
@@ -72,7 +72,6 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 		if m.StartPropose(&proposeVal, m.conf.PaxosID) {
 			m.paxosPromiseChan = make(chan PaxosResult, 1)
 			m.paxosAcceptChan = make(chan PaxosResult, 1)
-			m.paxosTLCAdvChan = make(chan PaxosResult, 5)
 			m.Unlock()
 			break
 		}
@@ -80,54 +79,54 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 		m.Unlock()
 	}
 
-	var proposeTag func(*types.PaxosValue, uint) error
-	proposeTag = func(value *types.PaxosValue, id uint) error {
-		// fm.Println(m.conf.Socket.GetAddress(), "JOIN PHASE ONE!", id)
-		phaseOneResult := m.phaseOne(value, id)
-		if phaseOneResult.Err != nil {
-			// fm.Println("{Phase 1}", phaseOneResult.Err)
-			return phaseOneResult.Err
-			// return m.InitTagConensus(name, mh)
-		}
-		if phaseOneResult.Finish {
-			// fm.Println(m.conf.Socket.GetAddress(), "{Phase 1}", "TLC ENDs")
-			if phaseOneResult.Value.Filename == name && phaseOneResult.Value.Metahash == mh {
-				// fm.Println(m.conf.Socket.GetAddress(), "Finishes!1")
-				return nil
-			}
-			return m.InitTagConensus(name, mh)
-		}
-		if phaseOneResult.Retry {
-			fmt.Println(m.conf.Socket.GetAddress(), "{Phase 1}", "Retry")
-			return proposeTag(value, id+m.conf.TotalPeers)
-		}
+	return m.proposeTag(&proposeVal, m.conf.PaxosID)
+}
 
-		// fm.Println(m.conf.Socket.GetAddress(), "JOIN PHASE TWO!")
-		phaseTwoResult := m.phaseTwo(phaseOneResult.Value, id, phaseOneResult.Step)
-		if phaseTwoResult.Err != nil {
-			// fm.Println(m.conf.Socket.GetAddress(), "{Phase 2}", phaseTwoResult.Err)
-			return phaseTwoResult.Err
-			// return m.InitTagConensus(name, mh)
-		}
-		if phaseTwoResult.Finish {
-			// fm.Println(m.conf.Socket.GetAddress(), "{Phase 2}", "TLC ENDs")
-		}
-		if phaseTwoResult.Retry {
-			fmt.Println(m.conf.Socket.GetAddress(), "{Phase 2}", "Retry")
-			return proposeTag(value, id+m.conf.TotalPeers)
-		}
-
-		if phaseTwoResult.Value.Filename == name && phaseTwoResult.Value.Metahash == mh {
-			// fm.Println(m.conf.Socket.GetAddress(), "Finishes!2")
+func (m *PaxosModule) proposeTag(value *types.PaxosValue, id uint) error {
+	name, mh := value.Filename, value.Metahash
+	// fm.Println(m.conf.Socket.GetAddress(), "JOIN PHASE ONE!", id)
+	phaseOneResult := m.phaseOne(id)
+	if phaseOneResult.Err != nil {
+		// fm.Println("{Phase 1}", phaseOneResult.Err)
+		return phaseOneResult.Err
+		// return m.InitTagConensus(name, mh)
+	}
+	if phaseOneResult.Finish {
+		// fm.Println(m.conf.Socket.GetAddress(), "{Phase 1}", "TLC ENDs")
+		if phaseOneResult.Value.Filename == name && phaseOneResult.Value.Metahash == mh {
+			// fm.Println(m.conf.Socket.GetAddress(), "Finishes!1")
 			return nil
 		}
 		return m.InitTagConensus(name, mh)
 	}
+	if phaseOneResult.Retry {
+		// fmt.Println(m.conf.Socket.GetAddress(), "{Phase 1}", "Retry")
+		return m.proposeTag(value, id+m.conf.TotalPeers)
+	}
 
-	return proposeTag(&proposeVal, m.conf.PaxosID)
+	// fm.Println(m.conf.Socket.GetAddress(), "JOIN PHASE TWO!")
+	phaseTwoResult := m.phaseTwo(phaseOneResult.Value, id, phaseOneResult.Step)
+	if phaseTwoResult.Err != nil {
+		// fm.Println(m.conf.Socket.GetAddress(), "{Phase 2}", phaseTwoResult.Err)
+		return phaseTwoResult.Err
+		// return m.InitTagConensus(name, mh)
+	}
+	// if phaseTwoResult.Finish {
+	// 	// fm.Println(m.conf.Socket.GetAddress(), "{Phase 2}", "TLC ENDs")
+	// }
+	if phaseTwoResult.Retry {
+		// fmt.Println(m.conf.Socket.GetAddress(), "{Phase 2}", "Retry")
+		return m.proposeTag(value, id+m.conf.TotalPeers)
+	}
+
+	if phaseTwoResult.Value.Filename == name && phaseTwoResult.Value.Metahash == mh {
+		// fm.Println(m.conf.Socket.GetAddress(), "Finishes!2")
+		return nil
+	}
+	return m.InitTagConensus(name, mh)
 }
 
-func (m *PaxosModule) phaseOne(value *types.PaxosValue, id uint) (result PaxosResult) {
+func (m *PaxosModule) phaseOne(id uint) (result PaxosResult) {
 	m.Lock()
 	success := m.JoinPhaseOne(id)
 	step := m.TLC
@@ -144,23 +143,22 @@ func (m *PaxosModule) phaseOne(value *types.PaxosValue, id uint) (result PaxosRe
 		}
 	}
 
-	// loop:
-	// for {
-	select {
-	case result = <-promiseChan:
-		// break loop
-	case result = <-tlcAdvChan:
-		// if result.Step >= step {
-		result.Finish = true
-		// break loop
-		// }
-	case result = <-resultChan:
-		result.Finish = true
-	case <-time.After(m.conf.PaxosProposerRetry):
-		result.Retry = true
-		// break loop
+loop:
+	for {
+		select {
+		case result = <-promiseChan:
+		case result = <-tlcAdvChan:
+			result.Finish = true
+		case result = <-resultChan:
+			result.Finish = true
+		case <-time.After(m.conf.PaxosProposerRetry):
+			result.Retry = true
+			break loop
+		}
+		if result.Step == step {
+			break loop
+		}
 	}
-	// }
 	return result
 }
 
@@ -179,21 +177,21 @@ func (m *PaxosModule) phaseTwo(val *types.PaxosValue, id uint, step uint) (resul
 		}
 	}
 
-	// loop:
-	// 	for {
-	select {
-	case result = <-acceptChan:
-		// break loop
-	case result = <-tlcAdvChan:
-		// if result.Step >= step {
-		result.Finish = true
-		// break loop
-		// }
-	case <-time.After(m.conf.PaxosProposerRetry):
-		result.Retry = true
-		// break loop
+loop:
+	for {
+		select {
+		case result = <-acceptChan:
+			result.Finish = true
+		case result = <-tlcAdvChan:
+			result.Finish = true
+		case <-time.After(m.conf.PaxosProposerRetry):
+			result.Retry = true
+			break loop
+		}
+		if result.Step == step {
+			break loop
+		}
 	}
-	// }
 
 	return result
 }
@@ -381,7 +379,8 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 			m.cond.Broadcast()
 		}
 	}
-	// fm.Printf("%s---------%s----------TLC End %d %t\n", pkt.Header.PacketID, m.conf.Socket.GetAddress(), tlcMsg.Step, success)
+	// fm.Printf("%s---------%s----------TLC End %d %t\n",
+	// pkt.Header.PacketID, m.conf.Socket.GetAddress(), tlcMsg.Step, success)
 
 	return err
 }
@@ -389,9 +388,13 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) nextPaxos(step uint, block *types.BlockchainBlock, catchUp bool) (err error) {
-	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), step)
+	// fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), step)
 
-	// m.AppendBlock(block)
+	err = m.AppendBlock(block)
+	if err != nil {
+		return err
+	}
+
 	m.conf.Storage.GetNamingStore().Set(block.Value.Filename, []byte(block.Value.Metahash))
 
 	if !m.hasSentTLC && !catchUp {
@@ -401,9 +404,8 @@ func (m *PaxosModule) nextPaxos(step uint, block *types.BlockchainBlock, catchUp
 		}
 	}
 
-	nextBlocks, success := m.AdvanceClock(block)
+	nextBlocks, success := m.AdvanceClock()
 	if !success {
-		// TODO: CHECK STRANGE CASE
 		return nil
 	}
 

@@ -11,11 +11,11 @@ const (
 	Complete
 )
 
-type PaxosState int
+type paxosState int
 
 type Paxos struct {
 	maxID uint
-	state PaxosState
+	state paxosState
 
 	isPropose  bool
 	proposeID  uint

@@ -55,9 +55,20 @@ func (n *node) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
 
-	go n.MessagingDaemon(ctx)
-	go n.HeartBeatDaemon(ctx, n.conf.HeartbeatInterval)
-	go n.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+	err := n.MessagingDaemon(ctx)
+	if err != nil {
+		return err
+	}
+
+	err = n.HeartBeatDaemon(ctx, n.conf.HeartbeatInterval)
+	if err != nil {
+		return err
+	}
+
+	err = n.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+	if err != nil {
+		return err
+	}
 
 	// return once ready to use
 	return nil
