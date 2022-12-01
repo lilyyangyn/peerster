@@ -42,23 +42,25 @@ func NewMultiPaxos(blockchainStore storage.Store) *MultiPaxos {
 	return &multipaxos
 }
 
-func (multipaxos *MultiPaxos) InitNewPaxos(value *types.PaxosValue, id uint) (uint, bool) {
+func (multipaxos *MultiPaxos) StartPropose(value *types.PaxosValue, id uint) bool {
 	if multipaxos.state != Idle {
-		return multipaxos.TLC, false
+		return false
 	}
 
-	multipaxos.Paxos.setFirstValue(value)
+	return multipaxos.Paxos.setFirstValue(value)
+}
+
+func (multipaxos *MultiPaxos) JoinPhaseOne(id uint) bool {
 	success := multipaxos.Paxos.joinPhaseOne(id)
 	if success {
 		multipaxos.state = InConsensus
 	}
-
-	return multipaxos.TLC, success
+	return success
 }
 
-func (multipaxos *MultiPaxos) RetryPaxos(increase uint) (uint, uint, bool) {
-	success := multipaxos.Paxos.joinPhaseOne(multipaxos.Paxos.proposeID + increase)
-	return multipaxos.TLC, multipaxos.Paxos.proposeID, success
+func (multipaxos *MultiPaxos) JoinPhaseTwo() bool {
+	success := multipaxos.Paxos.joinPhaseTwo()
+	return success
 }
 
 func (multipaxos *MultiPaxos) RecordID(step uint, id uint) bool {
@@ -76,7 +78,8 @@ func (multipaxos *MultiPaxos) RecordPromise(step uint, id uint, acceptedID uint,
 	if step != multipaxos.TLC {
 		return nil, false
 	}
-	if multipaxos.state == InConsensus && multipaxos.Paxos.recordPromise(id, acceptedID, acceptedValue, threshold) {
+	if multipaxos.state != ReadyToSwitch &&
+		multipaxos.Paxos.recordPromise(id, acceptedID, acceptedValue, threshold) {
 		return multipaxos.Paxos.proposeVal, true
 	}
 
@@ -89,7 +92,7 @@ func (multipaxos *MultiPaxos) RecordAccept(step uint, id uint, value *types.Paxo
 		return nil, false
 	}
 
-	if multipaxos.state != ReadyToSwitch && multipaxos.Paxos.RecordAccept(id, value, threshold) {
+	if multipaxos.state != ReadyToSwitch && multipaxos.Paxos.recordAccept(id, value, threshold) {
 		return multipaxos.createBlock(value), true
 	}
 
@@ -101,10 +104,10 @@ func (multipaxos *MultiPaxos) Accept(step uint, id uint, value *types.PaxosValue
 		return false
 	}
 
-	if multipaxos.state != Complete {
-		return multipaxos.Paxos.accept(id, value)
-	}
-	return false
+	// if multipaxos.state != ReadyToSwitch {
+	return multipaxos.Paxos.accept(id, value)
+	// }
+	// return false
 }
 
 func (multipaxos *MultiPaxos) RecordBlock(step uint, block *types.BlockchainBlock,
@@ -113,7 +116,7 @@ func (multipaxos *MultiPaxos) RecordBlock(step uint, block *types.BlockchainBloc
 		return false, false
 	}
 
-	if multipaxos.state != ReadyToSwitch && step > multipaxos.TLC {
+	if step > multipaxos.TLC {
 		if _, ok := multipaxos.futureBlocks[step]; !ok {
 			multipaxos.futureBlocks[step] = []*types.BlockchainBlock{block}
 		} else {
@@ -122,7 +125,16 @@ func (multipaxos *MultiPaxos) RecordBlock(step uint, block *types.BlockchainBloc
 		return false, false
 	}
 
-	return multipaxos.recordBlock(block, threshold), multipaxos.isCatchUp()
+	if multipaxos.state != ReadyToSwitch {
+		multipaxos.blockCounter++
+		if multipaxos.blockCounter >= threshold {
+			multipaxos.state = ReadyToSwitch
+			return true, multipaxos.isCatchUp()
+		}
+	}
+
+	return false, false
+
 }
 
 func (multipaxos *MultiPaxos) AppendBlock(block *types.BlockchainBlock) error {
@@ -148,6 +160,8 @@ func (multipaxos *MultiPaxos) AdvanceClock(block *types.BlockchainBlock) ([]*typ
 	if block.Index != multipaxos.TLC {
 		return nil, false
 	}
+
+	multipaxos.AppendBlock(block)
 
 	multipaxos.TLC++
 	multipaxos.Paxos = NewPaxos()

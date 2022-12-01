@@ -20,10 +20,14 @@ out:
 			if err != nil {
 				continue
 			}
-			err = n.ProcessPkt(pkt)
-			if err != nil {
-				continue
-			}
+			go func() {
+				err = n.ProcessPkt(pkt)
+				if err != nil {
+					return
+					// continue
+				}
+			}()
+
 		}
 	}
 	return nil

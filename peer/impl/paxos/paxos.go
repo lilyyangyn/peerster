@@ -57,12 +57,17 @@ func (paxos *Paxos) GetAcceptedInfo() (bool, uint, *types.PaxosValue) {
 
 /** Private Helpfer Functions **/
 
-func (paxos *Paxos) setFirstValue(val *types.PaxosValue) {
-	paxos.firstVal = val
+func (paxos *Paxos) setFirstValue(val *types.PaxosValue) bool {
+	if paxos.firstVal == nil {
+		paxos.firstVal = val
+		paxos.isPropose = true
+		return true
+	}
+	return false
 }
 
 func (paxos *Paxos) joinPhaseOne(id uint) bool {
-	if paxos.state == Complete {
+	if !paxos.isPropose || paxos.state == Complete {
 		return false
 	}
 
@@ -70,7 +75,6 @@ func (paxos *Paxos) joinPhaseOne(id uint) bool {
 	paxos.promiseCounter = 0
 	paxos.maxAcceptIDInPromise = 0
 	if id > 0 {
-		paxos.isPropose = true
 		paxos.proposeID = id
 		paxos.proposeVal = paxos.firstVal
 	}
@@ -79,10 +83,11 @@ func (paxos *Paxos) joinPhaseOne(id uint) bool {
 }
 
 func (paxos *Paxos) joinPhaseTwo() bool {
-	if paxos.state == Complete {
+	if !paxos.isPropose || paxos.state == Complete {
 		return false
 	}
 	paxos.state = PhaseTwo
+	paxos.acceptIDs = map[string]int{}
 	return true
 }
 
@@ -112,19 +117,21 @@ func (paxos *Paxos) recordPromise(id uint, acceptedID uint,
 	}
 	paxos.promiseCounter++
 	if paxos.promiseCounter >= threshold {
-		paxos.joinPhaseTwo()
-		return true
+		return paxos.joinPhaseTwo()
 	}
 
 	return false
 }
 
-func (paxos *Paxos) RecordAccept(id uint, value *types.PaxosValue, threshold int) bool {
+func (paxos *Paxos) recordAccept(id uint, value *types.PaxosValue, threshold int) bool {
 	// for proposer: only when in phase two
 	if paxos.isPropose && paxos.state != PhaseTwo {
 		if id == paxos.proposeID {
 			return false
 		}
+	}
+	if paxos.state == Complete {
+		return false
 	}
 
 	paxos.acceptIDs[value.UniqID]++
@@ -137,6 +144,9 @@ func (paxos *Paxos) RecordAccept(id uint, value *types.PaxosValue, threshold int
 }
 
 func (paxos *Paxos) accept(id uint, value *types.PaxosValue) bool {
+	// if paxos.state == Complete {
+	// 	return false
+	// }
 	if id == paxos.maxID {
 		paxos.isAccept = true
 		paxos.acceptID = id
