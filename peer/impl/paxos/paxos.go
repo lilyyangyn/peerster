@@ -11,147 +11,45 @@ const (
 	Complete
 )
 
-type paxosState int
+type StateMachine int
 
 type Paxos struct {
-	maxID uint
-	state paxosState
+	MaxID      uint
+	PaxosState StateMachine
 
-	isPropose  bool
-	proposeID  uint
-	proposeVal *types.PaxosValue
-	firstVal   *types.PaxosValue
+	Proposer     bool
+	ProposeID    uint
+	ProposeValue *types.PaxosValue
 
-	isAccept    bool
-	acceptID    uint
-	acceptValue *types.PaxosValue
+	AcceptID    uint
+	AcceptValue *types.PaxosValue
 
-	promiseCounter       int
-	maxAcceptIDInPromise uint
+	PromiseCounter int
+	MaxIDInPromise uint
+	ValueInPromise *types.PaxosValue
 
-	acceptIDs map[string]int
+	AcceptCounter map[string]int
 }
 
-func NewPaxos() *Paxos {
+func NewPaxos(id uint) *Paxos {
 	paxos := Paxos{
-		state:     Init,
-		maxID:     0,
-		isPropose: false,
-		acceptIDs: map[string]int{},
+		PaxosState:    Init,
+		MaxID:         0,
+		Proposer:      false,
+		ProposeID:     id,
+		AcceptCounter: map[string]int{},
 	}
 
 	return &paxos
 }
 
-func (paxos *Paxos) IsProposer() bool {
-	return paxos.isPropose
+func (paxos *Paxos) JoinPhaseOne() {
+	paxos.PaxosState = PhaseOne
+	paxos.PromiseCounter = 0
+	paxos.MaxIDInPromise = 0
+	paxos.ValueInPromise = nil
 }
 
-func (paxos *Paxos) GetProposedInfo() (bool, uint, *types.PaxosValue) {
-	return paxos.isPropose, paxos.proposeID, paxos.proposeVal
-}
-
-func (paxos *Paxos) GetAcceptedInfo() (bool, uint, *types.PaxosValue) {
-	return paxos.isAccept, paxos.acceptID, paxos.acceptValue
-}
-
-/** Private Helpfer Functions **/
-
-func (paxos *Paxos) setFirstValue(val *types.PaxosValue) bool {
-	if paxos.firstVal == nil {
-		paxos.firstVal = val
-		paxos.isPropose = true
-		return true
-	}
-	return false
-}
-
-func (paxos *Paxos) joinPhaseOne(id uint) bool {
-	if !paxos.isPropose || paxos.state == Complete {
-		return false
-	}
-
-	paxos.state = PhaseOne
-	paxos.promiseCounter = 0
-	paxos.maxAcceptIDInPromise = 0
-	if id > 0 {
-		paxos.proposeID = id
-		paxos.proposeVal = paxos.firstVal
-	}
-
-	return true
-}
-
-func (paxos *Paxos) joinPhaseTwo() bool {
-	if !paxos.isPropose || paxos.state == Complete {
-		return false
-	}
-	paxos.state = PhaseTwo
-	paxos.acceptIDs = map[string]int{}
-	return true
-}
-
-func (paxos *Paxos) recordID(id uint) bool {
-	if id > paxos.maxID {
-		paxos.maxID = id
-		return true
-	}
-	return false
-}
-
-func (paxos *Paxos) recordPromise(id uint, acceptedID uint,
-	acceptedValue *types.PaxosValue, threshold int) bool {
-	// only when in phase one
-	if paxos.state != PhaseOne {
-		return false
-	}
-	// should be promised to the prepare mesage by ourself
-	if id != paxos.proposeID {
-		return false
-	}
-
-	// update value to acceptedValue
-	if acceptedID > paxos.maxAcceptIDInPromise {
-		paxos.maxAcceptIDInPromise = acceptedID
-		paxos.proposeVal = acceptedValue
-	}
-	paxos.promiseCounter++
-	if paxos.promiseCounter >= threshold {
-		return paxos.joinPhaseTwo()
-	}
-
-	return false
-}
-
-func (paxos *Paxos) recordAccept(id uint, value *types.PaxosValue, threshold int) bool {
-	// for proposer: only when in phase two
-	if paxos.isPropose && paxos.state != PhaseTwo {
-		if id == paxos.proposeID {
-			return false
-		}
-	}
-	if paxos.state == Complete {
-		return false
-	}
-
-	paxos.acceptIDs[value.UniqID]++
-	if paxos.acceptIDs[value.UniqID] >= threshold {
-		paxos.state = Complete
-		return true
-	}
-
-	return false
-}
-
-func (paxos *Paxos) accept(id uint, value *types.PaxosValue) bool {
-	// if paxos.state == Complete {
-	// 	return false
-	// }
-	if id == paxos.maxID {
-		paxos.isAccept = true
-		paxos.acceptID = id
-		paxos.acceptValue = value
-		return true
-	}
-	return false
+func (paxos *Paxos) JoinPhaseTwo() {
+	paxos.PaxosState = PhaseTwo
 }

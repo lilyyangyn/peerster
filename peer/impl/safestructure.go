@@ -72,36 +72,24 @@ func (t *SafeRumorsTable) add(rumor types.Rumor) bool {
 	t.table[rumor.Origin] = append(t.table[rumor.Origin], rumor)
 	return true
 }
-func (t *SafeRumorsTable) checkStatus(status map[string]uint) ([]types.Rumor, bool) {
+func (t *SafeRumorsTable) getExpectedSeq(key string) uint {
 	t.RLock()
-	defer t.RUnlock()
-
+	rumors := t.table[key]
+	t.RUnlock()
+	return uint(len(rumors)) + 1
+}
+func (t *SafeRumorsTable) getRumorsFrom(key string, seqID uint) ([]types.Rumor, bool) {
 	rumors := []types.Rumor{}
-	catchUp := false
-	for key, val := range status {
-		expectedLastSeq := uint(len(t.table[key]))
-		if expectedLastSeq < val {
-			// the remote peer has new rumors
-			catchUp = true
-		} else if expectedLastSeq > val {
-			// current noed has new rumors
-			for i := val + 1; i < expectedLastSeq; i++ {
-				rumors = append(rumors, t.table[key][i])
-			}
-		}
+	t.RLock()
+	length := uint(len(t.table[key]))
+	if seqID > length {
+		return rumors, false
 	}
-
-	statusTable := make(map[string]uint)
-	for key, value := range t.table {
-		_, ok := status[key]
-		if !ok {
-			// current noed has new rumors
-			rumors = append(rumors, t.table[key]...)
-		}
-		statusTable[key] = uint(len(value))
+	for i := seqID - 1; i < length; i++ {
+		rumors = append(rumors, t.table[key][i])
 	}
-
-	return rumors, catchUp
+	t.RUnlock()
+	return rumors, true
 }
 func (t *SafeRumorsTable) getStatus() map[string]uint {
 	statusTable := make(map[string]uint)

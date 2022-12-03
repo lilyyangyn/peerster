@@ -46,7 +46,6 @@ func (m *GossipModule) Broadcast(msg transport.Message) error {
 			return err
 		}
 	}
-
 	go func() {
 		// process the message locally
 		header := transport.NewHeader(
@@ -55,7 +54,11 @@ func (m *GossipModule) Broadcast(msg transport.Message) error {
 			m.conf.Socket.GetAddress(),
 			0)
 		pkt := transport.Packet{Header: &header, Msg: &msg}
-		_ = m.conf.MessageRegistry.ProcessPacket(pkt)
+		err := m.conf.MessageRegistry.ProcessPacket(pkt)
+		if err != nil {
+			return
+			// return err
+		}
 	}()
 
 	return nil
@@ -134,7 +137,7 @@ func (m *GossipModule) ProcessStatusMsg(msg types.Message, pkt transport.Packet)
 	if !ok {
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
-	rumors, catchUp := m.rumorsTable.checkStatus(*statusMsg)
+	rumors, catchUp := m.CheckSyncStatus(statusMsg)
 
 	if catchUp {
 		// send a status message to the remote peer
@@ -304,6 +307,34 @@ func (m *GossipModule) SendDirectMessageWithACK(dst string, msg transport.Messag
 	m.RegisterTimer(&pkt, m.conf.AckTimeout)
 	err := m.conf.Socket.Send(dst, pkt, WriteTimeout)
 	return err
+}
+
+// CheckSyncStatus compares the node status with the statusMessage for furthur syncing
+func (m *GossipModule) CheckSyncStatus(statusMsg *types.StatusMessage) ([]types.Rumor, bool) {
+	rumors := []types.Rumor{}
+	catchUp := false
+	for key, val := range *statusMsg {
+		if m.rumorsTable.getExpectedSeq(key)-1 < val {
+			// the remote peer has new rumors
+			catchUp = true
+		} else if m.rumorsTable.getExpectedSeq(key)-1 > val {
+			// current noed has new rumors
+			newRumors, ok := m.rumorsTable.getRumorsFrom(key, val+1)
+			if ok {
+				rumors = append(rumors, newRumors...)
+			}
+		}
+	}
+	myStatus := m.rumorsTable.getStatus()
+	for key := range myStatus {
+		_, ok := (*statusMsg)[key]
+		if !ok {
+			// in case the remote peer has no entire entry
+			newRumors, _ := m.rumorsTable.getRumorsFrom(key, 1)
+			rumors = append(rumors, newRumors...)
+		}
+	}
+	return rumors, catchUp
 }
 
 // ContinueMongering implements the continue mongering mechanism
