@@ -46,20 +46,24 @@ func (multipaxos *MultiPaxos) StartPropose(value *types.PaxosValue, id uint) boo
 	if multipaxos.state != Idle {
 		return false
 	}
+	multipaxos.state = InConsensus
 
 	return multipaxos.Paxos.setFirstValue(value)
 }
 
-func (multipaxos *MultiPaxos) JoinPhaseOne(id uint) bool {
-	success := multipaxos.Paxos.joinPhaseOne(id)
-	if success {
-		multipaxos.state = InConsensus
+func (multipaxos *MultiPaxos) JoinPhaseOne(id uint) (success bool) {
+	if multipaxos.state == InConsensus {
+		success = multipaxos.Paxos.joinPhaseOne(id)
 	}
+
 	return success
 }
 
-func (multipaxos *MultiPaxos) JoinPhaseTwo() bool {
-	success := multipaxos.Paxos.joinPhaseTwo()
+func (multipaxos *MultiPaxos) JoinPhaseTwo() (success bool) {
+	if multipaxos.state == InConsensus {
+		success = multipaxos.Paxos.joinPhaseTwo()
+	}
+
 	return success
 }
 
@@ -68,6 +72,9 @@ func (multipaxos *MultiPaxos) RecordID(step uint, id uint) bool {
 		return false
 	}
 	if multipaxos.Paxos.recordID(id) {
+		if multipaxos.state == Idle {
+			multipaxos.state = InConsensus
+		}
 		return true
 	}
 	return false
@@ -104,6 +111,9 @@ func (multipaxos *MultiPaxos) Accept(step uint, id uint, value *types.PaxosValue
 		return false
 	}
 
+	if multipaxos.state == Idle {
+		multipaxos.state = InConsensus
+	}
 	// if multipaxos.state != ReadyToSwitch {
 	return multipaxos.Paxos.accept(id, value)
 	// }
