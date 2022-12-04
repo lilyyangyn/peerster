@@ -1,4 +1,4 @@
-package impl
+package paxos
 
 import (
 	"crypto"
@@ -8,7 +8,8 @@ import (
 )
 
 type MultiPaxos struct {
-	TLC uint
+	TLC      uint
+	Occupied bool
 	*Paxos
 
 	BlockCounter map[uint]int
@@ -50,53 +51,4 @@ func (multipaxos *MultiPaxos) CreateTLCBlock(val *types.PaxosValue, prevHash []b
 	block.Hash = blockHash
 
 	return block
-}
-
-const (
-	PaxosInit = iota
-	PaxosPhaseOne
-	PaxosPhaseTwo
-)
-
-type PaxosStateMachine int
-
-type Paxos struct {
-	MaxID      uint
-	PaxosState PaxosStateMachine
-
-	Proposer     bool
-	ProposeID    uint
-	ProposeValue *types.PaxosValue
-
-	AcceptID    uint
-	AcceptValue *types.PaxosValue
-
-	PromiseCounter int
-	MaxIDInPromise uint
-	ValueInPromise *types.PaxosValue
-
-	AcceptCounter map[string]int
-}
-
-func NewPaxos(id uint) *Paxos {
-	paxos := Paxos{
-		PaxosState:    PaxosInit,
-		MaxID:         0,
-		Proposer:      false,
-		ProposeID:     id,
-		AcceptCounter: map[string]int{},
-	}
-
-	return &paxos
-}
-
-func (paxos *Paxos) JoinPhaseOne() {
-	paxos.PaxosState = PaxosPhaseOne
-	paxos.PromiseCounter = 0
-	paxos.MaxIDInPromise = 0
-	paxos.ValueInPromise = nil
-}
-
-func (paxos *Paxos) JoinPhaseTwo() {
-	paxos.PaxosState = PaxosPhaseTwo
 }

@@ -2,11 +2,12 @@ package impl
 
 import (
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/rs/xid"
-	"github.com/rs/zerolog/log"
+	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
@@ -18,7 +19,7 @@ type PaxosModule struct {
 	*sync.Mutex
 	cond *sync.Cond
 
-	*MultiPaxos
+	*paxos.MultiPaxos
 
 	paxosPromiseChan chan PaxosResult
 	paxosTLCAdvChan  chan PaxosResult
@@ -32,7 +33,7 @@ func NewPaxosModule(n *node) *PaxosModule {
 		node:            n,
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
-		MultiPaxos:      NewMultiPaxos(n.conf.PaxosID),
+		MultiPaxos:      paxos.NewMultiPaxos(n.conf.PaxosID),
 		paxosTLCAdvChan: make(chan PaxosResult, 100),
 	}
 
@@ -62,7 +63,8 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 	}
 
 	m.Lock()
-	if !m.Proposer {
+	if !m.Occupied {
+		m.Occupied = true
 		m.Proposer = true
 		m.paxosPromiseChan = make(chan PaxosResult, 3)
 		step := m.TLC
@@ -114,8 +116,8 @@ func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (resul
 				break PaxosSelect
 			}
 			m.Lock()
-			if m.Proposer {
-				m.Proposer = false
+			if m.Occupied {
+				m.Occupied = false
 				m.cond.Signal()
 			}
 			m.Unlock()
@@ -123,7 +125,7 @@ func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (resul
 			return result
 		case <-timer:
 			m.Lock()
-			m.PaxosState = PaxosInit
+			m.PaxosState = paxos.Init
 			m.ProposeID += m.conf.TotalPeers
 			m.Unlock()
 			return m.startFromPhaseOne(val, step)
@@ -184,7 +186,7 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 	}
 
 	// ignore if proposer not in phase one
-	if !m.Proposer || m.PaxosState != PaxosPhaseOne {
+	if !m.Proposer || m.PaxosState != paxos.PhaseOne {
 		if promiseMsg.ID != m.ProposeID {
 			return nil
 		}
@@ -265,7 +267,7 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	}
 
 	// ignore if proposer not in phase two - only our message
-	if m.Proposer && m.PaxosState != PaxosPhaseTwo {
+	if m.Proposer && m.PaxosState != paxos.PhaseTwo {
 		if acceptMsg.ID < m.ProposeID && acceptMsg.ID%m.conf.TotalPeers == m.conf.PaxosID {
 			return nil
 		}
@@ -335,8 +337,8 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
-	log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
-	// fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
+	// log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
+	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
 
 	// append block
 	blockKey := hex.EncodeToString(block.Hash)
@@ -368,13 +370,11 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 		m.paxosTLCAdvChan <- result
 	}
 
-	delete(m.BlockCounter, m.TLC)
-	delete(m.Blocks, m.TLC)
-
 	// increse TLC
 	m.TLC++
-	m.Paxos = NewPaxos(m.conf.PaxosID)
-	m.Proposer = false
+	m.Paxos = paxos.NewPaxos(m.conf.PaxosID)
+	m.Occupied = false
+	// m.Proposer = false
 	m.cond.Signal()
 
 	// do catchup
