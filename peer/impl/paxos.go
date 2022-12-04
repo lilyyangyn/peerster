@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/rs/xid"
-	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
@@ -19,7 +18,7 @@ type PaxosModule struct {
 	*sync.Mutex
 	cond *sync.Cond
 
-	*paxos.MultiPaxos
+	*MultiPaxos
 
 	paxosPromiseChan chan PaxosResult
 	paxosTLCAdvChan  chan PaxosResult
@@ -33,7 +32,7 @@ func NewPaxosModule(n *node) *PaxosModule {
 		node:            n,
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
-		MultiPaxos:      paxos.NewMultiPaxos(n.conf.PaxosID),
+		MultiPaxos:      NewMultiPaxos(n.conf.PaxosID),
 		paxosTLCAdvChan: make(chan PaxosResult, 100),
 	}
 
@@ -125,7 +124,7 @@ func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (resul
 			return result
 		case <-timer:
 			m.Lock()
-			m.PaxosState = paxos.Init
+			m.PaxosState = Init
 			m.ProposeID += m.conf.TotalPeers
 			m.Unlock()
 			return m.startFromPhaseOne(val, step)
@@ -186,7 +185,7 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 	}
 
 	// ignore if proposer not in phase one
-	if !m.Proposer || m.PaxosState != paxos.PhaseOne {
+	if !m.Proposer || m.PaxosState != PhaseOne {
 		if promiseMsg.ID != m.ProposeID {
 			return nil
 		}
@@ -267,7 +266,7 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	}
 
 	// ignore if proposer not in phase two - only our message
-	if m.Proposer && m.PaxosState != paxos.PhaseTwo {
+	if m.Proposer && m.PaxosState != PhaseTwo {
 		if acceptMsg.ID < m.ProposeID && acceptMsg.ID%m.conf.TotalPeers == m.conf.PaxosID {
 			return nil
 		}
@@ -372,7 +371,7 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 
 	// increse TLC
 	m.TLC++
-	m.Paxos = paxos.NewPaxos(m.conf.PaxosID)
+	m.Paxos = NewPaxos(m.conf.PaxosID)
 	m.Occupied = false
 	// m.Proposer = false
 	m.cond.Signal()
