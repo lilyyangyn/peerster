@@ -2,11 +2,11 @@ package impl
 
 import (
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/rs/xid"
-	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
@@ -34,7 +34,7 @@ func NewPaxosModule(n *node) *PaxosModule {
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
 		MultiPaxos:      paxos.NewMultiPaxos(n.conf.PaxosID),
-		paxosTLCAdvChan: make(chan PaxosResult, 1000),
+		paxosTLCAdvChan: make(chan PaxosResult, 100),
 	}
 
 	// message registery
@@ -66,7 +66,7 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 	if !m.Occupied {
 		m.Occupied = true
 		m.Proposer = true
-		m.paxosPromiseChan = make(chan PaxosResult, 5)
+		m.paxosPromiseChan = make(chan PaxosResult, 3)
 		step := m.TLC
 		m.Unlock()
 		return m.proposeTag(name, mh, step)
@@ -100,10 +100,7 @@ func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (resul
 	id := m.ProposeID
 	m.Unlock()
 
-	err := m.broadcastPaxosPrepareMessage(step, id)
-	if err != nil {
-		log.Info().Msgf("%s", err)
-	}
+	_ = m.broadcastPaxosPrepareMessage(step, id)
 
 	timer := time.After(m.conf.PaxosProposerRetry)
 	for {
@@ -340,7 +337,8 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
-	log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
+	// log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
+	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
 
 	// append block
 	blockKey := hex.EncodeToString(block.Hash)
