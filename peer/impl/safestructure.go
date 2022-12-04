@@ -18,16 +18,6 @@ func (t *SafeRoutingTable) add(key string, val string) {
 	defer t.Unlock()
 	t.table[key] = val
 }
-func (t *SafeRoutingTable) update(key string, val string) {
-	t.Lock()
-	defer t.Unlock()
-
-	oldVal, ok := t.table[key]
-	if ok && oldVal == key {
-		return
-	}
-	t.table[key] = val
-}
 func (t *SafeRoutingTable) remove(key string) {
 	t.Lock()
 	defer t.Unlock()
@@ -118,17 +108,15 @@ func (t *TimerController) add(pktID string, done chan struct{}) {
 	defer t.Unlock()
 	t.table[pktID] = done
 }
-
 func (t *TimerController) remove(key string) {
 	t.Lock()
 	defer t.Unlock()
 	delete(t.table, key)
 }
-func (t *TimerController) getAndRemove(key string) (chan struct{}, bool) {
-	t.Lock()
+func (t *TimerController) get(key string) (chan struct{}, bool) {
+	t.RLock()
 	val, ok := t.table[key]
-	delete(t.table, key)
-	t.Unlock()
+	t.RUnlock()
 	return val, ok
 }
 func NewTimeController() *TimerController {

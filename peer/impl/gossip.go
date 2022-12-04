@@ -99,8 +99,11 @@ func (m *GossipModule) ProcessRumorsMsg(msg types.Message, pkt transport.Packet)
 		if m.rumorsTable.add(rumor) {
 			toNeighbor = true
 			// update routing table
-			// only update when the origin node is not neighbor
-			m.routingTable.update(rumor.Origin, pkt.Header.RelayedBy)
+			oldRelay, ok := m.routingTable.get(rumor.Origin)
+			if !ok || oldRelay != rumor.Origin {
+				// only update when the origin node is not neighbor
+				m.SetRoutingEntry(rumor.Origin, pkt.Header.RelayedBy)
+			}
 
 			// process message
 			newPkt := transport.Packet{
@@ -218,13 +221,14 @@ func (m *GossipModule) RegisterTimer(pkt *transport.Packet, duration time.Durati
 		// no timer will be set
 		return
 	}
-	done := make(chan struct{}, 2)
+	done := make(chan struct{})
 	timer := time.NewTimer(duration)
 	go func() {
 		select {
 		case <-done:
 			return
 		case <-timer.C:
+			close(done)
 			m.timerController.remove(pkt.Header.PacketID)
 			neighbor, ok := m.GetRandomNeighbor(pkt.Header.Destination)
 			if !ok {
@@ -249,9 +253,11 @@ func (m *GossipModule) RegisterTimer(pkt *transport.Packet, duration time.Durati
 
 // CancelTimer cancels the registed timer based on packetID
 func (m *GossipModule) CancelTimer(pktID string) {
-	done, ok := m.timerController.getAndRemove(pktID)
+	done, ok := m.timerController.get(pktID)
 	if ok {
 		<-done
+		close(done)
+		m.timerController.remove(pktID)
 	}
 }
 
