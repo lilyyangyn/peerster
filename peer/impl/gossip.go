@@ -38,14 +38,11 @@ func NewGossipModule(n *node) *GossipModule {
 func (m *GossipModule) Broadcast(msg transport.Message) error {
 	// sendout the message in rumor
 	rumor := m.CreateRumor(&msg)
-	neighbor, ok := m.GetRandomNeighbor("")
-	if ok {
-		// no available neighbors
-		err := m.SendRumorsMessage(neighbor, &[]types.Rumor{rumor})
-		if err != nil {
-			return err
-		}
+	err := m.SendRumorsMessage("", &[]types.Rumor{rumor})
+	if err != nil {
+		return err
 	}
+
 	go func() {
 		// process the message locally
 		header := transport.NewHeader(
@@ -120,12 +117,9 @@ func (m *GossipModule) ProcessRumorsMsg(msg types.Message, pkt transport.Packet)
 	}
 	// send RumorsMsg to a random neighbor
 	if toNeighbor {
-		neighbor, ok := m.GetRandomNeighbor(pkt.Header.RelayedBy)
-		if ok {
-			err := m.SendDirectMessageWithACK(neighbor, *pkt.Msg)
-			if err != nil {
-				return err
-			}
+		err = m.SendDirectMessageWithACK(pkt.Header.RelayedBy, *pkt.Msg)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -212,46 +206,11 @@ func (m *GossipModule) CreateRumor(msg *transport.Message) types.Rumor {
 	return rumor
 }
 
-// RegisterTimer registers a timer to resend the packet after a certain period
-func (m *GossipModule) RegisterTimer(pkt *transport.Packet, duration time.Duration) {
-	if duration == 0 {
-		// no timer will be set
-		return
-	}
-	done := make(chan struct{}, 2)
-	timer := time.NewTimer(duration)
-	go func() {
-		select {
-		case <-done:
-			return
-		case <-timer.C:
-			m.timerController.remove(pkt.Header.PacketID)
-			neighbor, ok := m.GetRandomNeighbor(pkt.Header.Destination)
-			if !ok {
-				return
-			}
-			header := transport.NewHeader(
-				m.conf.Socket.GetAddress(),
-				m.conf.Socket.GetAddress(),
-				neighbor,
-				0)
-			msg := pkt.Msg.Copy()
-			myPkt := transport.Packet{Header: &header, Msg: &msg}
-			m.RegisterTimer(&myPkt, m.conf.AckTimeout)
-			err := m.conf.Socket.Send(neighbor, myPkt, WriteTimeout)
-			if err != nil {
-				return
-			}
-		}
-	}()
-	m.timerController.add(pkt.Header.PacketID, done)
-}
-
 // CancelTimer cancels the registed timer based on packetID
 func (m *GossipModule) CancelTimer(pktID string) {
 	done, ok := m.timerController.getAndRemove(pktID)
 	if ok {
-		<-done
+		done <- struct{}{}
 	}
 }
 
@@ -286,27 +245,48 @@ func (m *GossipModule) SendStatusMessage(dst string) error {
 	return err
 }
 
-// SendRumorsMessage unicasts an rumors packet
-func (m *GossipModule) SendRumorsMessage(dst string, rumors *[]types.Rumor) error {
+// SendRumorsMessage sends an rumors packet with ack
+func (m *GossipModule) SendRumorsMessage(src string, rumors *[]types.Rumor) error {
 	payload := types.RumorsMessage{Rumors: *rumors}
 	msg, err := m.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
-	return m.SendDirectMessageWithACK(dst, msg)
+	return m.SendDirectMessageWithACK(src, msg)
 }
 
-// SendDirectMessageWithACK sends a packet to neighbor and wait for ack
-func (m *GossipModule) SendDirectMessageWithACK(dst string, msg transport.Message) error {
+// SendDirectMessageWithACK sends a message to neighbor and wait for ack asynchronously
+func (m *GossipModule) SendDirectMessageWithACK(from string, msg transport.Message) (err error) {
+	neighbor, ok := m.GetRandomNeighbor(from)
+	if !ok {
+		return
+	}
 	header := transport.NewHeader(
 		m.conf.Socket.GetAddress(),
 		m.conf.Socket.GetAddress(),
-		dst,
+		neighbor,
 		0)
 	pkt := transport.Packet{Header: &header, Msg: &msg}
-	m.RegisterTimer(&pkt, m.conf.AckTimeout)
-	err := m.conf.Socket.Send(dst, pkt, WriteTimeout)
-	return err
+	err = m.conf.Socket.Send(neighbor, pkt, WriteTimeout)
+	if err != nil {
+		return err
+	}
+
+	if m.conf.AckTimeout == 0 {
+		// no timer will be set
+		return nil
+	}
+	done := make(chan struct{}, 2)
+	m.timerController.add(pkt.Header.PacketID, done)
+	go func() {
+		select {
+		case <-done:
+		case <-time.After(m.conf.AckTimeout):
+			m.timerController.remove(pkt.Header.PacketID)
+			m.SendDirectMessageWithACK(neighbor, msg)
+		}
+	}()
+	return nil
 }
 
 // CheckSyncStatus compares the node status with the statusMessage for furthur syncing
