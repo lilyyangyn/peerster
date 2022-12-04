@@ -21,13 +21,13 @@ func (n *node) MessagingDaemon(ctx context.Context) error {
 				if err != nil {
 					continue
 				}
-				go func() {
-					err = n.ProcessPkt(pkt)
-					if err != nil {
-						return
-						// continue
-					}
-				}()
+				// go func() {
+				err = n.ProcessPkt(pkt)
+				if err != nil {
+					// return
+					continue
+				}
+				// }()
 
 			}
 		}
