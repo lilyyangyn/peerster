@@ -3,6 +3,7 @@ package impl
 import (
 	"context"
 	"io"
+	"math/rand"
 	"regexp"
 	"time"
 
@@ -51,7 +52,7 @@ type node struct {
 // Start implements peer.Service
 func (n *node) Start() error {
 	//start a new loop to listen to the message (non-blocking)
-	// rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
 

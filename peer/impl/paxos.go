@@ -2,11 +2,11 @@ package impl
 
 import (
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/rs/xid"
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
@@ -22,7 +22,6 @@ type PaxosModule struct {
 	*paxos.MultiPaxos
 
 	paxosPromiseChan chan PaxosResult
-	paxosAcceptChan  chan PaxosResult
 	paxosTLCAdvChan  chan PaxosResult
 
 	hasSentTLC bool
@@ -64,11 +63,10 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 	}
 
 	m.Lock()
-	if !m.Proposer && m.AcceptID == 0 {
+	if !m.Occupied {
+		m.Occupied = true
 		m.Proposer = true
-		m.paxosPromiseChan = make(chan PaxosResult, 50)
-		m.paxosAcceptChan = make(chan PaxosResult, 50)
-		// m.paxosTLCAdvChan = make(chan PaxosResult, 50)
+		m.paxosPromiseChan = make(chan PaxosResult, 5)
 		step := m.TLC
 		m.Unlock()
 		return m.proposeTag(name, mh, step)
@@ -85,16 +83,7 @@ func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
 		Metahash: mh,
 	}
 
-	result := m.phaseOne(&proposeVal, step)
-
-	m.Lock()
-	m.Proposer = false
-	m.cond.Signal()
-	m.Unlock()
-
-	if result.Err != nil {
-		return result.Err
-	}
+	result := m.startFromPhaseOne(&proposeVal, step)
 
 	if result.Value.Filename == name && result.Value.Metahash == mh {
 		return nil
@@ -102,9 +91,10 @@ func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
 	return m.InitTagConensus(name, mh)
 }
 
-func (m *PaxosModule) phaseOne(val *types.PaxosValue, step uint) (result PaxosResult) {
-	// fmt.Println(m.conf.Socket.GetAddress(), "ENTER PHASE ONE")
+func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (result PaxosResult) {
 	m.Lock()
+	m.ProposeValue = val
+	m.Proposer = true
 	m.JoinPhaseOne()
 	promiseChan := m.paxosPromiseChan
 	id := m.ProposeID
@@ -112,57 +102,37 @@ func (m *PaxosModule) phaseOne(val *types.PaxosValue, step uint) (result PaxosRe
 
 	err := m.broadcastPaxosPrepareMessage(step, id)
 	if err != nil {
-		return PaxosResult{Err: err}
+		log.Info().Msgf("%s", err)
 	}
 
-	timer := time.NewTimer(m.conf.PaxosProposerRetry)
-	select {
-	case result = <-promiseChan:
-		return m.phaseTwo(val, step)
-	case result = <-m.paxosTLCAdvChan:
-		result.Finish = true
-		return result
-	case <-timer.C:
-		m.Lock()
-		m.PaxosState = paxos.Init
-		m.ProposeID += m.conf.TotalPeers
-		m.Unlock()
-		return m.phaseOne(val, step)
-	}
-}
-
-func (m *PaxosModule) phaseTwo(val *types.PaxosValue, step uint) (result PaxosResult) {
-	// fmt.Println(m.conf.Socket.GetAddress(), "ENTER PHASE TWO")
-	m.Lock()
-	m.JoinPhaseTwo()
-	acceptChan := m.paxosAcceptChan
-	id := m.ProposeID
-
-	valueToPropose := val
-	if m.ValueInPromise != nil {
-		valueToPropose = m.ValueInPromise
-	}
-	m.Unlock()
-
-	err := m.broadcastPaxosProposeMessage(step, id, valueToPropose)
-	if err != nil {
-		return PaxosResult{Err: err}
-	}
-
-	timer := time.NewTimer(m.conf.PaxosProposerRetry)
-	select {
-	case result = <-acceptChan:
-		result.Finish = true
-		return result
-	case result = <-m.paxosTLCAdvChan:
-		result.Finish = true
-		return result
-	case <-timer.C:
-		m.Lock()
-		m.PaxosState = paxos.Init
-		m.ProposeID += m.conf.TotalPeers
-		m.Unlock()
-		return m.phaseOne(val, step)
+	timer := time.After(m.conf.PaxosProposerRetry)
+	for {
+	PaxosSelect:
+		select {
+		case result = <-promiseChan:
+			if result.Step < step {
+				break PaxosSelect
+			}
+			timer = time.After(m.conf.PaxosProposerRetry)
+		case result = <-m.paxosTLCAdvChan:
+			if result.Step < step {
+				break PaxosSelect
+			}
+			m.Lock()
+			if m.Occupied {
+				m.Occupied = false
+				m.cond.Signal()
+			}
+			m.Unlock()
+			result.Finish = true
+			return result
+		case <-timer:
+			m.Lock()
+			m.PaxosState = paxos.Init
+			m.ProposeID += m.conf.TotalPeers
+			m.Unlock()
+			return m.startFromPhaseOne(val, step)
+		}
 	}
 }
 
@@ -220,7 +190,7 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 
 	// ignore if proposer not in phase one
 	if !m.Proposer || m.PaxosState != paxos.PhaseOne {
-		if promiseMsg.ID < m.ProposeID && promiseMsg.ID%m.conf.TotalPeers == m.conf.PaxosID {
+		if promiseMsg.ID != m.ProposeID {
 			return nil
 		}
 	}
@@ -230,10 +200,8 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 	if promiseMsg.AcceptedID > m.MaxIDInPromise {
 		m.MaxIDInPromise = promiseMsg.AcceptedID
 		m.ValueInPromise = promiseMsg.AcceptedValue
-		// m.AcceptID = promiseMsg.AcceptedID
-		// m.AcceptValue = promiseMsg.AcceptedValue
 	}
-	if m.PromiseCounter < m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if m.PromiseCounter != m.conf.PaxosThreshold(m.conf.TotalPeers) {
 		return nil
 	}
 	m.PromiseCounter = 0
@@ -244,6 +212,14 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 		Finish: false,
 	}
 	m.paxosPromiseChan <- result
+
+	// start phase two
+	m.JoinPhaseTwo()
+	value := m.ValueInPromise
+	if value == nil {
+		value = m.ProposeValue
+	}
+	err = m.broadcastPaxosProposeMessage(promiseMsg.Step, promiseMsg.ID, value)
 
 	return err
 }
@@ -303,27 +279,28 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	// record accept
 	uniqID := acceptMsg.Value.UniqID
 	m.AcceptCounter[uniqID]++
-	if m.PaxosState == paxos.Complete || m.AcceptCounter[uniqID] < m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if m.AcceptCounter[uniqID] != m.conf.PaxosThreshold(m.conf.TotalPeers) {
 		return nil
 	}
-	m.PaxosState = paxos.Complete
+	m.AcceptCounter[uniqID] = 0
 
 	// update accept value
 	m.AcceptID = acceptMsg.ID
 	m.AcceptValue = &acceptMsg.Value
 
 	// notify proposer
-	if m.Proposer {
-		result := PaxosResult{
-			Step:   acceptMsg.Step,
-			Value:  &acceptMsg.Value,
-			Finish: true,
-		}
-		m.paxosAcceptChan <- result
-	}
+	// if m.Proposer {
+	// 	result := PaxosResult{
+	// 		Step:   acceptMsg.Step,
+	// 		Value:  &acceptMsg.Value,
+	// 		Finish: true,
+	// 	}
+	// 	m.paxosAcceptChan <- result
+	// }
 
 	// send TLC message
-	block := m.CreateTLCBlock(&acceptMsg.Value, m.conf.Storage.GetBlockchainStore().Get(storage.LastBlockKey))
+	block := m.CreateTLCBlock(&acceptMsg.Value,
+		m.conf.Storage.GetBlockchainStore().Get(storage.LastBlockKey))
 	err = m.broadcastTLCMessage(acceptMsg.Step, block)
 	if err == nil {
 		m.hasSentTLC = true
@@ -350,7 +327,7 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 	// record block
 	m.BlockCounter[tlcMsg.Step]++
 	m.Blocks[tlcMsg.Step] = &tlcMsg.Block
-	if tlcMsg.Step != m.TLC || m.BlockCounter[m.TLC] < m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if tlcMsg.Step != m.TLC || m.BlockCounter[m.TLC] != m.conf.PaxosThreshold(m.conf.TotalPeers) {
 		return nil
 	}
 	m.BlockCounter[m.TLC] = 0
@@ -363,7 +340,7 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
-	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
+	log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
 
 	// append block
 	blockKey := hex.EncodeToString(block.Hash)
@@ -379,6 +356,7 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 
 	// broadcast TLC message if needed
 	if !m.hasSentTLC && !catchUp {
+		m.hasSentTLC = true
 		err = m.broadcastTLCMessage(m.TLC, block)
 		if err != nil {
 			return err
@@ -397,6 +375,8 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 	// increse TLC
 	m.TLC++
 	m.Paxos = paxos.NewPaxos(m.conf.PaxosID)
+	m.Occupied = false
+	// m.Proposer = false
 	m.cond.Signal()
 
 	// do catchup

@@ -7,18 +7,10 @@ import (
 	"go.dedis.ch/cs438/types"
 )
 
-// const (
-// 	Idle = iota
-// 	Busy
-// )
-
-// type MultiPaxosStateMachine int
-
 type MultiPaxos struct {
-	TLC uint
+	TLC      uint
+	Occupied bool
 	*Paxos
-
-	// MultiPaxosState MultiPaxosStateMachine
 
 	BlockCounter map[uint]int
 	Blocks       map[uint]*types.BlockchainBlock
@@ -28,8 +20,6 @@ func NewMultiPaxos(id uint) *MultiPaxos {
 	multipaxos := MultiPaxos{
 		TLC:   0,
 		Paxos: NewPaxos(id),
-
-		// MultiPaxosState: Idle,
 
 		BlockCounter: make(map[uint]int),
 		Blocks:       make(map[uint]*types.BlockchainBlock),
