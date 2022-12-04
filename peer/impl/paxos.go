@@ -2,6 +2,7 @@ package impl
 
 import (
 	"encoding/hex"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,7 +35,7 @@ func NewPaxosModule(n *node) *PaxosModule {
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
 		MultiPaxos:      paxos.NewMultiPaxos(n.conf.PaxosID),
-		paxosTLCAdvChan: make(chan PaxosResult, 5),
+		paxosTLCAdvChan: make(chan PaxosResult, 1000),
 	}
 
 	// message registery
@@ -62,32 +63,22 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 		return xerrors.Errorf("%s already in the name store.", name)
 	}
 
-	for {
-		m.Lock()
-		if m.MultiPaxosState == paxos.Idle && m.AcceptID == 0 {
-			m.Proposer = true
-			m.MultiPaxosState = paxos.Busy
-			m.paxosPromiseChan = make(chan PaxosResult, 1)
-			m.paxosAcceptChan = make(chan PaxosResult, 1)
-			// m.paxosTLCAdvChan = make(chan PaxosResult, 5)
-			step := m.TLC
-			m.Unlock()
-			return m.proposeTag(name, mh, step)
-		}
-		m.cond.Wait()
+	m.Lock()
+	if !m.Proposer && m.AcceptID == 0 {
+		m.Proposer = true
+		m.paxosPromiseChan = make(chan PaxosResult, 50)
+		m.paxosAcceptChan = make(chan PaxosResult, 50)
+		// m.paxosTLCAdvChan = make(chan PaxosResult, 50)
+		step := m.TLC
 		m.Unlock()
+		return m.proposeTag(name, mh, step)
 	}
+	m.cond.Wait()
+	m.Unlock()
+	return m.InitTagConensus(name, mh)
 }
 
 func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
-	defer func() {
-		m.Lock()
-		m.Proposer = false
-		m.MultiPaxosState = paxos.Idle
-		m.cond.Signal()
-		m.Unlock()
-	}()
-
 	proposeVal := types.PaxosValue{
 		UniqID:   xid.New().String(),
 		Filename: name,
@@ -95,6 +86,12 @@ func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
 	}
 
 	result := m.phaseOne(&proposeVal, step)
+
+	m.Lock()
+	m.Proposer = false
+	m.cond.Signal()
+	m.Unlock()
+
 	if result.Err != nil {
 		return result.Err
 	}
@@ -118,24 +115,19 @@ func (m *PaxosModule) phaseOne(val *types.PaxosValue, step uint) (result PaxosRe
 		return PaxosResult{Err: err}
 	}
 
-	for {
-		select {
-		case result = <-promiseChan:
-			if result.Step == step {
-				return m.phaseTwo(val, step)
-			}
-		case result = <-m.paxosTLCAdvChan:
-			if result.Step == step {
-				result.Finish = true
-				return result
-			}
-		case <-time.After(m.conf.PaxosProposerRetry):
-			m.Lock()
-			m.PaxosState = paxos.Init
-			m.ProposeID += m.conf.TotalPeers
-			m.Unlock()
-			return m.phaseOne(val, step)
-		}
+	timer := time.NewTimer(m.conf.PaxosProposerRetry)
+	select {
+	case result = <-promiseChan:
+		return m.phaseTwo(val, step)
+	case result = <-m.paxosTLCAdvChan:
+		result.Finish = true
+		return result
+	case <-timer.C:
+		m.Lock()
+		m.PaxosState = paxos.Init
+		m.ProposeID += m.conf.TotalPeers
+		m.Unlock()
+		return m.phaseOne(val, step)
 	}
 }
 
@@ -157,25 +149,20 @@ func (m *PaxosModule) phaseTwo(val *types.PaxosValue, step uint) (result PaxosRe
 		return PaxosResult{Err: err}
 	}
 
-	for {
-		select {
-		case result = <-acceptChan:
-			if result.Step == step {
-				result.Finish = true
-				return result
-			}
-		case result = <-m.paxosTLCAdvChan:
-			if result.Step == step {
-				result.Finish = true
-				return result
-			}
-		case <-time.After(m.conf.PaxosProposerRetry):
-			m.Lock()
-			m.PaxosState = paxos.Init
-			m.ProposeID += m.conf.TotalPeers
-			m.Unlock()
-			return m.phaseOne(val, step)
-		}
+	timer := time.NewTimer(m.conf.PaxosProposerRetry)
+	select {
+	case result = <-acceptChan:
+		result.Finish = true
+		return result
+	case result = <-m.paxosTLCAdvChan:
+		result.Finish = true
+		return result
+	case <-timer.C:
+		m.Lock()
+		m.PaxosState = paxos.Init
+		m.ProposeID += m.conf.TotalPeers
+		m.Unlock()
+		return m.phaseOne(val, step)
 	}
 }
 
@@ -200,9 +187,6 @@ func (m *PaxosModule) ProcessPaxosPrepareMsg(msg types.Message, pkt transport.Pa
 	if prepareMsg.ID <= m.MaxID {
 		return nil
 	}
-
-	// fmt.Print("Prepare:", m.conf.Socket.GetAddress())
-	// defer fmt.Println(" -- Prepare End:", m.conf.Socket.GetAddress())
 
 	// update MaxID
 	m.MaxID = prepareMsg.ID
@@ -253,7 +237,6 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 		return nil
 	}
 	m.PromiseCounter = 0
-	// success = true
 
 	// notify proposer
 	result := PaxosResult{
@@ -285,12 +268,9 @@ func (m *PaxosModule) ProcessPaxosProposeMessage(msg types.Message, pkt transpor
 		return nil
 	}
 
-	// fmt.Print("Propose:", m.conf.Socket.GetAddress())
-	// defer fmt.Println(" -- Propose End:", m.conf.Socket.GetAddress())
-
 	// accept proposed value
-	// m.AcceptID = proposeMsg.ID
-	// m.AcceptValue = &proposeMsg.Value
+	m.AcceptID = proposeMsg.ID
+	m.AcceptValue = &proposeMsg.Value
 
 	// respond with accept message
 	err = m.broadcastPaxosAcceptMessage(proposeMsg.Step, proposeMsg.ID, &proposeMsg.Value)
@@ -320,12 +300,6 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 		}
 	}
 
-	// fmt.Print("Accept:", m.conf.Socket.GetAddress())
-	// var success bool
-	// defer func() {
-	// 	fmt.Println(" -- Accept End:", m.conf.Socket.GetAddress(), m.Proposer, success)
-	// }()
-
 	// record accept
 	uniqID := acceptMsg.Value.UniqID
 	m.AcceptCounter[uniqID]++
@@ -333,7 +307,6 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 		return nil
 	}
 	m.PaxosState = paxos.Complete
-	// success = true
 
 	// update accept value
 	m.AcceptID = acceptMsg.ID
@@ -374,12 +347,6 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 		return nil
 	}
 
-	// fmt.Print("TLC:", m.conf.Socket.GetAddress())
-	// var success bool
-	// defer func() {
-	// 	fmt.Println(" -- TLC End:", m.conf.Socket.GetAddress(), m.Proposer, success)
-	// }()
-
 	// record block
 	m.BlockCounter[tlcMsg.Step]++
 	m.Blocks[tlcMsg.Step] = &tlcMsg.Block
@@ -387,16 +354,6 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 		return nil
 	}
 	m.BlockCounter[m.TLC] = 0
-	// success = true
-
-	if m.Proposer {
-		result := PaxosResult{
-			Step:   tlcMsg.Block.Index,
-			Value:  &tlcMsg.Block.Value,
-			Finish: true,
-		}
-		m.paxosTLCAdvChan <- result
-	}
 
 	err = m.advanceSession(&tlcMsg.Block, false)
 
@@ -406,7 +363,7 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
-	// fmt.Printf("\n%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
+	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
 
 	// append block
 	blockKey := hex.EncodeToString(block.Hash)
@@ -428,13 +385,18 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 		}
 	}
 
-	delete(m.BlockCounter, m.TLC)
-	delete(m.Blocks, m.TLC)
+	if m.Proposer {
+		result := PaxosResult{
+			Step:   block.Index,
+			Value:  &block.Value,
+			Finish: true,
+		}
+		m.paxosTLCAdvChan <- result
+	}
 
 	// increse TLC
 	m.TLC++
 	m.Paxos = paxos.NewPaxos(m.conf.PaxosID)
-	m.MultiPaxosState = paxos.Idle
 	m.cond.Signal()
 
 	// do catchup
