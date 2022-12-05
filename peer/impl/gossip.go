@@ -283,7 +283,7 @@ func (m *GossipModule) SendDirectMessageWithACK(from string, msg transport.Messa
 		case <-done:
 		case <-time.After(m.conf.AckTimeout):
 			m.timerController.remove(pkt.Header.PacketID)
-			m.SendDirectMessageWithACK(neighbor, msg)
+			_ = m.SendDirectMessageWithACK(neighbor, msg)
 		}
 	}()
 	return nil

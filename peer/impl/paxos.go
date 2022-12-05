@@ -2,7 +2,6 @@ package impl
 
 import (
 	"encoding/hex"
-	"fmt"
 	"sync"
 	"time"
 
@@ -336,8 +335,7 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 /** Private Helpfer Functions **/
 
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
-	// log.Info().Msgf("%s: Clock %d", m.conf.Socket.GetAddress(), m.TLC)
-	fmt.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
+	// log.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
 
 	// append block
 	blockKey := hex.EncodeToString(block.Hash)
