@@ -259,7 +259,11 @@ func (m *GossipModule) SendRumorsMessage(src string, rumors *[]types.Rumor) erro
 func (m *GossipModule) SendDirectMessageWithACK(exclude map[string]struct{}, msg transport.Message) (err error) {
 	neighbor, ok := m.GetRandomNeighbor(exclude)
 	if !ok {
-		return
+		exclude = map[string]struct{}{}
+		neighbor, ok = m.GetRandomNeighbor(exclude)
+		if !ok {
+			return
+		}
 	}
 	header := transport.NewHeader(
 		m.conf.Socket.GetAddress(),
