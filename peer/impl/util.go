@@ -14,13 +14,13 @@ func (n *node) ProcessPkt(pkt transport.Packet) error {
 	pktDst := pkt.Header.Destination
 	if pktDst == n.conf.Socket.GetAddress() {
 		// use register to process the message if the node is dest
-		go func() {
-			err := n.conf.MessageRegistry.ProcessPacket(pkt)
-			if err != nil {
-				// return err
-				return
-			}
-		}()
+		// go func() {
+		err := n.conf.MessageRegistry.ProcessPacket(pkt)
+		if err != nil {
+			return err
+			// return
+		}
+		// }()
 	} else {
 		// relay to the next peer
 		pkt.Header.RelayedBy = n.conf.Socket.GetAddress()

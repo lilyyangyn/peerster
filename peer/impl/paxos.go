@@ -33,7 +33,7 @@ func NewPaxosModule(n *node) *PaxosModule {
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
 		MultiPaxos:      NewMultiPaxos(n.conf.PaxosID),
-		paxosTLCAdvChan: make(chan PaxosResult, 100),
+		paxosTLCAdvChan: make(chan PaxosResult, 50),
 	}
 
 	// message registery
