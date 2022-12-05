@@ -117,7 +117,7 @@ func (m *GossipModule) ProcessRumorsMsg(msg types.Message, pkt transport.Packet)
 	}
 	// send RumorsMsg to a random neighbor
 	if toNeighbor {
-		err = m.SendDirectMessageWithACK(pkt.Header.RelayedBy, *pkt.Msg)
+		err = m.SendDirectMessageWithACK(map[string]struct{}{pkt.Header.RelayedBy: {}}, *pkt.Msg)
 		if err != nil {
 			return err
 		}
@@ -252,12 +252,12 @@ func (m *GossipModule) SendRumorsMessage(src string, rumors *[]types.Rumor) erro
 	if err != nil {
 		return err
 	}
-	return m.SendDirectMessageWithACK(src, msg)
+	return m.SendDirectMessageWithACK(map[string]struct{}{src: {}}, msg)
 }
 
 // SendDirectMessageWithACK sends a message to neighbor and wait for ack asynchronously
-func (m *GossipModule) SendDirectMessageWithACK(from string, msg transport.Message) (err error) {
-	neighbor, ok := m.GetRandomNeighbor(from)
+func (m *GossipModule) SendDirectMessageWithACK(exclude map[string]struct{}, msg transport.Message) (err error) {
+	neighbor, ok := m.GetRandomNeighbor(exclude)
 	if !ok {
 		return
 	}
@@ -276,6 +276,7 @@ func (m *GossipModule) SendDirectMessageWithACK(from string, msg transport.Messa
 		// no timer will be set
 		return nil
 	}
+	exclude[neighbor] = struct{}{}
 	done := make(chan struct{}, 2)
 	m.timerController.add(pkt.Header.PacketID, done)
 	go func() {
@@ -283,7 +284,7 @@ func (m *GossipModule) SendDirectMessageWithACK(from string, msg transport.Messa
 		case <-done:
 		case <-time.After(m.conf.AckTimeout):
 			m.timerController.remove(pkt.Header.PacketID)
-			_ = m.SendDirectMessageWithACK(neighbor, msg)
+			_ = m.SendDirectMessageWithACK(exclude, msg)
 		}
 	}()
 	return nil
@@ -324,7 +325,7 @@ func (m *GossipModule) ContinueMongering(pktOrigin string) error {
 		// continue only with a certain probability
 		return nil
 	}
-	randomNeighbor, ok := m.GetRandomNeighbor(pktOrigin)
+	randomNeighbor, ok := m.GetRandomNeighbor(map[string]struct{}{pktOrigin: {}})
 	if ok {
 		return m.SendStatusMessage(randomNeighbor)
 	}

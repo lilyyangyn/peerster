@@ -80,7 +80,7 @@ func (n *node) AntiEntropyDaemon(ctx context.Context, interval time.Duration) er
 				antiEntropyTicker.Stop()
 				break out
 			case <-antiEntropyTicker.C:
-				neighbor, ok := n.GetRandomNeighbor("")
+				neighbor, ok := n.GetRandomNeighbor(map[string]struct{}{})
 				if !ok {
 					// no available neighbor
 					continue

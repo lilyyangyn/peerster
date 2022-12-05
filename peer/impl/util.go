@@ -14,10 +14,13 @@ func (n *node) ProcessPkt(pkt transport.Packet) error {
 	pktDst := pkt.Header.Destination
 	if pktDst == n.conf.Socket.GetAddress() {
 		// use register to process the message if the node is dest
-		err := n.conf.MessageRegistry.ProcessPacket(pkt)
-		if err != nil {
-			return err
-		}
+		go func() {
+			err := n.conf.MessageRegistry.ProcessPacket(pkt)
+			if err != nil {
+				// return err
+				return
+			}
+		}()
 	} else {
 		// relay to the next peer
 		pkt.Header.RelayedBy = n.conf.Socket.GetAddress()
@@ -45,14 +48,14 @@ func (n *node) GetRoutingInfo(dst string) (string, error) {
 }
 
 // GetNeighbors returns a list of all neighbors
-func (n *node) GetNeighbors(exclude string) (neighbors []string) {
+func (n *node) GetNeighbors(exclude map[string]struct{}) (neighbors []string) {
 	n.routingTable.RLock()
 	neighbors = []string{}
 	for key, val := range n.routingTable.table {
 		if key == n.conf.Socket.GetAddress() {
 			continue
 		}
-		if key == exclude {
+		if _, ok := exclude[key]; ok {
 			continue
 		}
 		if key == val {
@@ -65,7 +68,7 @@ func (n *node) GetNeighbors(exclude string) (neighbors []string) {
 }
 
 // GetRandomNeighbor randomly returns a neighbor
-func (n *node) GetRandomNeighbor(exclude string) (string, bool) {
+func (n *node) GetRandomNeighbor(exclude map[string]struct{}) (string, bool) {
 	neighbors := n.GetNeighbors(exclude)
 	if len(neighbors) == 0 {
 		return "", false

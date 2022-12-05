@@ -440,7 +440,7 @@ func (m *DataSharingModule) RequestRemoteData(cid string, provider string,
 // RequestRemoteNames requests remote peers for matched names
 func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
 	budget uint, rid string, timeout time.Duration) (err error) {
-	neighbors := m.GetNeighbors(origin)
+	neighbors := m.GetNeighbors(map[string]struct{}{origin: {}})
 	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
 	if len(neighbors) == 0 {
 		return nil
