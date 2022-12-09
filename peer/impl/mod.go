@@ -8,65 +8,60 @@ import (
 	"time"
 
 	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/datashare"
+	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/transport"
 )
-
-const ReadTimeout = time.Millisecond * 100
-const WriteTimeout = time.Millisecond * 100
 
 // NewPeer creates a new peer. You can change the content and location of this
 // function but you MUST NOT change its signature and package location.
 func NewPeer(conf peer.Configuration) peer.Peer {
 	// here you must return a struct that implements the peer.Peer functions.
 	// Therefore, you are free to rename and change it as you want.
-	n := Node{
+	n := node{
 		conf:    conf,
 		stopSig: nil,
 	}
-	n.routingTable = *NewSafeRoutingTable(n.conf.Socket.GetAddress())
 
-	n.ChatModule = NewChatModule(&n)
-	n.GossipModule = NewGossipModule(&n)
-	n.DataSharingModule = NewDataSharingModule(&n)
+	n.message = message.NewMessageModule(&conf)
+	n.datasharing = datashare.NewDataSharingModule(&conf, n.message)
 
 	return &n
 }
 
-// Node implements a peer to build a Peerster system
+// node implements a peer to build a Peerster system
 //
 // - implements peer.Peer
-type Node struct {
+type node struct {
 	peer.Peer
 	conf peer.Configuration
 
-	*ChatModule
-	*GossipModule
-	*DataSharingModule
+	message     *message.MessageModule
+	datasharing *datashare.DataSharingModule
 
-	stopSig      context.CancelFunc
-	routingTable SafeRoutingTable
+	stopSig context.CancelFunc
 }
 
 /** Feature Functions **/
 
 // Start implements peer.Service
-func (n *Node) Start() error {
+func (n *node) Start() error {
 	//start a new loop to listen to the message (non-blocking)
 	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	n.stopSig = cancel
 
-	err := n.MessagingDaemon(ctx)
+	err := n.message.MessagingDaemon(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = n.HeartBeatDaemon(ctx, n.conf.HeartbeatInterval)
+	err = n.message.HeartBeatDaemon(ctx, n.conf.HeartbeatInterval)
 	if err != nil {
 		return err
 	}
 
-	err = n.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+	err = n.message.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
 	if err != nil {
 		return err
 	}
@@ -76,7 +71,7 @@ func (n *Node) Start() error {
 }
 
 // Stop implements peer.Service
-func (n *Node) Stop() error {
+func (n *node) Stop() error {
 	if n.stopSig != nil {
 		n.stopSig()
 	}
@@ -85,29 +80,17 @@ func (n *Node) Stop() error {
 }
 
 // Unicast implements peer.Messaging
-func (n *Node) Unicast(dest string, msg transport.Message) error {
-	header := transport.NewHeader(
-		n.conf.Socket.GetAddress(),
-		n.conf.Socket.GetAddress(),
-		dest,
-		0)
-	pkt := transport.Packet{Header: &header, Msg: &msg}
-	// Send the msg even if the dst is self
-	nextPeer, err := n.GetRoutingInfo(dest)
-	if err != nil {
-		return err
-	}
-	err = n.conf.Socket.Send(nextPeer, pkt, WriteTimeout)
-	return err
+func (n *node) Unicast(dest string, msg transport.Message) error {
+	return n.message.Unicast(dest, msg)
 }
 
 // Broadcast implements peer.Messaging
-func (n *Node) Broadcast(msg transport.Message) error {
-	return n.GossipModule.Broadcast(msg)
+func (n *node) Broadcast(msg transport.Message) error {
+	return n.message.Broadcast(msg)
 }
 
 // AddPeer implements peer.Service
-func (n *Node) AddPeer(addr ...string) {
+func (n *node) AddPeer(addr ...string) {
 	for _, peerAddr := range addr {
 		// add self should have no effct
 		if peerAddr == n.conf.Socket.GetAddress() {
@@ -119,57 +102,51 @@ func (n *Node) AddPeer(addr ...string) {
 }
 
 // GetRoutingTable implements peer.Service
-func (n *Node) GetRoutingTable() peer.RoutingTable {
-	return n.routingTable.getAll()
+func (n *node) GetRoutingTable() peer.RoutingTable {
+	return n.message.GetRoutingTable()
 }
 
 // SetRoutingEntry implements peer.Service
-func (n *Node) SetRoutingEntry(origin, relayAddr string) {
-	// Delete the record if no relayAddr
-	if relayAddr == "" {
-		n.routingTable.remove(origin)
-		return
-	}
-	// Otherwise, update the table
-	n.routingTable.add(origin, relayAddr)
+func (n *node) SetRoutingEntry(origin, relayAddr string) {
+	n.message.SetRoutingEntry(origin, relayAddr)
 }
 
 // Upload implements peer.Upload
-func (n *Node) Upload(data io.Reader) (metahash string, err error) {
-	return n.DataSharingModule.Upload(data)
+func (n *node) Upload(data io.Reader) (metahash string, err error) {
+	return n.datasharing.Upload(data)
 }
 
 // Download implements peer.Download
-func (n *Node) Download(metahash string) (data []byte, err error) {
-	return n.DataSharingModule.Download(metahash)
+func (n *node) Download(metahash string) (data []byte, err error) {
+	return n.datasharing.Download(metahash)
 }
 
 // Tag implements peer.Tag
-func (n *Node) Tag(name string, mh string) error {
-	return n.DataSharingModule.Tag(name, mh)
+func (n *node) Tag(name string, mh string) error {
+	return n.datasharing.Tag(name, mh)
 }
 
 // Resolve implements peer.Resolve
-func (n *Node) Resolve(name string) string {
-	return n.DataSharingModule.Resolve(name)
+func (n *node) Resolve(name string) string {
+	return n.datasharing.Resolve(name)
 }
 
 // GetCatalog implements peer.GetCatalog
-func (n *Node) GetCatalog() peer.Catalog {
-	return n.DataSharingModule.GetCatalog()
+func (n *node) GetCatalog() peer.Catalog {
+	return n.datasharing.GetCatalog()
 }
 
 // UpdateCatalog implements peer.UpdateCatalog
-func (n *Node) UpdateCatalog(key string, peer string) {
-	n.DataSharingModule.UpdateCatalog(key, peer)
+func (n *node) UpdateCatalog(key string, peer string) {
+	n.datasharing.UpdateCatalog(key, peer)
 }
 
 // SearchAll implements peer.SearchAll
-func (n *Node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
-	return n.DataSharingModule.SearchAll(reg, budget, timeout)
+func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+	return n.datasharing.SearchAll(reg, budget, timeout)
 }
 
 // SearchFirst implements peer.SearchFirst
-func (n *Node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
-	return n.DataSharingModule.SearchFirst(pattern, conf)
+func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+	return n.datasharing.SearchFirst(pattern, conf)
 }

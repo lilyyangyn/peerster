@@ -1,4 +1,4 @@
-package impl
+package datashare
 
 import (
 	"crypto"
@@ -11,28 +11,33 @@ import (
 
 	"github.com/rs/xid"
 	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
 type DataSharingModule struct {
-	*Node
+	*message.MessageModule
+	conf *peer.Configuration
+
 	catalog        SafeCatalog
 	replyChannels  SafeChannTable
 	messageRecords SafeMsgRecord
 
-	*PaxosModule
+	*paxos.PaxosModule
 }
 
-func NewDataSharingModule(n *Node) *DataSharingModule {
+func NewDataSharingModule(conf *peer.Configuration, messageModule *message.MessageModule) *DataSharingModule {
 	m := DataSharingModule{
-		Node:           n,
+		MessageModule:  messageModule,
+		conf:           conf,
 		catalog:        *NewSafeCatalog(),
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
 
-		PaxosModule: NewPaxosModule(n),
+		PaxosModule: paxos.NewPaxosModule(conf, messageModule),
 	}
 
 	// message registery
@@ -64,7 +69,7 @@ func (m *DataSharingModule) Upload(data io.Reader) (metahash string, err error) 
 		}
 
 		// compute CID
-		chunkHash, chunkCID := ComputeCID(chunk[:size])
+		chunkHash, chunkCID := computeCID(chunk[:size])
 		// store chunk
 		blobStorage.Set(chunkCID, chunk[:size])
 		// add to metafile
@@ -76,7 +81,7 @@ func (m *DataSharingModule) Upload(data io.Reader) (metahash string, err error) 
 	}
 
 	// compute CID for metadata and save
-	_, metahash = ComputeCID(metakey)
+	_, metahash = computeCID(metakey)
 	blobStorage.Set(metahash, metadata)
 
 	return metahash, err
@@ -85,7 +90,7 @@ func (m *DataSharingModule) Upload(data io.Reader) (metahash string, err error) 
 // Download implements peer.Download
 func (m *DataSharingModule) Download(metahash string) (data []byte, err error) {
 	// get metadata
-	metadata, readErr := m.GetData(metahash)
+	metadata, readErr := m.getData(metahash)
 	if readErr != nil {
 		err = readErr
 		return data, err
@@ -94,7 +99,7 @@ func (m *DataSharingModule) Download(metahash string) (data []byte, err error) {
 	chunkCIDs := strings.Split(string(metadata), peer.MetafileSep)
 	data = make([]byte, 0)
 	for _, chunkCID := range chunkCIDs {
-		chunkData, readErr := m.GetData(chunkCID)
+		chunkData, readErr := m.getData(chunkCID)
 		if readErr != nil {
 			err = readErr
 			return data, err
@@ -135,7 +140,7 @@ func (m *DataSharingModule) SearchAll(reg regexp.Regexp, budget uint,
 	timeout time.Duration) (names []string, err error) {
 	// search in remote naming store
 	rid := xid.New().String()
-	err = m.RequestRemoteNames(reg, m.conf.Socket.GetAddress(), budget, rid, timeout)
+	err = m.requestRemoteNames(reg, m.conf.Socket.GetAddress(), budget, rid, timeout)
 	if err != nil {
 		return names, err
 	}
@@ -159,7 +164,7 @@ func (m *DataSharingModule) SearchFirst(pattern regexp.Regexp, conf peer.Expandi
 	success := false
 	regMatch := func(key string, val []byte) bool {
 		if pattern.MatchString(key) {
-			if m.IsFullyKnown(string(val)) {
+			if m.isFullyKnown(string(val)) {
 				name = key
 				success = true
 				return false
@@ -173,7 +178,7 @@ func (m *DataSharingModule) SearchFirst(pattern regexp.Regexp, conf peer.Expandi
 	}
 
 	// check remote
-	name, err = m.RequestRemoteFullyKnownFile(pattern, conf)
+	name, err = m.requestRemoteFullyKnownFile(pattern, conf)
 
 	return name, err
 }
@@ -189,7 +194,7 @@ func (m *DataSharingModule) ProcessDataRequestMessage(msg types.Message, pkt tra
 
 	cid := requestMsg.Key
 	data := m.conf.Storage.GetDataBlobStore().Get(cid)
-	err := m.SendDataReplyMessage(pkt.Header.Source, requestMsg.RequestID, cid, data)
+	err := m.sendDataReplyMessage(pkt.Header.Source, requestMsg.RequestID, cid, data)
 
 	return err
 }
@@ -232,7 +237,7 @@ func (m *DataSharingModule) ProcessSearchRequestMessage(msg types.Message, pkt t
 	// check timeout
 	budget := requestMsg.Budget - 1
 	if budget > 0 {
-		err = m.RequestRemoteNames(*reg, requestMsg.Origin, budget, requestMsg.RequestID, 0)
+		err = m.requestRemoteNames(*reg, requestMsg.Origin, budget, requestMsg.RequestID, 0)
 		if err != nil {
 			return err
 		}
@@ -243,7 +248,7 @@ func (m *DataSharingModule) ProcessSearchRequestMessage(msg types.Message, pkt t
 	regMatch := func(key string, val []byte) bool {
 		if reg.MatchString(key) {
 			metahash := string(val)
-			if fileinfo, ok := m.GetLocalFileInfo(key, metahash); ok {
+			if fileinfo, ok := m.getLocalFileInfo(key, metahash); ok {
 				fileinfos = append(fileinfos, fileinfo)
 			}
 		}
@@ -252,7 +257,7 @@ func (m *DataSharingModule) ProcessSearchRequestMessage(msg types.Message, pkt t
 	m.conf.Storage.GetNamingStore().ForEach(regMatch)
 
 	// send reply
-	err = m.SendSearchReplyMessage(requestMsg.Origin, pkt.Header.RelayedBy, requestMsg.RequestID, fileinfos)
+	err = m.sendSearchReplyMessage(requestMsg.Origin, pkt.Header.RelayedBy, requestMsg.RequestID, fileinfos)
 	if err != nil {
 		return err
 	}
@@ -293,8 +298,8 @@ func (m *DataSharingModule) ProcessSearchReplyMessage(msg types.Message, pkt tra
 
 /** Private Helpfer Functions **/
 
-// ComputeCID computes the encoded hash of the given byte array
-func ComputeCID(data []byte) (hash []byte, hashHex string) {
+// computeCID computes the encoded hash of the given byte array
+func computeCID(data []byte) (hash []byte, hashHex string) {
 	h := crypto.SHA256.New()
 	h.Write(data)
 	hash = h.Sum(nil)
@@ -303,19 +308,19 @@ func ComputeCID(data []byte) (hash []byte, hashHex string) {
 	return hash, hashHex
 }
 
-// FairBudget distributes budget as fairly as possible to pieces
-func FairBudget(budget uint, pieces uint) (base uint, extra int) {
+// fairBudget distributes budget as fairly as possible to pieces
+func fairBudget(budget uint, pieces uint) (base uint, extra int) {
 	base = budget / pieces
 	extra = int(budget % pieces)
 
 	return base, extra
 }
 
-// GetData returns an byte araay of the given encoded hash
-func (m *DataSharingModule) GetData(cid string) (data []byte, err error) {
+// getData returns an byte araay of the given encoded hash
+func (m *DataSharingModule) getData(cid string) (data []byte, err error) {
 	var backoffMult uint = 1
 	backoffInfo := m.conf.BackoffDataRequest
-	provider, ok := m.GetRandomProvider(cid)
+	provider, ok := m.getRandomProvider(cid)
 	for i := 0; i < int(backoffInfo.Retry); i++ {
 		// check local storage
 		if content := m.conf.Storage.GetDataBlobStore().Get(cid); content != nil {
@@ -335,7 +340,7 @@ func (m *DataSharingModule) GetData(cid string) (data []byte, err error) {
 		}
 
 		// send request to another peer
-		data, err = m.RequestRemoteData(cid, provider, backoffInfo.Initial)
+		data, err = m.requestRemoteData(cid, provider, backoffInfo.Initial)
 		if err != nil || data != nil {
 			return data, err
 		}
@@ -345,8 +350,8 @@ func (m *DataSharingModule) GetData(cid string) (data []byte, err error) {
 	return data, err
 }
 
-// GetLocalFileInfo constructs a list of fileinfo from local storage
-func (m *DataSharingModule) GetLocalFileInfo(name string, metahash string) (fileinfo types.FileInfo, ok bool) {
+// getLocalFileInfo constructs a list of fileinfo from local storage
+func (m *DataSharingModule) getLocalFileInfo(name string, metahash string) (fileinfo types.FileInfo, ok bool) {
 	metadata := m.conf.Storage.GetDataBlobStore().Get(metahash)
 	if metadata == nil {
 		ok = false
@@ -372,7 +377,7 @@ func (m *DataSharingModule) GetLocalFileInfo(name string, metahash string) (file
 }
 
 // IsFullKnown checks if the peer has all chunks of the file locally
-func (m *DataSharingModule) IsFullyKnown(metahash string) (ok bool) {
+func (m *DataSharingModule) isFullyKnown(metahash string) (ok bool) {
 	metadata := m.conf.Storage.GetDataBlobStore().Get(metahash)
 	if metadata == nil {
 		ok = false
@@ -394,7 +399,7 @@ func (m *DataSharingModule) IsFullyKnown(metahash string) (ok bool) {
 }
 
 // GetRandomNeighbor randomly returns a neighbor
-func (m *DataSharingModule) GetRandomProvider(cid string) (provider string, ok bool) {
+func (m *DataSharingModule) getRandomProvider(cid string) (provider string, ok bool) {
 	m.catalog.RLock()
 	providers := []string{}
 	for key := range m.catalog.catalog[cid] {
@@ -410,12 +415,12 @@ func (m *DataSharingModule) GetRandomProvider(cid string) (provider string, ok b
 	return provider, ok
 }
 
-// RequestRemoteData sends a data request to a random provider and wait until timeout
-func (m *DataSharingModule) RequestRemoteData(cid string, provider string,
+// requestRemoteData sends a data request to a random provider and wait until timeout
+func (m *DataSharingModule) requestRemoteData(cid string, provider string,
 	timeout time.Duration) (data []byte, err error) {
 	// wait for response
 	rid := xid.New().String()
-	err = m.SendDataRequestMessage(provider, rid, cid)
+	err = m.sendDataRequestMessage(provider, rid, cid)
 	if err != nil {
 		return data, err
 	}
@@ -437,8 +442,8 @@ func (m *DataSharingModule) RequestRemoteData(cid string, provider string,
 	return data, err
 }
 
-// RequestRemoteNames requests remote peers for matched names
-func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
+// requestRemoteNames requests remote peers for matched names
+func (m *DataSharingModule) requestRemoteNames(reg regexp.Regexp, origin string,
 	budget uint, rid string, timeout time.Duration) (err error) {
 	neighbors := m.GetNeighbors(map[string]struct{}{origin: {}})
 	rand.Shuffle(len(neighbors), func(i, j int) { neighbors[i], neighbors[j] = neighbors[j], neighbors[i] })
@@ -446,7 +451,7 @@ func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
 		return nil
 	}
 
-	base, extra := FairBudget(budget, uint(len(neighbors)))
+	base, extra := fairBudget(budget, uint(len(neighbors)))
 	var channel chan bool
 	if timeout > 0 {
 		channel = make(chan bool)
@@ -462,7 +467,7 @@ func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
 				break
 			}
 		}
-		err = m.SendSearchRequestMessage(neighbor, rid, origin, reg, myBudget)
+		err = m.sendSearchRequestMessage(neighbor, rid, origin, reg, myBudget)
 		if err != nil {
 			return err
 		}
@@ -489,7 +494,7 @@ func (m *DataSharingModule) RequestRemoteNames(reg regexp.Regexp, origin string,
 	return err
 }
 
-func (m *DataSharingModule) RequestRemoteFullyKnownFile(reg regexp.Regexp,
+func (m *DataSharingModule) requestRemoteFullyKnownFile(reg regexp.Regexp,
 	conf peer.ExpandingRing) (name string, err error) {
 	// expanding-ring search
 	var backoffMult uint = 1
@@ -502,7 +507,7 @@ func (m *DataSharingModule) RequestRemoteFullyKnownFile(reg regexp.Regexp,
 
 		// expanding-ring search
 		rid := xid.New().String()
-		err = m.RequestRemoteNames(reg, m.conf.Socket.GetAddress(), conf.Initial*backoffMult, rid, conf.Timeout)
+		err = m.requestRemoteNames(reg, m.conf.Socket.GetAddress(), conf.Initial*backoffMult, rid, conf.Timeout)
 		if err != nil {
 			return name, err
 		}
@@ -529,7 +534,7 @@ func (m *DataSharingModule) RequestRemoteFullyKnownFile(reg regexp.Regexp,
 }
 
 // SendStatusMessage sends a data request packet to the given dst
-func (m *DataSharingModule) SendDataRequestMessage(dst string, rid string, cid string) error {
+func (m *DataSharingModule) sendDataRequestMessage(dst string, rid string, cid string) error {
 	payload := types.DataRequestMessage{RequestID: rid, Key: cid}
 	msg, err := m.CreateMsg(payload)
 	if err != nil {
@@ -539,8 +544,8 @@ func (m *DataSharingModule) SendDataRequestMessage(dst string, rid string, cid s
 	return err
 }
 
-// SendDataReplyMessage sends a data reply packet to the given dst
-func (m *DataSharingModule) SendDataReplyMessage(dst string, rid string, cid string, data []byte) error {
+// sendDataReplyMessage sends a data reply packet to the given dst
+func (m *DataSharingModule) sendDataReplyMessage(dst string, rid string, cid string, data []byte) error {
 	payload := types.DataReplyMessage{RequestID: rid, Key: cid, Value: data}
 	msg, err := m.CreateMsg(payload)
 	if err != nil {
@@ -550,8 +555,8 @@ func (m *DataSharingModule) SendDataReplyMessage(dst string, rid string, cid str
 	return err
 }
 
-// SendSearchRequestMessage sends a search request packet to the given dst
-func (m *DataSharingModule) SendSearchRequestMessage(dst string, rid string, origin string,
+// sendSearchRequestMessage sends a search request packet to the given dst
+func (m *DataSharingModule) sendSearchRequestMessage(dst string, rid string, origin string,
 	reg regexp.Regexp, budget uint) error {
 	payload := types.SearchRequestMessage{
 		RequestID: rid, Origin: origin,
@@ -567,8 +572,8 @@ func (m *DataSharingModule) SendSearchRequestMessage(dst string, rid string, ori
 	return err
 }
 
-// SendSearchReplyMessage sends a search reply packet to the given dst
-func (m *DataSharingModule) SendSearchReplyMessage(dst string, nextHop string, rid string,
+// sendSearchReplyMessage sends a search reply packet to the given dst
+func (m *DataSharingModule) sendSearchReplyMessage(dst string, nextHop string, rid string,
 	fileinfos []types.FileInfo) error {
 	payload := types.SearchReplyMessage{
 		RequestID: rid, Responses: fileinfos}
@@ -582,6 +587,6 @@ func (m *DataSharingModule) SendSearchReplyMessage(dst string, nextHop string, r
 		dst,
 		0)
 	pkt := transport.Packet{Header: &header, Msg: &msg}
-	err = m.conf.Socket.Send(nextHop, pkt, WriteTimeout)
+	err = m.conf.Socket.Send(nextHop, pkt, message.WriteTimeout)
 	return err
 }

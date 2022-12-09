@@ -1,23 +1,27 @@
-package impl
+package message
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
+	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
 type GossipModule struct {
-	*Node
+	*MessageModule
+	conf            *peer.Configuration
 	rumorsTable     SafeRumorsTable
 	timerController TimerController
 }
 
-func NewGossipModule(n *Node) *GossipModule {
+func NewGossipModule(conf *peer.Configuration, messageModue *MessageModule) *GossipModule {
 	m := GossipModule{
-		Node:            n,
+		MessageModule:   messageModue,
+		conf:            conf,
 		rumorsTable:     *NewSafeRumorsTable(),
 		timerController: *NewTimeController(),
 	}
@@ -37,8 +41,8 @@ func NewGossipModule(n *Node) *GossipModule {
 // Broadcast implements peer.Messaging
 func (m *GossipModule) Broadcast(msg transport.Message) error {
 	// sendout the message in rumor
-	rumor := m.CreateRumor(&msg)
-	err := m.SendRumorsMessage("", &[]types.Rumor{rumor})
+	rumor := m.createRumor(&msg)
+	err := m.sendRumorsMessage("", &[]types.Rumor{rumor})
 	if err != nil {
 		return err
 	}
@@ -55,6 +59,71 @@ func (m *GossipModule) Broadcast(msg transport.Message) error {
 		if err != nil {
 			return
 			// return err
+		}
+	}()
+
+	return nil
+}
+
+/** Daemon **/
+
+// HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
+func (m *MessageModule) HeartBeatDaemon(ctx context.Context, interval time.Duration) error {
+	if interval == 0 {
+		// the heartbeat mechanism must not be activated
+		return nil
+	}
+	heartbeatTicker := time.NewTicker(interval)
+	err := m.sendHeartbeatMessage(types.EmptyMessage{})
+	if err != nil {
+		return err
+	}
+
+	go func() {
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				heartbeatTicker.Stop()
+				break out
+			case <-heartbeatTicker.C:
+				err := m.sendHeartbeatMessage(types.EmptyMessage{})
+				if err != nil {
+					continue
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+// AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
+func (m *MessageModule) AntiEntropyDaemon(ctx context.Context, interval time.Duration) error {
+	if interval == 0 {
+		// the anti-entropy mechanism must not be activated
+		return nil
+	}
+	antiEntropyTicker := time.NewTicker(interval)
+
+	go func() {
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				antiEntropyTicker.Stop()
+				break out
+			case <-antiEntropyTicker.C:
+				neighbor, ok := m.GetRandomNeighbor(map[string]struct{}{})
+				if !ok {
+					// no available neighbor
+					continue
+				}
+				err := m.sendStatusMessage(neighbor)
+				if err != nil {
+					continue
+				}
+			}
 		}
 	}()
 
@@ -111,13 +180,13 @@ func (m *GossipModule) ProcessRumorsMsg(msg types.Message, pkt transport.Packet)
 		}
 	}
 	// send ACK
-	err := m.SendAckMessage(pkt.Header.RelayedBy, pkt.Header.PacketID)
+	err := m.sendAckMessage(pkt.Header.RelayedBy, pkt.Header.PacketID)
 	if err != nil {
 		return err
 	}
 	// send RumorsMsg to a random neighbor
 	if toNeighbor {
-		err = m.SendDirectMessageWithACK(map[string]struct{}{pkt.Header.RelayedBy: {}}, *pkt.Msg)
+		err = m.sendDirectMessageWithACK(map[string]struct{}{pkt.Header.RelayedBy: {}}, *pkt.Msg)
 		if err != nil {
 			return err
 		}
@@ -131,11 +200,11 @@ func (m *GossipModule) ProcessStatusMsg(msg types.Message, pkt transport.Packet)
 	if !ok {
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
-	rumors, catchUp := m.CheckSyncStatus(statusMsg)
+	rumors, catchUp := m.checkSyncStatus(statusMsg)
 
 	if catchUp {
 		// send a status message to the remote peer
-		err := m.SendStatusMessage(pkt.Header.RelayedBy)
+		err := m.sendStatusMessage(pkt.Header.RelayedBy)
 		if err != nil {
 			return err
 		}
@@ -155,7 +224,7 @@ func (m *GossipModule) ProcessStatusMsg(msg types.Message, pkt transport.Packet)
 	}
 	if !catchUp && len(rumors) == 0 {
 		// Both peers have the same view. ContinueMongering
-		return m.ContinueMongering(pkt.Header.RelayedBy)
+		return m.continueMongering(pkt.Header.RelayedBy)
 	}
 	return nil
 }
@@ -167,7 +236,7 @@ func (m *GossipModule) ProcessAckMsg(msg types.Message, pkt transport.Packet) er
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 	// stop timer
-	m.CancelTimer(pkt.Header.PacketID)
+	m.cancelTimer(pkt.Header.PacketID)
 	// process status message
 	newMsg, err := m.conf.MessageRegistry.MarshalMessage(&ACKkMsg.Status)
 	if err != nil {
@@ -192,8 +261,8 @@ func (m *GossipModule) ProcessEmptyMsg(msg types.Message, pkt transport.Packet) 
 
 /** Private Helpfer Functions **/
 
-// CreateRumor creates a new rumor with expected seqID and add it to rumorsTable
-func (m *GossipModule) CreateRumor(msg *transport.Message) types.Rumor {
+// createRumor creates a new rumor with expected seqID and add it to rumorsTable
+func (m *GossipModule) createRumor(msg *transport.Message) types.Rumor {
 	m.rumorsTable.Lock()
 	defer m.rumorsTable.Unlock()
 	expectedSeq := uint(len(m.rumorsTable.table[m.conf.Socket.GetAddress()])) + 1
@@ -206,16 +275,16 @@ func (m *GossipModule) CreateRumor(msg *transport.Message) types.Rumor {
 	return rumor
 }
 
-// CancelTimer cancels the registed timer based on packetID
-func (m *GossipModule) CancelTimer(pktID string) {
+// cancelTimer cancels the registed timer based on packetID
+func (m *GossipModule) cancelTimer(pktID string) {
 	done, ok := m.timerController.getAndRemove(pktID)
 	if ok {
 		done <- struct{}{}
 	}
 }
 
-// SendHeartbeatMessage sends a heartbeat message with the given payload
-func (m *GossipModule) SendHeartbeatMessage(payload types.Message) error {
+// sendHeartbeatMessage sends a heartbeat message with the given payload
+func (m *GossipModule) sendHeartbeatMessage(payload types.Message) error {
 	msg, err := m.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
@@ -223,8 +292,8 @@ func (m *GossipModule) SendHeartbeatMessage(payload types.Message) error {
 	return m.Broadcast(msg)
 }
 
-// SendAckMessage sends an ACK packet to neighbor
-func (m *GossipModule) SendAckMessage(dst string, ACKPktID string) error {
+// sendAckMessage sends an ACK packet to neighbor
+func (m *GossipModule) sendAckMessage(dst string, ACKPktID string) error {
 	payload := types.AckMessage{AckedPacketID: ACKPktID, Status: types.StatusMessage(m.rumorsTable.getStatus())}
 	msg, err := m.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
@@ -234,8 +303,8 @@ func (m *GossipModule) SendAckMessage(dst string, ACKPktID string) error {
 	return err
 }
 
-// SendStatusMessage sends an status packet to neighbor
-func (m *GossipModule) SendStatusMessage(dst string) error {
+// sendStatusMessage sends an status packet to neighbor
+func (m *GossipModule) sendStatusMessage(dst string) error {
 	payload := types.StatusMessage(m.rumorsTable.getStatus())
 	msg, err := m.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
@@ -245,25 +314,21 @@ func (m *GossipModule) SendStatusMessage(dst string) error {
 	return err
 }
 
-// SendRumorsMessage sends an rumors packet with ack
-func (m *GossipModule) SendRumorsMessage(src string, rumors *[]types.Rumor) error {
+// sendRumorsMessage sends an rumors packet with ack
+func (m *GossipModule) sendRumorsMessage(src string, rumors *[]types.Rumor) error {
 	payload := types.RumorsMessage{Rumors: *rumors}
 	msg, err := m.conf.MessageRegistry.MarshalMessage(payload)
 	if err != nil {
 		return err
 	}
-	return m.SendDirectMessageWithACK(map[string]struct{}{src: {}}, msg)
+	return m.sendDirectMessageWithACK(map[string]struct{}{src: {}}, msg)
 }
 
-// SendDirectMessageWithACK sends a message to neighbor and wait for ack asynchronously
-func (m *GossipModule) SendDirectMessageWithACK(exclude map[string]struct{}, msg transport.Message) (err error) {
+// sendDirectMessageWithACK sends a message to neighbor and wait for ack asynchronously
+func (m *GossipModule) sendDirectMessageWithACK(exclude map[string]struct{}, msg transport.Message) (err error) {
 	neighbor, ok := m.GetRandomNeighbor(exclude)
 	if !ok {
-		exclude = map[string]struct{}{}
-		neighbor, ok = m.GetRandomNeighbor(exclude)
-		if !ok {
-			return
-		}
+		return
 	}
 	header := transport.NewHeader(
 		m.conf.Socket.GetAddress(),
@@ -288,14 +353,14 @@ func (m *GossipModule) SendDirectMessageWithACK(exclude map[string]struct{}, msg
 		case <-done:
 		case <-time.After(m.conf.AckTimeout):
 			m.timerController.remove(pkt.Header.PacketID)
-			_ = m.SendDirectMessageWithACK(exclude, msg)
+			_ = m.sendDirectMessageWithACK(exclude, msg)
 		}
 	}()
 	return nil
 }
 
-// CheckSyncStatus compares the node status with the statusMessage for furthur syncing
-func (m *GossipModule) CheckSyncStatus(statusMsg *types.StatusMessage) ([]types.Rumor, bool) {
+// checkSyncStatus compares the node status with the statusMessage for furthur syncing
+func (m *GossipModule) checkSyncStatus(statusMsg *types.StatusMessage) ([]types.Rumor, bool) {
 	rumors := []types.Rumor{}
 	catchUp := false
 	for key, val := range *statusMsg {
@@ -322,8 +387,8 @@ func (m *GossipModule) CheckSyncStatus(statusMsg *types.StatusMessage) ([]types.
 	return rumors, catchUp
 }
 
-// ContinueMongering implements the continue mongering mechanism
-func (m *GossipModule) ContinueMongering(pktOrigin string) error {
+// continueMongering implements the continue mongering mechanism
+func (m *GossipModule) continueMongering(pktOrigin string) error {
 	chance := rand.Float64()
 	if chance > m.conf.ContinueMongering {
 		// continue only with a certain probability
@@ -331,7 +396,7 @@ func (m *GossipModule) ContinueMongering(pktOrigin string) error {
 	}
 	randomNeighbor, ok := m.GetRandomNeighbor(map[string]struct{}{pktOrigin: {}})
 	if ok {
-		return m.SendStatusMessage(randomNeighbor)
+		return m.sendStatusMessage(randomNeighbor)
 	}
 	return nil
 }

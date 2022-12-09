@@ -1,14 +1,19 @@
 package mpc
 
-import "go.dedis.ch/cs438/peer/impl"
+import (
+	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/message"
+)
 
 type MPCModule struct {
-	*impl.Node
+	*message.MessageModule
+	conf *peer.Configuration
 }
 
-func NewMPCModule(n *impl.Node) *MPCModule {
+func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule) *MPCModule {
 	m := MPCModule{
-		Node: n,
+		MessageModule: messageModule,
+		conf:          conf,
 	}
 
 	// message registery

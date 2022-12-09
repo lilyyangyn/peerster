@@ -1,4 +1,4 @@
-package impl
+package paxos
 
 import (
 	"encoding/hex"
@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/rs/xid"
+	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
@@ -14,26 +16,30 @@ import (
 )
 
 type PaxosModule struct {
-	*Node
+	*message.MessageModule
+	conf *peer.Configuration
+
 	*sync.Mutex
 	cond *sync.Cond
 
 	*MultiPaxos
 
-	paxosPromiseChan chan PaxosResult
-	paxosTLCAdvChan  chan PaxosResult
+	paxosPromiseChan chan paxosResult
+	paxosTLCAdvChan  chan paxosResult
 
 	hasSentTLC bool
 }
 
-func NewPaxosModule(n *Node) *PaxosModule {
+func NewPaxosModule(conf *peer.Configuration, messageModule *message.MessageModule) *PaxosModule {
 	lock := sync.Mutex{}
 	m := PaxosModule{
-		Node:            n,
+		MessageModule: messageModule,
+		conf:          conf,
+
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
-		MultiPaxos:      NewMultiPaxos(n.conf.PaxosID),
-		paxosTLCAdvChan: make(chan PaxosResult, 50),
+		MultiPaxos:      NewMultiPaxos(conf.PaxosID),
+		paxosTLCAdvChan: make(chan paxosResult, 50),
 	}
 
 	// message registery
@@ -48,7 +54,7 @@ func NewPaxosModule(n *Node) *PaxosModule {
 
 /** Feature Functions **/
 
-type PaxosResult struct {
+type paxosResult struct {
 	Step   uint
 	Value  *types.PaxosValue
 	Retry  bool
@@ -65,7 +71,7 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 	if !m.Occupied {
 		m.Occupied = true
 		m.Proposer = true
-		m.paxosPromiseChan = make(chan PaxosResult, 3)
+		m.paxosPromiseChan = make(chan paxosResult, 3)
 		step := m.TLC
 		m.Unlock()
 		return m.proposeTag(name, mh, step)
@@ -73,63 +79,6 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 	m.cond.Wait()
 	m.Unlock()
 	return m.InitTagConensus(name, mh)
-}
-
-func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
-	proposeVal := types.PaxosValue{
-		UniqID:   xid.New().String(),
-		Filename: name,
-		Metahash: mh,
-	}
-
-	result := m.startFromPhaseOne(&proposeVal, step)
-
-	if result.Value.Filename == name && result.Value.Metahash == mh {
-		return nil
-	}
-	return m.InitTagConensus(name, mh)
-}
-
-func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (result PaxosResult) {
-	m.Lock()
-	m.ProposeValue = val
-	m.Proposer = true
-	m.JoinPhaseOne()
-	promiseChan := m.paxosPromiseChan
-	id := m.ProposeID
-	m.Unlock()
-
-	_ = m.broadcastPaxosPrepareMessage(step, id)
-
-	timer := time.After(m.conf.PaxosProposerRetry)
-	for {
-	PaxosSelect:
-		select {
-		case result = <-promiseChan:
-			if result.Step < step {
-				break PaxosSelect
-			}
-			timer = time.After(m.conf.PaxosProposerRetry)
-		case result = <-m.paxosTLCAdvChan:
-			if result.Step < step {
-				break PaxosSelect
-			}
-			m.Lock()
-			if m.Occupied {
-				m.Occupied = false
-				m.cond.Signal()
-			}
-			m.Unlock()
-			result.Finish = true
-			return result
-		case <-timer:
-			m.Lock()
-			m.PaxosState = Init
-			m.ProposeID += m.conf.TotalPeers
-			m.Unlock()
-			return m.startFromPhaseOne(val, step)
-		}
-	}
 }
 
 /** Message Handler **/
@@ -203,14 +152,14 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 	m.PromiseCounter = 0
 
 	// notify proposer
-	result := PaxosResult{
+	result := paxosResult{
 		Step:   promiseMsg.Step,
 		Finish: false,
 	}
 	m.paxosPromiseChan <- result
 
 	// start phase two
-	m.JoinPhaseTwo()
+	m.joinPhaseTwo()
 	value := m.ValueInPromise
 	if value == nil {
 		value = m.ProposeValue
@@ -295,7 +244,7 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	// }
 
 	// send TLC message
-	block := m.CreateTLCBlock(&acceptMsg.Value,
+	block := m.createTLCBlock(&acceptMsg.Value,
 		m.conf.Storage.GetBlockchainStore().Get(storage.LastBlockKey))
 	err = m.broadcastTLCMessage(acceptMsg.Step, block)
 	if err == nil {
@@ -335,6 +284,66 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 
 /** Private Helpfer Functions **/
 
+// proposeTag starts a new paxos starting from phase one
+func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
+	proposeVal := types.PaxosValue{
+		UniqID:   xid.New().String(),
+		Filename: name,
+		Metahash: mh,
+	}
+
+	result := m.startFromPhaseOne(&proposeVal, step)
+
+	if result.Value.Filename == name && result.Value.Metahash == mh {
+		return nil
+	}
+	return m.InitTagConensus(name, mh)
+}
+
+// startFromPhaseOne init phase one by sending a prepare message
+func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (result paxosResult) {
+	m.Lock()
+	m.ProposeValue = val
+	m.Proposer = true
+	m.joinPhaseOne()
+	promiseChan := m.paxosPromiseChan
+	id := m.ProposeID
+	m.Unlock()
+
+	_ = m.broadcastPaxosPrepareMessage(step, id)
+
+	timer := time.After(m.conf.PaxosProposerRetry)
+	for {
+	PaxosSelect:
+		select {
+		case result = <-promiseChan:
+			if result.Step < step {
+				break PaxosSelect
+			}
+			timer = time.After(m.conf.PaxosProposerRetry)
+		case result = <-m.paxosTLCAdvChan:
+			if result.Step < step {
+				break PaxosSelect
+			}
+			m.Lock()
+			if m.Occupied {
+				m.Occupied = false
+				m.cond.Signal()
+			}
+			m.Unlock()
+			result.Finish = true
+			return result
+		case <-timer:
+			m.Lock()
+			m.PaxosState = Init
+			m.ProposeID += m.conf.TotalPeers
+			m.Unlock()
+			return m.startFromPhaseOne(val, step)
+		}
+	}
+}
+
+// advanceSession advances TLC and renew the paxos
 func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
 	log.Printf("%s: Clock %d\n", m.conf.Socket.GetAddress(), m.TLC)
 
@@ -360,7 +369,7 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 	}
 
 	if m.Proposer {
-		result := PaxosResult{
+		result := paxosResult{
 			Step:   block.Index,
 			Value:  &block.Value,
 			Finish: true,

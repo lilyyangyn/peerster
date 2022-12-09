@@ -1,4 +1,4 @@
-package impl
+package paxos
 
 import (
 	"crypto"
@@ -28,7 +28,7 @@ func NewMultiPaxos(id uint) *MultiPaxos {
 	return &multipaxos
 }
 
-func (multipaxos *MultiPaxos) CreateTLCBlock(val *types.PaxosValue, prevHash []byte) *types.BlockchainBlock {
+func (multipaxos *MultiPaxos) createTLCBlock(val *types.PaxosValue, prevHash []byte) *types.BlockchainBlock {
 	if len(prevHash) == 0 {
 		prevHash = make([]byte, 32)
 	}
@@ -90,13 +90,13 @@ func NewPaxos(id uint) *Paxos {
 	return &paxos
 }
 
-func (paxos *Paxos) JoinPhaseOne() {
+func (paxos *Paxos) joinPhaseOne() {
 	paxos.PaxosState = PhaseOne
 	paxos.PromiseCounter = 0
 	paxos.MaxIDInPromise = 0
 	paxos.ValueInPromise = nil
 }
 
-func (paxos *Paxos) JoinPhaseTwo() {
+func (paxos *Paxos) joinPhaseTwo() {
 	paxos.PaxosState = PhaseTwo
 }
