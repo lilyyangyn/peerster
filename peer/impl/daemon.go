@@ -8,7 +8,7 @@ import (
 )
 
 // MessagingDaemon starts a new loop to listen to the message
-func (n *node) MessagingDaemon(ctx context.Context) error {
+func (n *Node) MessagingDaemon(ctx context.Context) error {
 	go func() {
 	out:
 		for {
@@ -34,7 +34,7 @@ func (n *node) MessagingDaemon(ctx context.Context) error {
 }
 
 // HeartBeatMecahnism implements heartbeat mechanism to periodically notify self
-func (n *node) HeartBeatDaemon(ctx context.Context, interval time.Duration) error {
+func (n *Node) HeartBeatDaemon(ctx context.Context, interval time.Duration) error {
 	if interval == 0 {
 		// the heartbeat mechanism must not be activated
 		return nil
@@ -65,7 +65,7 @@ func (n *node) HeartBeatDaemon(ctx context.Context, interval time.Duration) erro
 }
 
 // AntiEntropyMechanism implements anti-entropy mechanism for gossip sync
-func (n *node) AntiEntropyDaemon(ctx context.Context, interval time.Duration) error {
+func (n *Node) AntiEntropyDaemon(ctx context.Context, interval time.Duration) error {
 	if interval == 0 {
 		// the anti-entropy mechanism must not be activated
 		return nil

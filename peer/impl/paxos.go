@@ -14,7 +14,7 @@ import (
 )
 
 type PaxosModule struct {
-	*node
+	*Node
 	*sync.Mutex
 	cond *sync.Cond
 
@@ -26,10 +26,10 @@ type PaxosModule struct {
 	hasSentTLC bool
 }
 
-func NewPaxosModule(n *node) *PaxosModule {
+func NewPaxosModule(n *Node) *PaxosModule {
 	lock := sync.Mutex{}
 	m := PaxosModule{
-		node:            n,
+		Node:            n,
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
 		MultiPaxos:      NewMultiPaxos(n.conf.PaxosID),

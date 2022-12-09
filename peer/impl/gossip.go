@@ -10,14 +10,14 @@ import (
 )
 
 type GossipModule struct {
-	*node
+	*Node
 	rumorsTable     SafeRumorsTable
 	timerController TimerController
 }
 
-func NewGossipModule(n *node) *GossipModule {
+func NewGossipModule(n *Node) *GossipModule {
 	m := GossipModule{
-		node:            n,
+		Node:            n,
 		rumorsTable:     *NewSafeRumorsTable(),
 		timerController: *NewTimeController(),
 	}

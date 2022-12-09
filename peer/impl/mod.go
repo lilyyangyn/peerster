@@ -19,7 +19,7 @@ const WriteTimeout = time.Millisecond * 100
 func NewPeer(conf peer.Configuration) peer.Peer {
 	// here you must return a struct that implements the peer.Peer functions.
 	// Therefore, you are free to rename and change it as you want.
-	n := node{
+	n := Node{
 		conf:    conf,
 		stopSig: nil,
 	}
@@ -32,10 +32,10 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	return &n
 }
 
-// node implements a peer to build a Peerster system
+// Node implements a peer to build a Peerster system
 //
 // - implements peer.Peer
-type node struct {
+type Node struct {
 	peer.Peer
 	conf peer.Configuration
 
@@ -50,7 +50,7 @@ type node struct {
 /** Feature Functions **/
 
 // Start implements peer.Service
-func (n *node) Start() error {
+func (n *Node) Start() error {
 	//start a new loop to listen to the message (non-blocking)
 	rand.Seed(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,7 +76,7 @@ func (n *node) Start() error {
 }
 
 // Stop implements peer.Service
-func (n *node) Stop() error {
+func (n *Node) Stop() error {
 	if n.stopSig != nil {
 		n.stopSig()
 	}
@@ -85,7 +85,7 @@ func (n *node) Stop() error {
 }
 
 // Unicast implements peer.Messaging
-func (n *node) Unicast(dest string, msg transport.Message) error {
+func (n *Node) Unicast(dest string, msg transport.Message) error {
 	header := transport.NewHeader(
 		n.conf.Socket.GetAddress(),
 		n.conf.Socket.GetAddress(),
@@ -102,12 +102,12 @@ func (n *node) Unicast(dest string, msg transport.Message) error {
 }
 
 // Broadcast implements peer.Messaging
-func (n *node) Broadcast(msg transport.Message) error {
+func (n *Node) Broadcast(msg transport.Message) error {
 	return n.GossipModule.Broadcast(msg)
 }
 
 // AddPeer implements peer.Service
-func (n *node) AddPeer(addr ...string) {
+func (n *Node) AddPeer(addr ...string) {
 	for _, peerAddr := range addr {
 		// add self should have no effct
 		if peerAddr == n.conf.Socket.GetAddress() {
@@ -119,12 +119,12 @@ func (n *node) AddPeer(addr ...string) {
 }
 
 // GetRoutingTable implements peer.Service
-func (n *node) GetRoutingTable() peer.RoutingTable {
+func (n *Node) GetRoutingTable() peer.RoutingTable {
 	return n.routingTable.getAll()
 }
 
 // SetRoutingEntry implements peer.Service
-func (n *node) SetRoutingEntry(origin, relayAddr string) {
+func (n *Node) SetRoutingEntry(origin, relayAddr string) {
 	// Delete the record if no relayAddr
 	if relayAddr == "" {
 		n.routingTable.remove(origin)
@@ -135,41 +135,41 @@ func (n *node) SetRoutingEntry(origin, relayAddr string) {
 }
 
 // Upload implements peer.Upload
-func (n *node) Upload(data io.Reader) (metahash string, err error) {
+func (n *Node) Upload(data io.Reader) (metahash string, err error) {
 	return n.DataSharingModule.Upload(data)
 }
 
 // Download implements peer.Download
-func (n *node) Download(metahash string) (data []byte, err error) {
+func (n *Node) Download(metahash string) (data []byte, err error) {
 	return n.DataSharingModule.Download(metahash)
 }
 
 // Tag implements peer.Tag
-func (n *node) Tag(name string, mh string) error {
+func (n *Node) Tag(name string, mh string) error {
 	return n.DataSharingModule.Tag(name, mh)
 }
 
 // Resolve implements peer.Resolve
-func (n *node) Resolve(name string) string {
+func (n *Node) Resolve(name string) string {
 	return n.DataSharingModule.Resolve(name)
 }
 
 // GetCatalog implements peer.GetCatalog
-func (n *node) GetCatalog() peer.Catalog {
+func (n *Node) GetCatalog() peer.Catalog {
 	return n.DataSharingModule.GetCatalog()
 }
 
 // UpdateCatalog implements peer.UpdateCatalog
-func (n *node) UpdateCatalog(key string, peer string) {
+func (n *Node) UpdateCatalog(key string, peer string) {
 	n.DataSharingModule.UpdateCatalog(key, peer)
 }
 
 // SearchAll implements peer.SearchAll
-func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
+func (n *Node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) (names []string, err error) {
 	return n.DataSharingModule.SearchAll(reg, budget, timeout)
 }
 
 // SearchFirst implements peer.SearchFirst
-func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
+func (n *Node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
 	return n.DataSharingModule.SearchFirst(pattern, conf)
 }

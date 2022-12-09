@@ -17,7 +17,7 @@ import (
 )
 
 type DataSharingModule struct {
-	*node
+	*Node
 	catalog        SafeCatalog
 	replyChannels  SafeChannTable
 	messageRecords SafeMsgRecord
@@ -25,9 +25,9 @@ type DataSharingModule struct {
 	*PaxosModule
 }
 
-func NewDataSharingModule(n *node) *DataSharingModule {
+func NewDataSharingModule(n *Node) *DataSharingModule {
 	m := DataSharingModule{
-		node:           n,
+		Node:           n,
 		catalog:        *NewSafeCatalog(),
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),

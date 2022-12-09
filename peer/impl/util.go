@@ -10,7 +10,7 @@ import (
 )
 
 // ProcessPkt processes packet received
-func (n *node) ProcessPkt(pkt transport.Packet) error {
+func (n *Node) ProcessPkt(pkt transport.Packet) error {
 	pktDst := pkt.Header.Destination
 	if pktDst == n.conf.Socket.GetAddress() {
 		// use register to process the message if the node is dest
@@ -38,7 +38,7 @@ func (n *node) ProcessPkt(pkt transport.Packet) error {
 }
 
 // GetRoutingInfo gets routing information from routing table or error if entry not exists
-func (n *node) GetRoutingInfo(dst string) (string, error) {
+func (n *Node) GetRoutingInfo(dst string) (string, error) {
 	nextHop, ok := n.routingTable.get(dst)
 	if !ok {
 		// no routing information. Just drop the packet
@@ -48,7 +48,7 @@ func (n *node) GetRoutingInfo(dst string) (string, error) {
 }
 
 // GetNeighbors returns a list of all neighbors
-func (n *node) GetNeighbors(exclude map[string]struct{}) (neighbors []string) {
+func (n *Node) GetNeighbors(exclude map[string]struct{}) (neighbors []string) {
 	n.routingTable.RLock()
 	neighbors = []string{}
 	for key, val := range n.routingTable.table {
@@ -68,7 +68,7 @@ func (n *node) GetNeighbors(exclude map[string]struct{}) (neighbors []string) {
 }
 
 // GetRandomNeighbor randomly returns a neighbor
-func (n *node) GetRandomNeighbor(exclude map[string]struct{}) (string, bool) {
+func (n *Node) GetRandomNeighbor(exclude map[string]struct{}) (string, bool) {
 	neighbors := n.GetNeighbors(exclude)
 	if len(neighbors) == 0 {
 		return "", false
@@ -78,7 +78,7 @@ func (n *node) GetRandomNeighbor(exclude map[string]struct{}) (string, bool) {
 }
 
 // CreateMsg creates a new transport message for the given payload
-func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
+func (n *Node) CreateMsg(payload types.Message) (transport.Message, error) {
 	data, err := json.Marshal(&payload)
 	if err != nil {
 		return transport.Message{}, err
@@ -88,7 +88,7 @@ func (n *node) CreateMsg(payload types.Message) (transport.Message, error) {
 }
 
 // SendToNeighbor randomly select a neighbor and send the packet
-func (n *node) SendToNeighbor(dest string, msg transport.Message) error {
+func (n *Node) SendToNeighbor(dest string, msg transport.Message) error {
 	header := transport.NewHeader(
 		n.conf.Socket.GetAddress(),
 		n.conf.Socket.GetAddress(),

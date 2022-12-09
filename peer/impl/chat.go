@@ -8,12 +8,12 @@ import (
 )
 
 type ChatModule struct {
-	*node
+	*Node
 }
 
-func NewChatModule(n *node) *ChatModule {
+func NewChatModule(n *Node) *ChatModule {
 	m := ChatModule{
-		node: n,
+		Node: n,
 	}
 
 	// message registery
