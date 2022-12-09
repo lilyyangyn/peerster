@@ -186,6 +186,29 @@ func (p PrivateMessage) HTML() string {
 }
 
 // -----------------------------------------------------------------------------
+// EncryptedMessage
+
+// NewEmpty implements types.Message.
+func (p EncryptedMessage) NewEmpty() Message {
+	return &EncryptedMessage{}
+}
+
+// Name implements types.Message.
+func (p EncryptedMessage) Name() string {
+	return "encrypt"
+}
+
+// String implements types.Message.
+func (p EncryptedMessage) String() string {
+	return fmt.Sprintf("encrypted message for %s", p.Recipient)
+}
+
+// HTML implements types.Message.
+func (p EncryptedMessage) HTML() string {
+	return fmt.Sprintf("encrypted message for %s", p.Recipient)
+}
+
+// -----------------------------------------------------------------------------
 // utility functions
 
 // RumorByOrigin sorts rumor by origin

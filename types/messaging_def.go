@@ -70,3 +70,11 @@ type PrivateMessage struct {
 	// Msg is the private message to be read by the recipients
 	Msg *transport.Message
 }
+
+type EncryptedMessage struct {
+	// Recipients is the owner of the key
+	Recipient string
+
+	// Msg is the encrypted message to be read by the recipient
+	EncryptedMsg *transport.Message
+}
