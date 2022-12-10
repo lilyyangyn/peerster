@@ -1,6 +1,10 @@
 package types
 
-import "go.dedis.ch/cs438/transport"
+import (
+	"crypto/rsa"
+
+	"go.dedis.ch/cs438/transport"
+)
 
 // ChatMessage is a message sent to exchange text messages between nodes.
 //
@@ -71,10 +75,17 @@ type PrivateMessage struct {
 	Msg *transport.Message
 }
 
-type EncryptedMessage struct {
-	// Recipients is the owner of the key
-	Recipient string
+// Pubkey is the public key of a peer that can be used in creating encrypted message
+type Pubkey rsa.PublicKey
 
-	// Msg is the encrypted message to be read by the recipient
-	EncryptedMsg *transport.Message
+// Privkey is the private key of a peer that can be used in decrypting message
+type Privkey rsa.PrivateKey
+
+// PubkeyMessage describes a message containing origin's public key.
+type PubkeyMessage struct {
+	Origin string
+	Pubkey Pubkey
 }
+
+// EncryptedMessage describes a message whose content is encrypted
+type EncryptedMessage []byte

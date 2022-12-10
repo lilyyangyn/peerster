@@ -186,6 +186,29 @@ func (p PrivateMessage) HTML() string {
 }
 
 // -----------------------------------------------------------------------------
+// PubkeyMessage
+
+// NewEmpty implements types.Message.
+func (p PubkeyMessage) NewEmpty() Message {
+	return &EncryptedMessage{}
+}
+
+// Name implements types.Message.
+func (p PubkeyMessage) Name() string {
+	return "encrypt"
+}
+
+// String implements types.Message.
+func (p PubkeyMessage) String() string {
+	return fmt.Sprintf("{pubkey for %s: %s}", p.Origin, p.Pubkey)
+}
+
+// HTML implements types.Message.
+func (p PubkeyMessage) HTML() string {
+	return fmt.Sprintf("{pubkey for %s: %s}", p.Origin, p.Pubkey)
+}
+
+// -----------------------------------------------------------------------------
 // EncryptedMessage
 
 // NewEmpty implements types.Message.
@@ -200,12 +223,12 @@ func (p EncryptedMessage) Name() string {
 
 // String implements types.Message.
 func (p EncryptedMessage) String() string {
-	return fmt.Sprintf("encrypted message for %s", p.Recipient)
+	return fmt.Sprintf("encrypted message %s", string(p))
 }
 
 // HTML implements types.Message.
 func (p EncryptedMessage) HTML() string {
-	return fmt.Sprintf("encrypted message for %s", p.Recipient)
+	return fmt.Sprintf("encrypted message %s", string(p))
 }
 
 // -----------------------------------------------------------------------------
