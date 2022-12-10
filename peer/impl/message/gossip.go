@@ -73,7 +73,8 @@ func (m *GossipModule) HeartBeatDaemon(ctx context.Context, interval time.Durati
 		return nil
 	}
 	heartbeatTicker := time.NewTicker(interval)
-	err := m.sendHeartbeatMessage(types.EmptyMessage{})
+
+	err := m.sendHeartbeatMessage(m.createPubkeyMsg())
 	if err != nil {
 		return err
 	}
@@ -86,7 +87,7 @@ func (m *GossipModule) HeartBeatDaemon(ctx context.Context, interval time.Durati
 				heartbeatTicker.Stop()
 				break out
 			case <-heartbeatTicker.C:
-				err := m.sendHeartbeatMessage(types.EmptyMessage{})
+				err := m.sendHeartbeatMessage(m.createPubkeyMsg())
 				if err != nil {
 					continue
 				}

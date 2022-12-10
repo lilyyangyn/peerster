@@ -144,21 +144,21 @@ func NewTimeController() *TimerController {
 // PubkeyController implements a thread-safe table to store public key of peers
 type PubkeyController struct {
 	*sync.RWMutex
-	table map[string]*types.Pubkey
+	table peer.PubkeyStore
 }
 
 func (t *PubkeyController) add(peer string, pubkey *types.Pubkey) {
 	t.Lock()
 	defer t.Unlock()
-	t.table[peer] = pubkey
+	t.table[peer] = *pubkey
 }
-func (t *PubkeyController) get(peer string) (*types.Pubkey, bool) {
+func (t *PubkeyController) get(peer string) (types.Pubkey, bool) {
 	t.RLock()
 	defer t.RUnlock()
 	pubkey, ok := t.table[peer]
 	return pubkey, ok
 }
 func NewPubkeyController(self string, selfkey *types.Pubkey) *PubkeyController {
-	rt := PubkeyController{&sync.RWMutex{}, map[string]*types.Pubkey{self: selfkey}}
+	rt := PubkeyController{&sync.RWMutex{}, peer.PubkeyStore{self: *selfkey}}
 	return &rt
 }

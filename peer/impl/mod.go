@@ -150,3 +150,8 @@ func (n *node) SearchAll(reg regexp.Regexp, budget uint, timeout time.Duration) 
 func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name string, err error) {
 	return n.datasharing.SearchFirst(pattern, conf)
 }
+
+// SendEncryptedMessage broadcast an encrypted message in private msg
+func (n *node) SendEncryptedMessage(msg transport.Message, to string) error {
+	return n.message.SendEncryptedMessage(msg, to)
+}

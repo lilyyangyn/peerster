@@ -3,7 +3,7 @@ package message
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha512"
+	"crypto/sha256"
 	"encoding/json"
 
 	"go.dedis.ch/cs438/peer"
@@ -45,13 +45,14 @@ func NewEncryptionModule(conf *peer.Configuration, messageModue *MessageModule) 
 
 /** Feature Functions **/
 
-// BroadcastEncryptedMessage broadcast an encrypted message in private msg
-func (m *EncryptionModule) BroadcastEncryptedMessage(msg transport.Message, to string) error {
+// SendEncryptedMessage broadcast an encrypted message in private msg
+func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string) error {
 	// encrypt message
 	encryptedMsg, err := m.encryptWithPubkey(msg, to)
 	if err != nil {
 		return err
 	}
+
 	encryptedMsgMarshal, err := m.CreateMsg(encryptedMsg)
 	if err != nil {
 		return err
@@ -85,8 +86,8 @@ func (m *EncryptionModule) generateRSAKeyPair(bits int) (privKey *types.Privkey,
 	return (*types.Privkey)(rsapriv), (*types.Pubkey)(&rsapriv.PublicKey), nil
 }
 
-func (m *EncryptionModule) encryptWithPubkey(msg transport.Message, peer string) (encMsg *types.EncryptedMessage, err error) {
-	ptxt, err := json.Marshal(msg)
+func (m *EncryptionModule) encryptWithPubkey(msg transport.Message, peer string) (*types.EncryptedMessage, error) {
+	ptxt, err := json.Marshal(&msg)
 	if err != nil {
 		return nil, err
 	}
@@ -95,28 +96,39 @@ func (m *EncryptionModule) encryptWithPubkey(msg transport.Message, peer string)
 	if !ok {
 		return nil, xerrors.Errorf("no public key for peer %s", peer)
 	}
+	pub := rsa.PublicKey(pubkey)
 
-	hash := sha512.New()
-	*encMsg, err = rsa.EncryptOAEP(hash, rand.Reader, (*rsa.PublicKey)(pubkey), ptxt, nil)
+	hash := sha256.New()
+	encMsg, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, ptxt, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return encMsg, nil
+	return (*types.EncryptedMessage)(&encMsg), nil
 }
 
 // generateKeyPair generates privkey-pubkey pair
 func (m *EncryptionModule) decryptWithPrivkey(encMsg types.EncryptedMessage) (msg *transport.Message, err error) {
-	hash := sha512.New()
+	hash := sha256.New()
 	ptxt, err := rsa.DecryptOAEP(hash, rand.Reader, (*rsa.PrivateKey)(m.privkey), encMsg, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(ptxt, msg)
+	err = json.Unmarshal(ptxt, &msg)
 	if err != nil {
 		return nil, err
 	}
 
 	return msg, nil
+}
+
+// createPubkeyMsg creates a marshaled pubkey message
+func (m *EncryptionModule) createPubkeyMsg() (msg *types.PubkeyMessage) {
+	msg = &types.PubkeyMessage{
+		Origin: m.conf.Socket.GetAddress(),
+		Pubkey: types.Pubkey(m.privkey.PublicKey),
+	}
+
+	return msg
 }

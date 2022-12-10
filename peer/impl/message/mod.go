@@ -21,6 +21,7 @@ type MessageModule struct {
 	routingTable SafeRoutingTable
 
 	*GossipModule
+	*EncryptionModule
 }
 
 func NewMessageModule(conf *peer.Configuration) *MessageModule {
@@ -29,6 +30,7 @@ func NewMessageModule(conf *peer.Configuration) *MessageModule {
 		routingTable: *NewSafeRoutingTable(conf.Socket.GetAddress()),
 	}
 	m.GossipModule = NewGossipModule(conf, &m)
+	m.EncryptionModule = NewEncryptionModule(conf, &m)
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.ChatMessage{}, m.ProcessChatMessage)

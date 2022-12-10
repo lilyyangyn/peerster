@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.dedis.ch/cs438/transport"
+	"go.dedis.ch/cs438/types"
 )
 
 // Messaging defines the functions for the basic functionalities to exchange
@@ -46,7 +47,12 @@ type Messaging interface {
 	//
 	// - implemented in HW0
 	SetRoutingEntry(origin, relayAddr string)
+
+	// SendEncryptedMessage broadcast an encrypted message in private msg
+	SendEncryptedMessage(msg transport.Message, to string) error
 }
+
+type PubkeyStore map[string]types.Pubkey
 
 // RoutingTable defines a simple next-hop routing table. The key is the origin
 // and the value the relay address. The routing table must always have an entry

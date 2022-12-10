@@ -195,17 +195,17 @@ func (p PubkeyMessage) NewEmpty() Message {
 
 // Name implements types.Message.
 func (p PubkeyMessage) Name() string {
-	return "encrypt"
+	return "pubkey"
 }
 
 // String implements types.Message.
 func (p PubkeyMessage) String() string {
-	return fmt.Sprintf("{pubkey for %s: %s}", p.Origin, p.Pubkey)
+	return fmt.Sprintf("{pubkey for %s}", p.Origin)
 }
 
 // HTML implements types.Message.
 func (p PubkeyMessage) HTML() string {
-	return fmt.Sprintf("{pubkey for %s: %s}", p.Origin, p.Pubkey)
+	return fmt.Sprintf("{pubkey for %s}", p.Origin)
 }
 
 // -----------------------------------------------------------------------------

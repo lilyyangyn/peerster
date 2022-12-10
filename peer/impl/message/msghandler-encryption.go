@@ -1,6 +1,8 @@
 package message
 
 import (
+	"fmt"
+
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -33,6 +35,7 @@ func (m *EncryptionModule) ProcessEntryptedMsg(msg types.Message, pkt transport.
 	if err != nil {
 		return err
 	}
+	fmt.Println(ptxt)
 
 	// process the message locally
 	newPkt := transport.Packet{

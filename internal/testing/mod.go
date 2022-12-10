@@ -500,6 +500,18 @@ func GetStatus(t *testing.T, msg *transport.Message) types.StatusMessage {
 	return status
 }
 
+// GetPubkey returns the PubkeyMessage associated to the transport.Message.
+func GetPubkey(t *testing.T, msg *transport.Message) types.PubkeyMessage {
+	require.Equal(t, "pubkey", msg.Type)
+
+	var pubkeyMsg types.PubkeyMessage
+
+	err := json.Unmarshal(msg.Payload, &pubkeyMsg)
+	require.NoError(t, err)
+
+	return pubkeyMsg
+}
+
 // GetEmpty returns the EmptyMessage associated to the transport.Message.
 func GetEmpty(t *testing.T, msg *transport.Message) types.EmptyMessage {
 	require.Equal(t, "empty", msg.Type)
