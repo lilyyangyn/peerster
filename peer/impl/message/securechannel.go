@@ -36,6 +36,10 @@ func NewEncryptionModule(conf *peer.Configuration, messageModue *MessageModule) 
 		pubkey,
 	)
 
+	// message registery
+	m.conf.MessageRegistry.RegisterMessageCallback(types.PubkeyMessage{}, m.ProcessPubkeyMsg)
+	m.conf.MessageRegistry.RegisterMessageCallback(types.EncryptedMessage{}, m.ProcessEntryptedMsg)
+
 	return &m
 }
 
@@ -65,44 +69,6 @@ func (m *EncryptionModule) BroadcastEncryptedMessage(msg transport.Message, to s
 
 	// send in rumor
 	err = m.Broadcast(privMsgMarshal)
-
-	return err
-}
-
-/** Message Handler **/
-
-// ProcessPubkeyMsg is a callback function to handle the received pubkey message
-func (m *EncryptionModule) ProcessPubkeyMsg(msg types.Message, pkt transport.Packet) error {
-	pubkeyMsg, ok := msg.(*types.PubkeyMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
-	// store pubkey into pubkeyStore
-	m.pubkeyStore.add(pubkeyMsg.Origin, &pubkeyMsg.Pubkey)
-
-	return nil
-}
-
-// ProcessEntryptedMsg is a callback function to handle the received encrypted message
-func (m *EncryptionModule) ProcessEntryptedMsg(msg types.Message, pkt transport.Packet) error {
-	encryptedMsg, ok := msg.(*types.EncryptedMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
-	// decrypt message
-	ptxt, err := m.decryptWithPrivkey(*encryptedMsg)
-	if err != nil {
-		return err
-	}
-
-	// process the message locally
-	newPkt := transport.Packet{
-		Header: pkt.Header,
-		Msg:    ptxt,
-	}
-	err = m.conf.MessageRegistry.ProcessPacket(newPkt)
 
 	return err
 }
