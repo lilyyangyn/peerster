@@ -1,6 +1,7 @@
 package mpc
 
 import (
+	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
@@ -53,14 +54,17 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 	return nil
 }
 
+// sendShareMessage sends the share secret in encrypted message
 func (m *MPCModule) sendShareMessage(peer string, id int, value int) error {
-	// TODO: encryption
+	shareMsg := types.MPCShareMessage{
+		Origin: m.conf.Socket.GetAddress(),
+		ID:     id,
+		Value:  value,
+	}
+	shareMsgMarshal, err := m.CreateMsg(shareMsg)
+	if err != nil {
+		return err
+	}
 
-	// shareMsg := types.MPCShareMessage{
-	// 	Origin: m.conf.Socket.GetAddress(),
-	// 	ID:     id,
-	// 	Value:  encryptedVal,
-	// }
-
-	return nil
+	return m.SendEncryptedMessage(shareMsgMarshal, peer)
 }

@@ -4,5 +4,5 @@ package types
 type MPCShareMessage struct {
 	Origin string
 	ID     int
-	Value  []byte
+	Value  int
 }

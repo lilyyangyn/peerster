@@ -9,7 +9,7 @@ import (
 )
 
 // ProcessShareMsg is a callback function to handle received secret share message
-func (m *MPCModule) ProcessShareMsg(msg types.Message, pkt transport.Packet) error {
+func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) error {
 	secretMsg, ok := msg.(*types.MPCShareMessage)
 	if !ok {
 		return xerrors.Errorf("wrong type: %T", msg)
@@ -20,14 +20,8 @@ func (m *MPCModule) ProcessShareMsg(msg types.Message, pkt transport.Packet) err
 		return nil
 	}
 
-	// decrypt value
-	valueInByte, err := m.DecryptAsymetric(secretMsg.Value)
-	if err != nil {
-		return err
-	}
-	log.Printf("decrypted value %s from %s", valueInByte, secretMsg.Origin)
+	log.Printf("mpc value %d from %s", secretMsg.Value, secretMsg.Origin)
 
-	// TODO: convert int to byte
 	// TODO: MPC operation
 	return nil
 }
