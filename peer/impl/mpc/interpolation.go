@@ -1,5 +1,5 @@
 package mpc
 
-func (m *MPCModule) lagrangeInterpolation(values []int, perrs []int) (result int) {
+func (m *MPCModule) lagrangeInterpolation(values []int, peers []int) (result int) {
 	return
 }

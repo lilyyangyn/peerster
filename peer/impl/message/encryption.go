@@ -48,7 +48,7 @@ func NewEncryptionModule(conf *peer.Configuration, messageModue *MessageModule) 
 // SendEncryptedMessage broadcast an encrypted message in private msg
 func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string) error {
 	// encrypt message
-	encryptedMsg, err := m.encryptWithPubkey(msg, to)
+	encryptedMsg, err := m.encryptMsg(msg, to)
 	if err != nil {
 		return err
 	}
@@ -72,6 +72,34 @@ func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string
 	err = m.Broadcast(privMsgMarshal)
 
 	return err
+}
+
+// EncryptAsymetric encrypts value using peer's pubkey
+func (m *EncryptionModule) EncryptAsymetric(value []byte, peer string) ([]byte, error) {
+	pubkey, ok := m.pubkeyStore.get(peer)
+	if !ok {
+		return nil, xerrors.Errorf("no public key for peer %s", peer)
+	}
+	pub := rsa.PublicKey(pubkey)
+
+	hash := sha256.New()
+	ctxt, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, value, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ctxt, nil
+}
+
+// DecryptAsymetric decrypts value using self's pubkey
+func (m *EncryptionModule) DecryptAsymetric(value []byte) ([]byte, error) {
+	hash := sha256.New()
+	ptxt, err := rsa.DecryptOAEP(hash, rand.Reader, (*rsa.PrivateKey)(m.privkey), value, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return ptxt, nil
 }
 
 // SetPubkeyEntry sets the publickey entry
@@ -102,20 +130,13 @@ func (m *EncryptionModule) generateRSAKeyPair(bits int) (privKey *types.Privkey,
 	return (*types.Privkey)(rsapriv), (*types.Pubkey)(&rsapriv.PublicKey), nil
 }
 
-func (m *EncryptionModule) encryptWithPubkey(msg transport.Message, peer string) (*types.EncryptedMessage, error) {
+// encryptMsg encrypts message using peer's pubkey
+func (m *EncryptionModule) encryptMsg(msg transport.Message, peer string) (*types.EncryptedMessage, error) {
 	ptxt, err := json.Marshal(&msg)
 	if err != nil {
 		return nil, err
 	}
-
-	pubkey, ok := m.pubkeyStore.get(peer)
-	if !ok {
-		return nil, xerrors.Errorf("no public key for peer %s", peer)
-	}
-	pub := rsa.PublicKey(pubkey)
-
-	hash := sha256.New()
-	encMsg, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, ptxt, nil)
+	encMsg, err := m.EncryptAsymetric(ptxt, peer)
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +144,9 @@ func (m *EncryptionModule) encryptWithPubkey(msg transport.Message, peer string)
 	return (*types.EncryptedMessage)(&encMsg), nil
 }
 
-// generateKeyPair generates privkey-pubkey pair
-func (m *EncryptionModule) decryptWithPrivkey(encMsg types.EncryptedMessage) (msg *transport.Message, err error) {
-	hash := sha256.New()
-	ptxt, err := rsa.DecryptOAEP(hash, rand.Reader, (*rsa.PrivateKey)(m.privkey), encMsg, nil)
+// decryptMsg decrypts message using privkey
+func (m *EncryptionModule) decryptMsg(encMsg types.EncryptedMessage) (msg *transport.Message, err error) {
+	ptxt, err := m.DecryptAsymetric(encMsg)
 	if err != nil {
 		return nil, err
 	}

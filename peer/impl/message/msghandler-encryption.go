@@ -31,7 +31,7 @@ func (m *EncryptionModule) ProcessEntryptedMsg(msg types.Message, pkt transport.
 	}
 
 	// decrypt message
-	ptxt, err := m.decryptWithPrivkey(*encryptedMsg)
+	ptxt, err := m.decryptMsg(*encryptedMsg)
 	if err != nil {
 		return err
 	}
