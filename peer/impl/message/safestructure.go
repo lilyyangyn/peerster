@@ -150,7 +150,9 @@ type PubkeyController struct {
 func (t *PubkeyController) add(peer string, pubkey *types.Pubkey) {
 	t.Lock()
 	defer t.Unlock()
-	t.table[peer] = *pubkey
+	if _, ok := t.table[peer]; !ok {
+		t.table[peer] = *pubkey
+	}
 }
 func (t *PubkeyController) remove(key string) {
 	t.Lock()

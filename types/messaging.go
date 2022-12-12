@@ -190,7 +190,7 @@ func (p PrivateMessage) HTML() string {
 
 // NewEmpty implements types.Message.
 func (p PubkeyMessage) NewEmpty() Message {
-	return &EncryptedMessage{}
+	return &PubkeyMessage{}
 }
 
 // Name implements types.Message.

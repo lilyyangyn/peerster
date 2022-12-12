@@ -140,11 +140,14 @@ func (m *EncryptionModule) decryptWithPrivkey(encMsg types.EncryptedMessage) (ms
 }
 
 // createPubkeyMsg creates a marshaled pubkey message
-func (m *EncryptionModule) createPubkeyMsg() (msg *types.PubkeyMessage) {
-	msg = &types.PubkeyMessage{
+func (m *EncryptionModule) createPubkeyMsg() (types.PubkeyMessage, bool) {
+	if m.privkey == nil {
+		return types.PubkeyMessage{}, false
+	}
+	msg := types.PubkeyMessage{
 		Origin: m.conf.Socket.GetAddress(),
 		Pubkey: types.Pubkey(m.privkey.PublicKey),
 	}
 
-	return msg
+	return msg, true
 }

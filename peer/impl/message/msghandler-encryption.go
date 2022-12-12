@@ -1,7 +1,6 @@
 package message
 
 import (
-	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -16,10 +15,10 @@ func (m *EncryptionModule) ProcessPubkeyMsg(msg types.Message, pkt transport.Pac
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 
-	log.Info().Msgf("%s received a pubkey message from %s", m.conf.Socket.GetAddress(), pubkeyMsg.Origin)
-
 	// store pubkey into pubkeyStore
-	m.pubkeyStore.add(pubkeyMsg.Origin, &pubkeyMsg.Pubkey)
+	if _, ok = m.pubkeyStore.get(pubkeyMsg.Origin); !ok {
+		m.pubkeyStore.add(pubkeyMsg.Origin, &pubkeyMsg.Pubkey)
+	}
 
 	return nil
 }
@@ -30,8 +29,6 @@ func (m *EncryptionModule) ProcessEntryptedMsg(msg types.Message, pkt transport.
 	if !ok {
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
-
-	log.Info().Msgf("%s received a pubkey message from %s", m.conf.Socket.GetAddress(), pkt.Header.Source)
 
 	// decrypt message
 	ptxt, err := m.decryptWithPrivkey(*encryptedMsg)
