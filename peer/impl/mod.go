@@ -11,6 +11,7 @@ import (
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/transport"
+	"go.dedis.ch/cs438/types"
 )
 
 // NewPeer creates a new peer. You can change the content and location of this
@@ -151,7 +152,17 @@ func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name
 	return n.datasharing.SearchFirst(pattern, conf)
 }
 
-// SendEncryptedMessage broadcast an encrypted message in private msg
+// SendEncryptedMessage implements peer.SendEncryptedMessage
 func (n *node) SendEncryptedMessage(msg transport.Message, to string) error {
 	return n.message.SendEncryptedMessage(msg, to)
+}
+
+// SetPubkeyEntry implements peer.SetPubkeyEntry
+func (n *node) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
+	n.message.SetPubkeyEntry(origin, pubkey)
+}
+
+// GetPubkeyStore implements peer.GetPubkeyStore
+func (n *node) GetPubkeyStore() peer.PubkeyStore {
+	return n.message.GetPubkeyStore()
 }

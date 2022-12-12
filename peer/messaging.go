@@ -48,6 +48,13 @@ type Messaging interface {
 	// - implemented in HW0
 	SetRoutingEntry(origin, relayAddr string)
 
+	// SetPubkeyEntry sets the publickey entry. Overwrites it if the entry
+	// already exists.  If pubkey is empty then the record must be deleted
+	SetPubkeyEntry(origin string, pubkey *types.Pubkey)
+
+	// GetPubkeyStore returns the node's pubkey store. It should be a copy.
+	GetPubkeyStore() PubkeyStore
+
 	// SendEncryptedMessage broadcast an encrypted message in private msg
 	SendEncryptedMessage(msg transport.Message, to string) error
 }

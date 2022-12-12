@@ -74,6 +74,22 @@ func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string
 	return err
 }
 
+// SetPubkeyEntry sets the publickey entry
+func (m *EncryptionModule) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
+	// Delete the record if no relayAddr
+	if pubkey == nil {
+		m.pubkeyStore.remove(origin)
+		return
+	}
+	// Otherwise, update the table
+	m.pubkeyStore.add(origin, pubkey)
+}
+
+// GetPubkeyStore returns the node's pubkey store. It should be a copy.
+func (m *EncryptionModule) GetPubkeyStore() peer.PubkeyStore {
+	return m.pubkeyStore.getAll()
+}
+
 /** Private Helpfer Functions **/
 
 // generateKeyPair generates privkey-pubkey pair

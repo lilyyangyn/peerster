@@ -152,11 +152,25 @@ func (t *PubkeyController) add(peer string, pubkey *types.Pubkey) {
 	defer t.Unlock()
 	t.table[peer] = *pubkey
 }
+func (t *PubkeyController) remove(key string) {
+	t.Lock()
+	defer t.Unlock()
+	delete(t.table, key)
+}
 func (t *PubkeyController) get(peer string) (types.Pubkey, bool) {
 	t.RLock()
 	defer t.RUnlock()
 	pubkey, ok := t.table[peer]
 	return pubkey, ok
+}
+func (t *PubkeyController) getAll() peer.PubkeyStore {
+	pubkeyStroe := peer.PubkeyStore{}
+	t.RLock()
+	for key, value := range t.table {
+		pubkeyStroe[key] = value
+	}
+	t.RUnlock()
+	return pubkeyStroe
 }
 func NewPubkeyController(self string, selfkey *types.Pubkey) *PubkeyController {
 	rt := PubkeyController{&sync.RWMutex{}, peer.PubkeyStore{self: *selfkey}}

@@ -199,7 +199,7 @@ func (m *GossipModule) sendRumorsMessage(src string, rumors *[]types.Rumor) erro
 func (m *GossipModule) sendDirectMessageWithACK(exclude map[string]struct{}, msg transport.Message) (err error) {
 	neighbor, ok := m.GetRandomNeighbor(exclude)
 	if !ok {
-		return
+		return nil
 	}
 	header := transport.NewHeader(
 		m.conf.Socket.GetAddress(),
