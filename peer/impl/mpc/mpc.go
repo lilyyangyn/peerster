@@ -15,3 +15,16 @@ func NewMPC() *MPC {
 		peers: map[string]int{},
 	}
 }
+
+func (mpc *MPC) computeAdd(x int, y int, z bool) (int, error) {
+	// TODO: change to MPC add/substract
+	if z {
+		return x - y, nil
+	}
+	return x + y, nil
+}
+
+func (mpc *MPC) computeMult(x int, y int) (int, error) {
+	// TODO: change to MPC mult
+	return x * y, nil
+}
