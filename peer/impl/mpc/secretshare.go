@@ -45,7 +45,7 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 
 	// send shared secrets
 	for idx, result := range results {
-		err := m.sendShareMessage(peers[idx], peerIDs[idx], result)
+		err := m.sendShareMessage(peers[idx], peerIDs[idx], key, result)
 		if err != nil {
 			return err
 		}
@@ -55,11 +55,14 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 }
 
 // sendShareMessage sends the share secret in encrypted message
-func (m *MPCModule) sendShareMessage(peer string, id int, value int) error {
+func (m *MPCModule) sendShareMessage(peer string, id int, key string, value int) error {
 	shareMsg := types.MPCShareMessage{
-		Origin: m.conf.Socket.GetAddress(),
-		ID:     id,
-		Value:  value,
+		ReqID: m.MPC.id,
+		Value: types.MPCSecretValue{
+			Owner: m.conf.Socket.GetAddress(),
+			Key:   key,
+			Value: value,
+		},
 	}
 	shareMsgMarshal, err := m.CreateMsg(shareMsg)
 	if err != nil {

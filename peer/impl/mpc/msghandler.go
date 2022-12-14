@@ -16,11 +16,11 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	if secretMsg.ID != m.id {
+	if secretMsg.ReqID != m.id {
 		return nil
 	}
 
-	log.Printf("mpc value %d from %s", secretMsg.Value, secretMsg.Origin)
+	log.Printf("mpc value for round %d: %s-%s", secretMsg.Value, secretMsg.Value.Owner, secretMsg.Value.Key)
 
 	// TODO: MPC operation
 	return nil
