@@ -1,9 +1,11 @@
 package mpc
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
@@ -44,14 +46,50 @@ func (m *MPCModule) SetMPCValue(key string, value int) error {
 }
 
 // This is the entry point of the calling the MPC.
-func (m *MPCModule) ComputeExpression(expr string) (int, error) {
+func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 	// change infix to postfix
 	postfix, err := infixToPostfix(expr)
 	if err != nil {
 		return -1, err
 	}
 
-	ans, err := computeResult(postfix, m)
+	// TODO: change here to paxos
+	pubKeyStore := m.GetPubkeyStore()
+	participants := make([]string, 0, len(pubKeyStore))
+	for key := range pubKeyStore {
+		participants = append(participants, key)
+	}
+	variablesNeed := []string{}
+	for _, exp := range postfix {
+		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
+		if IsVariableName(exp) {
+			variablesNeed = append(variablesNeed, exp)
+		}
+	}
+
+	propose := MPCPropose{
+		proposer:     m.conf.Socket.GetAddress(),
+		budget:       budget,
+		participants: participants,
+		postfix:      postfix,
+	}
+	fmt.Println(propose)
+
+	// SSS to all participants that the peer have public key
+	for _, key := range variablesNeed {
+		value, found := m.valueDB.getAsset(key)
+		if !found {
+			// this peer doesn't have this value, continue
+			continue
+		}
+		// Add to temp for secret share
+		m.valueDB.add(key, value)
+
+		// SSS the value
+		m.shareSecret(key, participants)
+	}
+
+	ans, err := m.computeResult(postfix, participants)
 	if err != nil {
 		return -1, err
 	}
@@ -118,7 +156,7 @@ func infixToPostfix(infix string) ([]string, error) {
 	return postfix, nil
 }
 
-func computeResult(postfix []string, m *MPCModule) (int, error) {
+func (m *MPCModule) computeResult(postfix []string, participants []string) (int, error) {
 	var s []int
 	for i := 0; i < len(postfix); i++ {
 		switch ch := postfix[i]; ch {
@@ -132,7 +170,7 @@ func computeResult(postfix []string, m *MPCModule) (int, error) {
 			} else if ch == "-" {
 				res, err = m.computeAdd(num1, num2, true)
 			} else {
-				res, err = m.computeMult(num1, num2)
+				res, err = m.computeMult(num1, num2, i, participants)
 			}
 			if err != nil {
 				return 0, err
@@ -140,9 +178,82 @@ func computeResult(postfix []string, m *MPCModule) (int, error) {
 			s = append(s, res)
 		default:
 			// TODO change num to SSS
-			num, _ := strconv.Atoi(ch)
+			num, err := strconv.Atoi(ch)
+			if err != nil {
+				// this is a value needed from SSS.
+				key := ch + "|" + m.conf.Socket.GetAddress()
+				num = m.getValueFromSSS(key)
+			}
 			s = append(s, num)
 		}
 	}
-	return s[0], nil
+
+	// boardcast the result and compute the final result
+	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(len(postfix))
+	m.valueDB.add(key, s[0])
+
+	// TODO boardcast
+	// m.Broadcast()
+
+	peerIDs, err := m.getPeerIDs(participants)
+	if err != nil {
+		return 0, err
+	}
+	// busy wait for other key to receive.
+	// TODO change to chan
+	shareResult := make([]int, len(participants))
+	for i := 0; i < len(participants); i++ {
+		tmpKey := participants[i] + "|" + strconv.Itoa(len(postfix)) + m.conf.Socket.GetAddress()
+		shareResult[i] = m.getValueFromSSS(tmpKey)
+	}
+
+	return m.lagrangeInterpolation(shareResult, peerIDs), nil
+	// return s[0], nil
+}
+
+func (m *MPCModule) getValueFromSSS(key string) int {
+	value, ok := m.valueDB.get(key)
+	for !ok {
+		// Busy wait here
+		time.Sleep(time.Millisecond * 1)
+		value, ok = m.valueDB.get(key)
+	}
+	return value
+}
+
+func (m *MPCModule) computeAdd(x int, y int, z bool) (int, error) {
+	if z {
+		return x - y, nil
+	}
+	return x + y, nil
+}
+
+func (m *MPCModule) computeMult(a int, b int, step int, participants []string) (int, error) {
+	// 1. ∀Pi: compute di = aibi.
+	// 2. ∀Pi: share di → di1, . . . , din.
+	// 3. ∀Pj: compute cj = w1d1j + . . . + wndnj.
+
+	d := a * b
+	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(step)
+	m.valueDB.add(key, d)
+
+	// TODO: save participants in proposer and get using proposerID to avoid copy the whole list.
+	m.shareSecret(key, participants)
+
+	// generate the list of MPC id
+	peerIDs, err := m.getPeerIDs(participants)
+	if err != nil {
+		return 0, err
+	}
+
+	// collect all m.shareSecret()
+	// TODO: change to use channel.
+	shareD := make([]int, len(participants))
+	for i := 0; i < len(participants); i++ {
+		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.conf.Socket.GetAddress()
+		shareD[i] = m.getValueFromSSS(tmpKey)
+	}
+
+	return m.lagrangeInterpolation(shareD, peerIDs), nil
+	// return x * y, nil
 }

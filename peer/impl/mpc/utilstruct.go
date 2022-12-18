@@ -2,30 +2,52 @@ package mpc
 
 import (
 	"math/rand"
+	"sync"
 )
 
 // ValueDB stores values that can be used in MPC
+// Asset is the value know by the peer, temp is the value we save for MPC.
+// temp need to refresh for each new MPC round.
 type ValueDB struct {
-	table map[string]int
+	*sync.RWMutex
+	asset map[string]int
+	temp  map[string]int
 }
 
+func (db *ValueDB) addAsset(key string, value int) bool {
+	db.Lock()
+	defer db.Unlock()
+	db.asset[key] = value
+	return true
+}
+func (db *ValueDB) getAsset(key string) (int, bool) {
+	db.RLock()
+	defer db.RUnlock()
+	value, ok := db.asset[key]
+	return value, ok
+}
 func (db *ValueDB) add(key string, value int) bool {
-	old, ok := db.table[key]
+	db.Lock()
+	defer db.Unlock()
+	old, ok := db.temp[key]
 	if ok && old != value {
 		return false
 	}
-	db.table[key] = value
+	db.temp[key] = value
 	return true
 }
 func (db *ValueDB) get(key string) (int, bool) {
-	value, ok := db.table[key]
+	db.RLock()
+	defer db.RUnlock()
+	value, ok := db.temp[key]
 	return value, ok
 }
 func NewValueDB() *ValueDB {
 	db := ValueDB{
-		table: map[string]int{},
+		&sync.RWMutex{},
+		map[string]int{},
+		map[string]int{},
 	}
-
 	return &db
 }
 
@@ -117,4 +139,24 @@ func prec(s string) int {
 	} else {
 		return -1
 	}
+}
+
+type MPCPropose struct {
+	proposer     string
+	budget       uint
+	participants []string
+	postfix      []string
+	// dataholder   func()
+}
+
+type MPCResult struct {
+	propose MPCPropose
+	Result  int
+}
+
+// TODO: add blockchain header.
+type Block struct {
+	// Header
+	balance map[string]int
+	result  MPCResult
 }

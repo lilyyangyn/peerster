@@ -28,13 +28,9 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 	}
 
 	// generate the list of MPC id
-	peerIDs := make([]int, len(peers))
-	for idx, peer := range peers {
-		id, ok := m.getPeerID(peer)
-		if !ok {
-			return xerrors.Errorf("no id for peer %s", peer)
-		}
-		peerIDs[idx] = id
+	peerIDs, err := m.getPeerIDs(peers)
+	if err != nil {
+		return err
 	}
 
 	// generate shared secrets

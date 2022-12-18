@@ -27,5 +27,4 @@ func Test_Infix_To_Postfix(t *testing.T) {
 			require.Equal(t, postfix[j], expectedAns[i][j])
 		}
 	}
-
 }
