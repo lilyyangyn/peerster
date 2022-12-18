@@ -189,21 +189,47 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 	}
 
 	// boardcast the result and compute the final result
-	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(len(postfix))
-	m.valueDB.add(key, s[0])
-
-	// TODO boardcast
-	// m.Broadcast()
+	mpcKey := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(len(postfix))
+	m.valueDB.add(mpcKey, s[0])
+	shareMsg := types.MPCShareMessage{
+		ReqID: m.MPC.id,
+		Value: types.MPCSecretValue{
+			Owner: m.conf.Socket.GetAddress(),
+			Key:   mpcKey,
+			Value: s[0],
+		},
+	}
+	shareMsgMarshal, err := m.CreateMsg(shareMsg)
+	if err != nil {
+		return 0, err
+	}
+	// wrap in private msg
+	privRecipients := map[string]struct{}{}
+	for _, participant := range participants {
+		privRecipients[participant] = struct{}{}
+	}
+	privMsg := types.PrivateMessage{
+		Recipients: privRecipients,
+		Msg:        &shareMsgMarshal,
+	}
+	privMsgMarshal, err := m.CreateMsg(privMsg)
+	if err != nil {
+		return 0, err
+	}
+	err = m.Broadcast(privMsgMarshal)
+	if err != nil {
+		return 0, err
+	}
 
 	peerIDs, err := m.getPeerIDs(participants)
 	if err != nil {
 		return 0, err
 	}
 	// busy wait for other key to receive.
-	// TODO change to chan
+	// TODO: this is not receive from boardcast not sss, might need to change the function name.
 	shareResult := make([]int, len(participants))
 	for i := 0; i < len(participants); i++ {
-		tmpKey := participants[i] + "|" + strconv.Itoa(len(postfix)) + m.conf.Socket.GetAddress()
+		tmpKey := participants[i] + "|" + strconv.Itoa(len(postfix))
 		shareResult[i] = m.getValueFromSSS(tmpKey)
 	}
 
@@ -247,7 +273,6 @@ func (m *MPCModule) computeMult(a int, b int, step int, participants []string) (
 	}
 
 	// collect all m.shareSecret()
-	// TODO: change to use channel.
 	shareD := make([]int, len(participants))
 	for i := 0; i < len(participants); i++ {
 		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.conf.Socket.GetAddress()

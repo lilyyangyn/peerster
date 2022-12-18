@@ -1,6 +1,7 @@
 package mpc
 
 import (
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -18,8 +19,11 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return nil
 	}
 
-	// log.Printf("mpc value for round %d: %s-%s", secretMsg.Value, secretMsg.Value.Owner, secretMsg.Value.Key)
+	log.Info().Msgf("mpc value for req %d, %s:%s",
+		secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// TODO: MPC operation
+	m.valueDB.add(secretMsg.Value.Key, secretMsg.Value.Value)
+
 	return nil
 }

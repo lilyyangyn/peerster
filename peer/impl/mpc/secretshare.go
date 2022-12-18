@@ -41,7 +41,8 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 
 	// send shared secrets
 	for idx, result := range results {
-		err := m.sendShareMessage(peers[idx], peerIDs[idx], key, result)
+		err := m.sendShareMessage(
+			peers[idx], peerIDs[idx], key+"|"+peers[idx], result)
 		if err != nil {
 			return err
 		}
