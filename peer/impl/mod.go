@@ -10,6 +10,7 @@ import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/mpc"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
@@ -26,7 +27,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 
 	n.message = message.NewMessageModule(&conf)
 	n.datasharing = datashare.NewDataSharingModule(&conf, n.message)
-
+	n.mpc = mpc.NewMPCModule(&conf, n.message)
 	return &n
 }
 
@@ -39,6 +40,7 @@ type node struct {
 
 	message     *message.MessageModule
 	datasharing *datashare.DataSharingModule
+	mpc         *mpc.MPCModule
 
 	stopSig context.CancelFunc
 }
@@ -165,4 +167,14 @@ func (n *node) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
 // GetPubkeyStore implements peer.GetPubkeyStore
 func (n *node) GetPubkeyStore() peer.PubkeyStore {
 	return n.message.GetPubkeyStore()
+}
+
+// GetPubkeyStore implements peer.ComputeExpression
+func (n *node) ComputeExpression(expr string, budget uint) (int, error) {
+	return n.mpc.ComputeExpression(expr, budget)
+}
+
+// GetPubkeyStore implements peer.SetValueDBAsset
+func (n *node) SetValueDBAsset(key string, value int) error {
+	return n.mpc.SetValueDBAsset(key, value)
 }

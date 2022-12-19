@@ -45,6 +45,14 @@ func (m *MPCModule) SetMPCValue(key string, value int) error {
 	return nil
 }
 
+func (m *MPCModule) SetValueDBAsset(key string, value int) error {
+	ok := m.valueDB.addAsset(key, value)
+	if !ok {
+		return xerrors.Errorf("Add Assets failed")
+	}
+	return nil
+}
+
 // This is the entry point of the calling the MPC.
 func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 	// change infix to postfix
