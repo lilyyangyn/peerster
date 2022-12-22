@@ -37,7 +37,7 @@ func NewDataSharingModule(conf *peer.Configuration, messageModule *message.Messa
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
 
-		PaxosModule: paxos.NewPaxosModule(conf, messageModule),
+		PaxosModule: paxos.NewPaxosModule(conf, messageModule, paxos.PaxosTag),
 	}
 
 	// message registery

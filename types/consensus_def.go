@@ -1,9 +1,11 @@
 package types
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -61,21 +63,6 @@ type TLCMessage struct {
 	Block BlockchainBlock
 }
 
-// PaxosValue defines the value on which Paxos makes a consensus.
-type PaxosValue struct {
-	// UniqID is used to group and count same values. Use xid.New().String() to
-	// generate it.
-	UniqID string
-
-	Filename string
-	Metahash string
-}
-
-// String returns a string representation.
-func (p PaxosValue) String() string {
-	return fmt.Sprintf("{paxosvalue: %s - %s=>%s}", p.UniqID, p.Filename, p.Metahash)
-}
-
 // BlockchainBlock defines the content of a block in the blockchain.
 type BlockchainBlock struct {
 	// Index is the index of the block in the blockchain, starting at 0 for the
@@ -90,6 +77,35 @@ type BlockchainBlock struct {
 
 	// PrevHash is the SHA256 hash of the previous block
 	PrevHash []byte
+}
+
+// CreateTLCBlock generates a new BlockchainBlock
+func CreateTLCBlock(currClock uint, val *PaxosValue, prevHash []byte) *BlockchainBlock {
+	if len(prevHash) == 0 {
+		prevHash = make([]byte, 32)
+	}
+
+	// create block
+	block := &BlockchainBlock{
+		Index:    currClock,
+		Value:    *val,
+		PrevHash: prevHash,
+	}
+
+	// compute block hash
+	h := crypto.SHA256.New()
+	h.Write([]byte(strconv.Itoa(int(block.Index))))
+	h.Write([]byte(block.Value.Type))
+	h.Write([]byte(block.Value.UniqID))
+	h.Write([]byte(block.Value.Content))
+	// h.Write([]byte(block.Value.UniqID))
+	// h.Write([]byte(block.Value.Filename))
+	// h.Write([]byte(block.Value.Metahash))
+	h.Write(block.PrevHash)
+	blockHash := h.Sum(nil)
+	block.Hash = blockHash
+
+	return block
 }
 
 // Marshal marshals the BlobkchainBlock into a byte representation. Must be used
@@ -139,20 +155,18 @@ func (b BlockchainBlock) DisplayBlock(out io.Writer) {
 	}
 
 	row1 := fmt.Sprintf("%d | %x", b.Index, b.Hash[:6])
-	row2 := fmt.Sprintf("I | %s", crop(b.Value.UniqID))
-	row3 := fmt.Sprintf("F | %s", crop(b.Value.Filename))
-	row4 := fmt.Sprintf("M | %s", crop(b.Value.Metahash))
+	row2 := fmt.Sprintf("T | %s", crop(b.Value.Type))
+	row3 := fmt.Sprintf("V | %s", crop(b.Value.String()))
 	row5 := fmt.Sprintf("<- %x", b.PrevHash[:6])
 
-	m := max(row1, row2, row3, row4, row5)
-	pad(m, &row1, &row2, &row3, &row4, &row5)
+	m := max(row1, row2, row3, row5)
+	pad(m, &row1, &row2, &row3, &row5)
 
 	fmt.Fprintf(out, "\n┌%s┐\n", strings.Repeat("─", m+2))
 	fmt.Fprintf(out, "│ %s │\n", row1)
 	fmt.Fprintf(out, "│%s│\n", strings.Repeat("─", m+2))
 	fmt.Fprintf(out, "│ %s │\n", row2)
 	fmt.Fprintf(out, "│ %s │\n", row3)
-	fmt.Fprintf(out, "│ %s │\n", row4)
 	fmt.Fprintf(out, "│%s│\n", strings.Repeat("─", m+2))
 	fmt.Fprintf(out, "│ %s │\n", row5)
 	fmt.Fprintf(out, "└%s┘\n", strings.Repeat("─", m+2))

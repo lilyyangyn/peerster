@@ -1,13 +1,14 @@
 package paxos
 
 import (
-	"crypto"
-	"strconv"
-
 	"go.dedis.ch/cs438/types"
 )
 
-type MultiPaxos struct {
+type MultipaxosHandler interface {
+	Callback(m *PaxosModule, content types.PaxosValueContent) error
+}
+
+type Multipaxos struct {
 	TLC      uint
 	Occupied bool
 	*Paxos
@@ -16,8 +17,8 @@ type MultiPaxos struct {
 	Blocks       map[uint]*types.BlockchainBlock
 }
 
-func NewMultiPaxos(id uint) *MultiPaxos {
-	multipaxos := MultiPaxos{
+func NewMultipaxos(id uint) *Multipaxos {
+	multipaxos := Multipaxos{
 		TLC:   0,
 		Paxos: NewPaxos(id),
 
@@ -26,31 +27,6 @@ func NewMultiPaxos(id uint) *MultiPaxos {
 	}
 
 	return &multipaxos
-}
-
-func (multipaxos *MultiPaxos) createTLCBlock(val *types.PaxosValue, prevHash []byte) *types.BlockchainBlock {
-	if len(prevHash) == 0 {
-		prevHash = make([]byte, 32)
-	}
-	// compute block hash
-	currClock := multipaxos.TLC
-	// create block
-	block := &types.BlockchainBlock{
-		Index:    currClock,
-		Value:    *val,
-		PrevHash: prevHash,
-	}
-
-	h := crypto.SHA256.New()
-	h.Write([]byte(strconv.Itoa(int(block.Index))))
-	h.Write([]byte(block.Value.UniqID))
-	h.Write([]byte(block.Value.Filename))
-	h.Write([]byte(block.Value.Metahash))
-	h.Write(block.PrevHash)
-	blockHash := h.Sum(nil)
-	block.Hash = blockHash
-
-	return block
 }
 
 const (

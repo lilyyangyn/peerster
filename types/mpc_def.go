@@ -18,3 +18,6 @@ type MPCInterpolationMessage struct {
 	Owner string
 	Value int
 }
+
+type MPCExpression struct {
+}

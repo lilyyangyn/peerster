@@ -1,7 +1,6 @@
 package paxos
 
 import (
-	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -70,7 +69,7 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 		m.MaxIDInPromise = promiseMsg.AcceptedID
 		m.ValueInPromise = promiseMsg.AcceptedValue
 	}
-	if m.PromiseCounter != m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if m.PromiseCounter != m.threshold() {
 		return nil
 	}
 	m.PromiseCounter = 0
@@ -148,7 +147,7 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	// record accept
 	uniqID := acceptMsg.Value.UniqID
 	m.AcceptCounter[uniqID]++
-	if m.AcceptCounter[uniqID] != m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if m.AcceptCounter[uniqID] != m.threshold() {
 		return nil
 	}
 	m.AcceptCounter[uniqID] = 0
@@ -168,8 +167,8 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	// }
 
 	// send TLC message
-	block := m.createTLCBlock(&acceptMsg.Value,
-		m.conf.Storage.GetBlockchainStore().Get(storage.LastBlockKey))
+	block := types.CreateTLCBlock(m.TLC, &acceptMsg.Value,
+		m.conf.Storage.GetBlockchainStore().Get(m.lastBlockKey))
 	err = m.broadcastTLCMessage(acceptMsg.Step, block)
 	if err == nil {
 		m.hasSentTLC = true
@@ -196,7 +195,7 @@ func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (er
 	// record block
 	m.BlockCounter[tlcMsg.Step]++
 	m.Blocks[tlcMsg.Step] = &tlcMsg.Block
-	if tlcMsg.Step != m.TLC || m.BlockCounter[m.TLC] != m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if tlcMsg.Step != m.TLC || m.BlockCounter[m.TLC] != m.threshold() {
 		return nil
 	}
 	m.BlockCounter[m.TLC] = 0

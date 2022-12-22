@@ -6,22 +6,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/xid"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 type PaxosModule struct {
 	*message.MessageModule
 	conf *peer.Configuration
 
+	valueType PaxosType
+
 	*sync.Mutex
 	cond *sync.Cond
 
-	*MultiPaxos
+	*Multipaxos
+	threshold    func() int
+	callback     func(*types.PaxosValue) error
+	lastBlockKey string
 
 	paxosPromiseChan chan paxosResult
 	paxosTLCAdvChan  chan paxosResult
@@ -29,16 +32,43 @@ type PaxosModule struct {
 	hasSentTLC bool
 }
 
-func NewPaxosModule(conf *peer.Configuration, messageModule *message.MessageModule) *PaxosModule {
+type PaxosType int
+
+const (
+	PaxosTag PaxosType = iota
+	PaxosMPC
+)
+
+func NewPaxosModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosType PaxosType) *PaxosModule {
 	lock := sync.Mutex{}
 	m := PaxosModule{
 		MessageModule: messageModule,
 		conf:          conf,
 
+		valueType:       paxosType,
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
-		MultiPaxos:      NewMultiPaxos(conf.PaxosID),
+		Multipaxos:      NewMultipaxos(conf.PaxosID),
 		paxosTLCAdvChan: make(chan paxosResult, 50),
+	}
+
+	switch paxosType {
+	case PaxosTag:
+		{
+			m.callback = m.tagCallback
+			m.threshold = m.tagThreshold
+			m.lastBlockKey = storage.LastBlockKey
+			break
+		}
+	case PaxosMPC:
+		{
+			m.callback = m.mpcCallback
+			m.threshold = m.mpcThreshold
+			m.lastBlockKey = "MPCLastKey"
+			break
+		}
+	default:
+		log.Fatal("Unrecognized paxos type")
 	}
 
 	// message registery
@@ -61,42 +91,7 @@ type paxosResult struct {
 	Err    error
 }
 
-func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
-	if val := m.conf.Storage.GetNamingStore().Get(name); len(val) > 0 {
-		return xerrors.Errorf("%s already in the name store.", name)
-	}
-
-	m.Lock()
-	if !m.Occupied {
-		m.Occupied = true
-		m.Proposer = true
-		m.paxosPromiseChan = make(chan paxosResult, 3)
-		step := m.TLC
-		m.Unlock()
-		return m.proposeTag(name, mh, step)
-	}
-	m.cond.Wait()
-	m.Unlock()
-	return m.InitTagConensus(name, mh)
-}
-
 /** Private Helpfer Functions **/
-
-// proposeTag starts a new paxos starting from phase one
-func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
-	proposeVal := types.PaxosValue{
-		UniqID:   xid.New().String(),
-		Filename: name,
-		Metahash: mh,
-	}
-
-	result := m.startFromPhaseOne(&proposeVal, step)
-
-	if result.Value.Filename == name && result.Value.Metahash == mh {
-		return nil
-	}
-	return m.InitTagConensus(name, mh)
-}
 
 // startFromPhaseOne init phase one by sending a prepare message
 func (m *PaxosModule) startFromPhaseOne(val *types.PaxosValue, step uint) (result paxosResult) {
@@ -152,10 +147,13 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 		return err
 	}
 	m.conf.Storage.GetBlockchainStore().Set(blockKey, buf)
-	m.conf.Storage.GetBlockchainStore().Set(storage.LastBlockKey, block.Hash)
+	m.conf.Storage.GetBlockchainStore().Set(m.lastBlockKey, block.Hash)
 
-	// set naming store and notify proposer
-	m.conf.Storage.GetNamingStore().Set(block.Value.Filename, []byte(block.Value.Metahash))
+	// do callback
+	err = m.callback(&block.Value)
+	if err != nil {
+		return err
+	}
 
 	// broadcast TLC message if needed
 	if !m.hasSentTLC && !catchUp {
@@ -183,7 +181,7 @@ func (m *PaxosModule) advanceSession(block *types.BlockchainBlock, catchUp bool)
 	m.cond.Signal()
 
 	// do catchup
-	if m.BlockCounter[m.TLC] >= m.conf.PaxosThreshold(m.conf.TotalPeers) {
+	if m.BlockCounter[m.TLC] >= m.threshold() {
 		err = m.advanceSession(m.Blocks[m.TLC], true)
 	}
 

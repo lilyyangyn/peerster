@@ -60,12 +60,22 @@ func (b blockchain) blockchainGet(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		lastBlockVal, err := types.ParsePaxosValueContent(&lastBlock.Value)
+		if err != nil {
+			http.Error(w, "failed to parse content: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tagVal, ok := lastBlockVal.(*types.PaxosTagValue)
+		if !ok {
+			http.Error(w, "wrong type of paxos content", http.StatusInternalServerError)
+			return
+		}
 		blocks = append(blocks, viewBlock{
 			Index:    lastBlock.Index,
 			Hash:     hex.EncodeToString(lastBlock.Hash),
 			ValueID:  lastBlock.Value.UniqID,
-			Name:     lastBlock.Value.Filename,
-			Metahash: lastBlock.Value.Metahash,
+			Name:     tagVal.Filename,
+			Metahash: tagVal.Metahash,
 			PrevHash: hex.EncodeToString(lastBlock.PrevHash),
 		})
 

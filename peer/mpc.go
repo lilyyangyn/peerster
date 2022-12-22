@@ -1,14 +1,13 @@
 package peer
 
+import "go.dedis.ch/cs438/types"
+
 type MPC interface {
 	// start MPC with given expression and return the result
-	Calculate(expression MPCExpression) (int, error)
+	Calculate(expression types.MPCExpression) (int, error)
 }
 
-type MPCExpression struct {
-}
-
-func NewMPCExpression(exp string) *MPCExpression {
-	expression := MPCExpression{}
+func NewMPCExpression(exp string) *types.MPCExpression {
+	expression := types.MPCExpression{}
 	return &expression
 }

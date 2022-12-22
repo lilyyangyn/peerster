@@ -695,9 +695,12 @@ func ValidateBlockchain(t *testing.T, store storage.Store) {
 		h := sha256.New()
 
 		h.Write([]byte(strconv.Itoa(int(block.Index))))
+		// h.Write([]byte(block.Value.UniqID))
+		// h.Write([]byte(block.Value.Filename))
+		// h.Write([]byte(block.Value.Metahash))
+		h.Write([]byte(block.Value.Type))
 		h.Write([]byte(block.Value.UniqID))
-		h.Write([]byte(block.Value.Filename))
-		h.Write([]byte(block.Value.Metahash))
+		h.Write([]byte(block.Value.Content))
 		h.Write(block.PrevHash)
 
 		blockHash := h.Sum(nil)
