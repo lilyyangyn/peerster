@@ -20,7 +20,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return nil
 	}
 
-	log.Printf("mpc value for round %d: %s-%s", secretMsg.Value, secretMsg.Value.Owner, secretMsg.Value.Key)
+	log.Printf("mpc value for round %d: %s-%s", secretMsg.Value.Value, secretMsg.Value.Owner, secretMsg.Value.Key)
 
 	// TODO: MPC operation
 	return nil

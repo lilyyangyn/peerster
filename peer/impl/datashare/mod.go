@@ -120,7 +120,7 @@ func (m *DataSharingModule) Tag(name string, mh string) error {
 		return nil
 	}
 
-	return m.InitTagConensus(name, mh)
+	return m.InitTagConcensus(name, mh)
 }
 
 // Resolve implements peer.Resolve

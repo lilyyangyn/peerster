@@ -24,7 +24,7 @@ type PaxosInstance struct {
 	hasSentTLC       bool
 
 	threshold    func() int
-	callback     func(*types.PaxosValue) error
+	Callback     func(*types.PaxosValue) error
 	lastBlockKey string
 }
 
@@ -102,7 +102,7 @@ func (m *PaxosInstance) advanceSession(block *types.BlockchainBlock, catchUp boo
 	m.conf.Storage.GetBlockchainStore().Set(m.lastBlockKey, block.Hash)
 
 	// do callback
-	err = m.callback(&block.Value)
+	err = m.Callback(&block.Value)
 	if err != nil {
 		return err
 	}

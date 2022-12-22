@@ -9,17 +9,19 @@ import (
 // NewMPCPaxos creates a new PaxosInstance that handles mpc consensus
 func NewMPCPaxos(m *PaxosModule) *PaxosInstance {
 	p := *NewPaxosInstance(m)
-	p.callback = m.mpcCallback
+	p.Callback = m.mpcCallback
 	p.threshold = m.mpcThreshold
 	p.lastBlockKey = "MPC.LastBlockKey"
 
 	return &p
 }
 
-func (m *PaxosInstance) InitMPCConensus(budget float64, expression string) (err error) {
+func (m *PaxosInstance) InitMPCConcensus(budget float64, expression string) (err error) {
 	if m.Type != types.PaxosTypeMPC {
 		return xerrors.Errorf("invalid operation")
 	}
+
+	// TODO: check expression not exists in records
 
 	// TODO: check balance
 
@@ -34,7 +36,7 @@ func (m *PaxosInstance) InitMPCConensus(budget float64, expression string) (err 
 	}
 	m.cond.Wait()
 	m.Unlock()
-	return m.InitMPCConensus(budget, expression)
+	return m.InitMPCConcensus(budget, expression)
 }
 
 /** Private Helpfer Functions **/
@@ -66,15 +68,16 @@ func (m *PaxosInstance) proposeMPC(budget float64, expression string, step uint)
 	if mpcValue.Initiator == initiator && mpcValue.Expression == expression {
 		return nil
 	}
-	return m.InitMPCConensus(budget, expression)
+	return m.InitMPCConcensus(budget, expression)
 }
 
-// tagThreshold calculates the threshold to enter next paxos stage
+// mpcThreshold calculates the threshold to enter next paxos stage
 func (m *PaxosModule) mpcThreshold() int {
 	return int(m.conf.TotalPeers)
 }
 
-// tagCallback is a callback function that gets called when TLC advances
+// mpcCallback is a callback function that gets called when TLC advances
 func (m *PaxosModule) mpcCallback(value *types.PaxosValue) error {
+	// TODO: start MPC
 	return nil
 }

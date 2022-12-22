@@ -10,15 +10,15 @@ import (
 // NewTagPaxos creates a new PaxosInstance that handles tag consensus
 func NewTagPaxos(m *PaxosModule) *PaxosInstance {
 	p := *NewPaxosInstance(m)
-	p.callback = m.tagCallback
+	p.Callback = m.tagCallback
 	p.threshold = m.tagThreshold
 	p.lastBlockKey = storage.LastBlockKey
 
 	return &p
 }
 
-// InitTagConensus inits a paxos to consensus on tag value
-func (m *PaxosInstance) InitTagConensus(name string, mh string) (err error) {
+// InitTagConcensus inits a paxos to consensus on tag value
+func (m *PaxosInstance) InitTagConcensus(name string, mh string) (err error) {
 	if m.Type != types.PaxosTypeTag {
 		return xerrors.Errorf("invalid operation")
 	}
@@ -38,7 +38,7 @@ func (m *PaxosInstance) InitTagConensus(name string, mh string) (err error) {
 	}
 	m.cond.Wait()
 	m.Unlock()
-	return m.InitTagConensus(name, mh)
+	return m.InitTagConcensus(name, mh)
 }
 
 /** Private Helpfer Functions **/
@@ -68,7 +68,7 @@ func (m *PaxosInstance) proposeTag(name string, mh string, step uint) error {
 	if tagValue.Filename == name && tagValue.Metahash == mh {
 		return nil
 	}
-	return m.InitTagConensus(name, mh)
+	return m.InitTagConcensus(name, mh)
 }
 
 // tagThreshold calculates the threshold to enter next paxos stage

@@ -3,6 +3,7 @@ package mpc
 import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
@@ -13,14 +14,23 @@ type MPCModule struct {
 
 	valueDB *ValueDB
 	*MPC
+
+	*paxos.PaxosInstance
 }
 
-func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule) *MPCModule {
+func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *MPCModule {
 	m := MPCModule{
 		MessageModule: messageModule,
 		conf:          conf,
 		valueDB:       NewValueDB(),
 	}
+	instance, err := paxosModule.CreateNewPaxos(types.PaxosTypeMPC)
+	if err != nil {
+		panic(err)
+	}
+	// register callback here
+	instance.Callback = m.paxosCallback
+	m.PaxosInstance = instance
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
@@ -29,6 +39,17 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 }
 
 /** Feature Functions **/
+
+// StartMPC start a new MPC from making consensus on budget and expression.
+// It will then initiate the MPC automatically
+func (m *MPCModule) StartMPC(budget float64, expression string) (int, error) {
+	err := m.InitMPCConcensus(budget, expression)
+	if err != nil {
+		return -1, err
+	}
+
+	return -1, nil
+}
 
 func (m *MPCModule) SetMPCValue(key string, value int) error {
 	ok := m.valueDB.add(key, value)
@@ -40,3 +61,10 @@ func (m *MPCModule) SetMPCValue(key string, value int) error {
 }
 
 /** Private Helpfer Functions **/
+
+// paxosCallback is a callback function called by paxos when consensus is reached
+func (m *MPCModule) paxosCallback(*types.PaxosValue) error {
+	// compute MPC
+	// channel to tell outside?
+	return nil
+}
