@@ -13,6 +13,78 @@ func (m *PaxosModule) ProcessPaxosPrepareMsg(msg types.Message, pkt transport.Pa
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 
+	instance, ok := m.GetPaxos(prepareMsg.Type)
+	if !ok {
+		return xerrors.Errorf("wrong paxos type: %T", msg)
+	}
+
+	return instance.processPaxosPrepareMsg(prepareMsg, pkt)
+}
+
+// ProcessPaxosPromiseMessage is a callback function to handle received paxos promise message
+func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transport.Packet) (err error) {
+	promiseMsg, ok := msg.(*types.PaxosPromiseMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	instance, ok := m.GetPaxos(promiseMsg.Type)
+	if !ok {
+		return xerrors.Errorf("wrong paxos type: %T", msg)
+	}
+
+	return instance.processPaxosPromiseMessage(promiseMsg, pkt)
+}
+
+// ProcessPaxosProposeMessage is a callback function to handle received paxos propose message
+func (m *PaxosModule) ProcessPaxosProposeMessage(msg types.Message, pkt transport.Packet) (err error) {
+	proposeMsg, ok := msg.(*types.PaxosProposeMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	instance, ok := m.GetPaxos(proposeMsg.Type)
+	if !ok {
+		return xerrors.Errorf("wrong paxos type: %T", msg)
+	}
+
+	return instance.processPaxosProposeMessage(proposeMsg, pkt)
+}
+
+// ProcessPaxosAcceptMessage is a callback function to handle received paxos accept message
+func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport.Packet) (err error) {
+	acceptMsg, ok := msg.(*types.PaxosAcceptMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	instance, ok := m.GetPaxos(acceptMsg.Type)
+	if !ok {
+		return xerrors.Errorf("wrong paxos type: %T", msg)
+	}
+
+	return instance.processPaxosAcceptMessage(acceptMsg, pkt)
+}
+
+// ProcessTLCMsg is a callback function to handle received tlc message
+func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (err error) {
+	tlcMsg, ok := msg.(*types.TLCMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	instance, ok := m.GetPaxos(tlcMsg.Type)
+	if !ok {
+		return xerrors.Errorf("wrong paxos type: %T", msg)
+	}
+
+	return instance.processTLCMsg(tlcMsg, pkt)
+}
+
+/** Private Helpfer Functions **/
+
+// processPaxosPrepareMsg is a callback function to handle received paxos prepare message
+func (m *PaxosInstance) processPaxosPrepareMsg(prepareMsg *types.PaxosPrepareMessage, pkt transport.Packet) (err error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -41,13 +113,8 @@ func (m *PaxosModule) ProcessPaxosPrepareMsg(msg types.Message, pkt transport.Pa
 	return err
 }
 
-// ProcessPaxosPromiseMessage is a callback function to handle received paxos promise message
-func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transport.Packet) (err error) {
-	promiseMsg, ok := msg.(*types.PaxosPromiseMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
+// processPaxosPromiseMessage is a callback function to handle received paxos promise message
+func (m *PaxosInstance) processPaxosPromiseMessage(promiseMsg *types.PaxosPromiseMessage, pkt transport.Packet) (err error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -92,13 +159,8 @@ func (m *PaxosModule) ProcessPaxosPromiseMessage(msg types.Message, pkt transpor
 	return err
 }
 
-// ProcessPaxosProposeMessage is a callback function to handle received paxos propose message
-func (m *PaxosModule) ProcessPaxosProposeMessage(msg types.Message, pkt transport.Packet) (err error) {
-	proposeMsg, ok := msg.(*types.PaxosProposeMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
+// processPaxosProposeMessage is a callback function to handle received paxos propose message
+func (m *PaxosInstance) processPaxosProposeMessage(proposeMsg *types.PaxosProposeMessage, pkt transport.Packet) (err error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -122,13 +184,8 @@ func (m *PaxosModule) ProcessPaxosProposeMessage(msg types.Message, pkt transpor
 	return err
 }
 
-// ProcessPaxosAcceptMessage is a callback function to handle received paxos accept message
-func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport.Packet) (err error) {
-	acceptMsg, ok := msg.(*types.PaxosAcceptMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
+// processPaxosAcceptMessage is a callback function to handle received paxos accept message
+func (m *PaxosInstance) processPaxosAcceptMessage(acceptMsg *types.PaxosAcceptMessage, pkt transport.Packet) (err error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -177,13 +234,8 @@ func (m *PaxosModule) ProcessPaxosAcceptMessage(msg types.Message, pkt transport
 	return err
 }
 
-// ProcessTLCMsg is a callback function to handle received tlc message
-func (m *PaxosModule) ProcessTLCMsg(msg types.Message, pkt transport.Packet) (err error) {
-	tlcMsg, ok := msg.(*types.TLCMessage)
-	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
-	}
-
+// processTLCMsg is a callback function to handle received tlc message
+func (m *PaxosInstance) processTLCMsg(tlcMsg *types.TLCMessage, pkt transport.Packet) (err error) {
 	m.Lock()
 	defer m.Unlock()
 

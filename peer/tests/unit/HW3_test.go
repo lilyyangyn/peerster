@@ -61,6 +61,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 	// sending a prepare with a wrong step
 
 	prepare := types.PaxosPrepareMessage{
+		Type:   types.PaxosTypeTag,
 		Step:   99, // wrong step
 		ID:     1,
 		Source: proposer.GetAddress(),
@@ -106,6 +107,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 	// sending a prepare with an ID too low
 
 	prepare := types.PaxosPrepareMessage{
+		Type:   types.PaxosTypeTag,
 		Step:   0,
 		ID:     0, // ID too low
 		Source: proposer.GetAddress(),
@@ -151,6 +153,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 	// sending a prepare with a high ID, must then be taken into account
 
 	prepare := types.PaxosPrepareMessage{
+		Type:   types.PaxosTypeTag,
 		Step:   0,
 		ID:     99,
 		Source: proposer.GetAddress(),
@@ -222,6 +225,7 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
+		Type:  types.PaxosTypeTag,
 		Step:  99, // wrong step
 		ID:    1,
 		Value: *proposeVal,
@@ -274,6 +278,7 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		// ID too high: 0 is expected since MaxID of a proposer starts at 0 and
 		// the proposer hasn't received any prepare, so its MaxID = 0.
@@ -319,6 +324,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	acceptor.AddPeer(proposer.GetAddress())
 
 	prepare := types.PaxosPrepareMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		ID:   5,
 	}
@@ -348,6 +354,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
+		Type:  types.PaxosTypeTag,
 		Step:  0,
 		ID:    5,
 		Value: *proposeVal,
@@ -372,6 +379,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	// return the promise ID and promise value.
 
 	prepare = types.PaxosPrepareMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		ID:   9, // higher ID
 	}
@@ -459,6 +467,7 @@ func Test_HW3_Paxos_Acceptor_Propose_Correct(t *testing.T) {
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
+		Type:  types.PaxosTypeTag,
 		Step:  0,
 		ID:    0,
 		Value: *proposeVal,
@@ -628,6 +637,7 @@ func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 	// sending back a correct promise
 
 	promise := types.PaxosPromiseMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		ID:   paxosID,
 	}
@@ -781,6 +791,7 @@ func Test_HW3_TLC_Move_Step_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	tlc := types.TLCMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		Block: types.BlockchainBlock{
 			Index:    0,
@@ -862,6 +873,7 @@ func Test_HW3_TLC_Move_Step_Catchup(t *testing.T) {
 	require.NoError(t, err)
 
 	tlc0 := types.TLCMessage{
+		Type: types.PaxosTypeTag,
 		Step: 0,
 		Block: types.BlockchainBlock{
 			Index:    0,
@@ -882,6 +894,7 @@ func Test_HW3_TLC_Move_Step_Catchup(t *testing.T) {
 	require.NoError(t, err)
 
 	tlc1 := types.TLCMessage{
+		Type: types.PaxosTypeTag,
 		Step: 1,
 		Block: types.BlockchainBlock{
 			Index:    1,
@@ -902,6 +915,7 @@ func Test_HW3_TLC_Move_Step_Catchup(t *testing.T) {
 	require.NoError(t, err)
 
 	tlc2 := types.TLCMessage{
+		Type: types.PaxosTypeTag,
 		Step: 2,
 		Block: types.BlockchainBlock{
 			Index:    2,

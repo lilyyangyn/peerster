@@ -26,19 +26,22 @@ type DataSharingModule struct {
 	replyChannels  SafeChannTable
 	messageRecords SafeMsgRecord
 
-	*paxos.PaxosModule
+	*paxos.PaxosInstance
 }
 
-func NewDataSharingModule(conf *peer.Configuration, messageModule *message.MessageModule) *DataSharingModule {
+func NewDataSharingModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *DataSharingModule {
 	m := DataSharingModule{
 		MessageModule:  messageModule,
 		conf:           conf,
 		catalog:        *NewSafeCatalog(),
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
-
-		PaxosModule: paxos.NewPaxosModule(conf, messageModule, paxos.PaxosTag),
 	}
+	instance, err := paxosModule.CreateNewPaxos(types.PaxosTypeTag)
+	if err != nil {
+		panic(err)
+	}
+	m.PaxosInstance = instance
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, m.ProcessDataRequestMessage)

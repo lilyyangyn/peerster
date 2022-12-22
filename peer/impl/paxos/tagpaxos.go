@@ -2,12 +2,24 @@ package paxos
 
 import (
 	"github.com/rs/xid"
+	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
-func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
-	if m.valueType != PaxosTag {
+// NewTagPaxos creates a new PaxosInstance that handles tag consensus
+func NewTagPaxos(m *PaxosModule) *PaxosInstance {
+	p := *NewPaxosInstance(m)
+	p.callback = m.tagCallback
+	p.threshold = m.tagThreshold
+	p.lastBlockKey = storage.LastBlockKey
+
+	return &p
+}
+
+// InitTagConensus inits a paxos to consensus on tag value
+func (m *PaxosInstance) InitTagConensus(name string, mh string) (err error) {
+	if m.Type != types.PaxosTypeTag {
 		return xerrors.Errorf("invalid operation")
 	}
 
@@ -32,7 +44,7 @@ func (m *PaxosModule) InitTagConensus(name string, mh string) (err error) {
 /** Private Helpfer Functions **/
 
 // proposeTag starts a new paxos starting from phase one
-func (m *PaxosModule) proposeTag(name string, mh string, step uint) error {
+func (m *PaxosInstance) proposeTag(name string, mh string, step uint) error {
 	proposeValContent := types.PaxosTagValue{
 		UniqID:   xid.New().String(),
 		Filename: name,

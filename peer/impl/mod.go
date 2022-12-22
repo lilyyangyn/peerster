@@ -10,6 +10,7 @@ import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
@@ -25,7 +26,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	}
 
 	n.message = message.NewMessageModule(&conf)
-	n.datasharing = datashare.NewDataSharingModule(&conf, n.message)
+	n.paxos = paxos.NewPaxosModule(&conf, n.message)
+	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
 
 	return &n
 }
@@ -39,6 +41,7 @@ type node struct {
 
 	message     *message.MessageModule
 	datasharing *datashare.DataSharingModule
+	paxos       *paxos.PaxosModule
 
 	stopSig context.CancelFunc
 }

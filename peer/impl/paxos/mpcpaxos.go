@@ -6,8 +6,18 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (m *PaxosModule) InitMPCConensus(budget float64, expression string) (err error) {
-	if m.valueType != PaxosMPC {
+// NewMPCPaxos creates a new PaxosInstance that handles mpc consensus
+func NewMPCPaxos(m *PaxosModule) *PaxosInstance {
+	p := *NewPaxosInstance(m)
+	p.callback = m.mpcCallback
+	p.threshold = m.mpcThreshold
+	p.lastBlockKey = "MPC.LastBlockKey"
+
+	return &p
+}
+
+func (m *PaxosInstance) InitMPCConensus(budget float64, expression string) (err error) {
+	if m.Type != types.PaxosTypeMPC {
 		return xerrors.Errorf("invalid operation")
 	}
 
@@ -29,7 +39,7 @@ func (m *PaxosModule) InitMPCConensus(budget float64, expression string) (err er
 
 /** Private Helpfer Functions **/
 
-func (m *PaxosModule) proposeMPC(budget float64, expression string, step uint) error {
+func (m *PaxosInstance) proposeMPC(budget float64, expression string, step uint) error {
 	// TODO: use public key hash?
 	initiator := m.GetPubkey().N.String()
 	proposeValContent := types.PaxosMPCValue{

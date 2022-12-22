@@ -14,6 +14,7 @@ import (
 // - implements types.Message
 // - implemented in HW3
 type PaxosPrepareMessage struct {
+	Type PaxosType
 	Step uint
 	ID   uint
 	// Source is the address of the peer that sends the prepare
@@ -25,6 +26,8 @@ type PaxosPrepareMessage struct {
 // - implements types.Message
 // - implemented in HW3
 type PaxosPromiseMessage struct {
+	Type PaxosType
+
 	Step uint
 	ID   uint
 
@@ -39,6 +42,8 @@ type PaxosPromiseMessage struct {
 // - implements types.Message
 // - implemented in HW3
 type PaxosProposeMessage struct {
+	Type PaxosType
+
 	Step  uint
 	ID    uint
 	Value PaxosValue
@@ -49,6 +54,8 @@ type PaxosProposeMessage struct {
 // - implements types.Message
 // - implemented in HW3
 type PaxosAcceptMessage struct {
+	Type PaxosType
+
 	Step  uint
 	ID    uint
 	Value PaxosValue
@@ -59,6 +66,8 @@ type PaxosAcceptMessage struct {
 // - implements types.Message
 // - implemented in HW3
 type TLCMessage struct {
+	Type PaxosType
+
 	Step  uint
 	Block BlockchainBlock
 }
@@ -155,7 +164,7 @@ func (b BlockchainBlock) DisplayBlock(out io.Writer) {
 	}
 
 	row1 := fmt.Sprintf("%d | %x", b.Index, b.Hash[:6])
-	row2 := fmt.Sprintf("T | %s", crop(b.Value.Type))
+	row2 := fmt.Sprintf("T | %s", crop(string(b.Value.Type)))
 	row3 := fmt.Sprintf("V | %s", crop(b.Value.String()))
 	row5 := fmt.Sprintf("<- %x", b.PrevHash[:6])
 

@@ -9,16 +9,18 @@ import (
 
 // -----------------------------------------------------------------------------
 
+type PaxosType string
+
 const (
-	PaxosTagValueType = "PaxosTagValue"
-	PaxosMPCValueType = "PaxosMPCValue"
+	PaxosTypeTag PaxosType = "PaxosTagValue"
+	PaxosTypeMPC           = "PaxosMPCValue"
 )
 
 // -----------------------------------------------------------------------------
 
 // PaxosValue defines the value on which Paxos makes a consensus.
 type PaxosValue struct {
-	Type    string
+	Type    PaxosType
 	UniqID  string
 	Content json.RawMessage
 }
@@ -43,14 +45,14 @@ func (p PaxosValue) String() string {
 
 type PaxosValueContent interface {
 	NewEmpty() PaxosValueContent
-	Name() string
+	Name() PaxosType
 	String() string
 	UniqIdentifier() string
 }
 
-var PaxosValueContents = map[string]PaxosValueContent{
-	PaxosTagValueType: PaxosTagValue{},
-	PaxosMPCValueType: PaxosMPCValue{},
+var PaxosValueContents = map[PaxosType]PaxosValueContent{
+	PaxosTypeTag: PaxosTagValue{},
+	PaxosTypeMPC: PaxosMPCValue{},
 }
 
 func ParsePaxosValueContent(value *PaxosValue) (PaxosValueContent, error) {
@@ -99,8 +101,8 @@ func (v PaxosTagValue) NewEmpty() PaxosValueContent {
 }
 
 // Name implements types.PaxosValueContent.
-func (v PaxosTagValue) Name() string {
-	return PaxosTagValueType
+func (v PaxosTagValue) Name() PaxosType {
+	return PaxosTypeTag
 }
 
 // String implements types.PaxosValueContent.
@@ -129,8 +131,8 @@ func (v PaxosMPCValue) NewEmpty() PaxosValueContent {
 }
 
 // Name implements types.PaxosValueContent.
-func (v PaxosMPCValue) Name() string {
-	return PaxosMPCValueType
+func (v PaxosMPCValue) Name() PaxosType {
+	return PaxosTypeMPC
 }
 
 // String implements types.PaxosValueContent.
