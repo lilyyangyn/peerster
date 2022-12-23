@@ -124,7 +124,7 @@ func (m *PaxosInstance) processPaxosPromiseMessage(promiseMsg *types.PaxosPromis
 	}
 
 	// ignore if proposer not in phase one
-	if !m.Proposer || m.PaxosState != PhaseOne {
+	if !m.proposer || m.PaxosState != PhaseOne {
 		if promiseMsg.ID != m.ProposeID {
 			return nil
 		}
@@ -142,7 +142,7 @@ func (m *PaxosInstance) processPaxosPromiseMessage(promiseMsg *types.PaxosPromis
 	m.PromiseCounter = 0
 
 	// notify proposer
-	result := paxosResult{
+	result := PaxosResult{
 		Step:   promiseMsg.Step,
 		Finish: false,
 	}
@@ -152,7 +152,7 @@ func (m *PaxosInstance) processPaxosPromiseMessage(promiseMsg *types.PaxosPromis
 	m.joinPhaseTwo()
 	value := m.ValueInPromise
 	if value == nil {
-		value = m.ProposeValue
+		value = m.proposeValue
 	}
 	err = m.broadcastPaxosProposeMessage(promiseMsg.Step, promiseMsg.ID, value)
 
@@ -195,7 +195,7 @@ func (m *PaxosInstance) processPaxosAcceptMessage(acceptMsg *types.PaxosAcceptMe
 	}
 
 	// ignore if proposer not in phase two - only our message
-	if m.Proposer && m.PaxosState != PhaseTwo {
+	if m.proposer && m.PaxosState != PhaseTwo {
 		if acceptMsg.ID < m.ProposeID && acceptMsg.ID%m.conf.TotalPeers == m.conf.PaxosID {
 			return nil
 		}

@@ -1,24 +1,13 @@
-package paxos
+package datashare
 
 import (
 	"github.com/rs/xid"
-	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
-// NewTagPaxos creates a new PaxosInstance that handles tag consensus
-func NewTagPaxos(m *PaxosModule) *PaxosInstance {
-	p := *NewPaxosInstance(m)
-	p.Callback = m.tagCallback
-	p.threshold = m.tagThreshold
-	p.lastBlockKey = storage.LastBlockKey
-
-	return &p
-}
-
 // InitTagConcensus inits a paxos to consensus on tag value
-func (m *PaxosInstance) InitTagConcensus(name string, mh string) (err error) {
+func (m *DataSharingModule) InitTagConcensus(name string, mh string) (err error) {
 	if m.Type != types.PaxosTypeTag {
 		return xerrors.Errorf("invalid operation")
 	}
@@ -27,24 +16,16 @@ func (m *PaxosInstance) InitTagConcensus(name string, mh string) (err error) {
 		return xerrors.Errorf("%s already in the name store.", name)
 	}
 
-	m.Lock()
-	if !m.Occupied {
-		m.Occupied = true
-		m.Proposer = true
-		m.paxosPromiseChan = make(chan paxosResult, 3)
-		step := m.TLC
-		m.Unlock()
+	if step, ok := m.CheckAndWait(); ok {
 		return m.proposeTag(name, mh, step)
 	}
-	m.cond.Wait()
-	m.Unlock()
 	return m.InitTagConcensus(name, mh)
 }
 
 /** Private Helpfer Functions **/
 
 // proposeTag starts a new paxos starting from phase one
-func (m *PaxosInstance) proposeTag(name string, mh string, step uint) error {
+func (m *DataSharingModule) proposeTag(name string, mh string, step uint) error {
 	proposeValContent := types.PaxosTagValue{
 		UniqID:   xid.New().String(),
 		Filename: name,
@@ -55,7 +36,7 @@ func (m *PaxosInstance) proposeTag(name string, mh string, step uint) error {
 		return err
 	}
 
-	result := m.startFromPhaseOne(proposeVal, step)
+	result := m.StartFromPhaseOne(proposeVal, step)
 	content, err := types.ParsePaxosValueContent(result.Value)
 	if err != nil {
 		return err
@@ -72,12 +53,12 @@ func (m *PaxosInstance) proposeTag(name string, mh string, step uint) error {
 }
 
 // tagThreshold calculates the threshold to enter next paxos stage
-func (m *PaxosModule) tagThreshold() int {
+func (m *DataSharingModule) tagThreshold() int {
 	return m.conf.PaxosThreshold(m.conf.TotalPeers)
 }
 
 // tagCallback is a callback function that gets called when TLC advances
-func (m *PaxosModule) tagCallback(value *types.PaxosValue) error {
+func (m *DataSharingModule) tagCallback(value *types.PaxosValue) error {
 	content, err := types.ParsePaxosValueContent(value)
 	if err != nil {
 		return err

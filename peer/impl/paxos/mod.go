@@ -38,7 +38,7 @@ func NewPaxosModule(conf *peer.Configuration, messageModule *message.MessageModu
 
 /** Feature Functions **/
 
-type paxosResult struct {
+type PaxosResult struct {
 	Step   uint
 	Value  *types.PaxosValue
 	Retry  bool
@@ -46,7 +46,10 @@ type paxosResult struct {
 	Err    error
 }
 
-func (m *PaxosModule) CreateNewPaxos(paxosType types.PaxosType) (*PaxosInstance, error) {
+func (m *PaxosModule) CreateNewPaxos(paxosType types.PaxosType,
+	lastBlockKey string, threshold func() int,
+	callback func(*types.PaxosValue) error) (*PaxosInstance, error) {
+
 	m.Lock()
 	defer m.Unlock()
 
@@ -55,15 +58,10 @@ func (m *PaxosModule) CreateNewPaxos(paxosType types.PaxosType) (*PaxosInstance,
 		return nil, xerrors.Errorf("paxos type already exists. No new paxos instance will be created.")
 	}
 
-	var instance *PaxosInstance
-	switch paxosType {
-	case types.PaxosTypeTag:
-		instance = NewTagPaxos(m)
-	case types.PaxosTypeMPC:
-		instance = NewMPCPaxos(m)
-	default:
-		return nil, xerrors.Errorf("invalid paxos type. No new paxos instance will be created.")
-	}
+	instance := NewPaxosInstance(m)
+	instance.threshold = threshold
+	instance.callback = callback
+	instance.lastBlockKey = lastBlockKey
 
 	m.instances[paxosType] = instance
 	return instance, nil

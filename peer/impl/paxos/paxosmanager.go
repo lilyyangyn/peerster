@@ -19,12 +19,12 @@ type PaxosInstance struct {
 
 	*Multipaxos
 
-	paxosPromiseChan chan paxosResult
-	paxosTLCAdvChan  chan paxosResult
+	paxosPromiseChan chan PaxosResult
+	paxosTLCAdvChan  chan PaxosResult
 	hasSentTLC       bool
 
 	threshold    func() int
-	Callback     func(*types.PaxosValue) error
+	callback     func(*types.PaxosValue) error
 	lastBlockKey string
 }
 
@@ -37,19 +37,37 @@ func NewPaxosInstance(m *PaxosModule) *PaxosInstance {
 		Mutex:           &lock,
 		cond:            sync.NewCond(&lock),
 		Multipaxos:      NewMultipaxos(m.conf.PaxosID),
-		paxosTLCAdvChan: make(chan paxosResult, 50),
+		paxosTLCAdvChan: make(chan PaxosResult, 50),
 	}
 
 	return &p
 }
 
-/** Private Helpfer Functions **/
+/** Feature Functions **/
 
-// startFromPhaseOne init phase one by sending a prepare message
-func (m *PaxosInstance) startFromPhaseOne(val *types.PaxosValue, step uint) (result paxosResult) {
+// CheckAndWait checks whether there is an ongoing consensus
+// It will set the state to be "occupied" if no consensus running
+// Otherwise, it blocks and waits
+func (m *PaxosInstance) CheckAndWait() (uint, bool) {
 	m.Lock()
-	m.ProposeValue = val
-	m.Proposer = true
+	if !m.occupied {
+		m.occupied = true
+		m.proposer = true
+		m.paxosPromiseChan = make(chan PaxosResult, 3)
+		step := m.TLC
+		m.Unlock()
+		return step, true
+	}
+	m.cond.Wait()
+	m.Unlock()
+	return 0, false
+}
+
+// StartFromPhaseOne init phase one by sending a prepare message
+func (m *PaxosInstance) StartFromPhaseOne(val *types.PaxosValue, step uint) (result PaxosResult) {
+	m.Lock()
+	m.proposeValue = val
+	m.proposer = true
 	m.joinPhaseOne()
 	promiseChan := m.paxosPromiseChan
 	id := m.ProposeID
@@ -71,8 +89,8 @@ func (m *PaxosInstance) startFromPhaseOne(val *types.PaxosValue, step uint) (res
 				break PaxosSelect
 			}
 			m.Lock()
-			if m.Occupied {
-				m.Occupied = false
+			if m.occupied {
+				m.occupied = false
 				m.cond.Signal()
 			}
 			m.Unlock()
@@ -83,10 +101,12 @@ func (m *PaxosInstance) startFromPhaseOne(val *types.PaxosValue, step uint) (res
 			m.PaxosState = Init
 			m.ProposeID += m.conf.TotalPeers
 			m.Unlock()
-			return m.startFromPhaseOne(val, step)
+			return m.StartFromPhaseOne(val, step)
 		}
 	}
 }
+
+/** Private Helpfer Functions **/
 
 // advanceSession advances TLC and renew the paxos
 func (m *PaxosInstance) advanceSession(block *types.BlockchainBlock, catchUp bool) (err error) {
@@ -102,7 +122,7 @@ func (m *PaxosInstance) advanceSession(block *types.BlockchainBlock, catchUp boo
 	m.conf.Storage.GetBlockchainStore().Set(m.lastBlockKey, block.Hash)
 
 	// do callback
-	err = m.Callback(&block.Value)
+	err = m.callback(&block.Value)
 	if err != nil {
 		return err
 	}
@@ -116,8 +136,8 @@ func (m *PaxosInstance) advanceSession(block *types.BlockchainBlock, catchUp boo
 		}
 	}
 
-	if m.Proposer {
-		result := paxosResult{
+	if m.proposer {
+		result := PaxosResult{
 			Step:   block.Index,
 			Value:  &block.Value,
 			Finish: true,
@@ -128,7 +148,7 @@ func (m *PaxosInstance) advanceSession(block *types.BlockchainBlock, catchUp boo
 	// increse TLC
 	m.TLC++
 	m.Paxos = NewPaxos(m.conf.PaxosID)
-	m.Occupied = false
+	m.occupied = false
 	// m.Proposer = false
 	m.cond.Signal()
 

@@ -10,7 +10,7 @@ type MultipaxosHandler interface {
 
 type Multipaxos struct {
 	TLC      uint
-	Occupied bool
+	occupied bool
 	*Paxos
 
 	BlockCounter map[uint]int
@@ -40,9 +40,9 @@ type Paxos struct {
 	MaxID      uint
 	PaxosState StateMachine
 
-	Proposer     bool
+	proposer     bool
 	ProposeID    uint
-	ProposeValue *types.PaxosValue
+	proposeValue *types.PaxosValue
 
 	AcceptID    uint
 	AcceptValue *types.PaxosValue
@@ -58,7 +58,7 @@ func NewPaxos(id uint) *Paxos {
 	paxos := Paxos{
 		PaxosState:    Init,
 		MaxID:         0,
-		Proposer:      false,
+		proposer:      false,
 		ProposeID:     id,
 		AcceptCounter: map[string]int{},
 	}

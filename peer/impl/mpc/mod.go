@@ -24,12 +24,15 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 		conf:          conf,
 		valueDB:       NewValueDB(),
 	}
-	instance, err := paxosModule.CreateNewPaxos(types.PaxosTypeMPC)
+	instance, err := paxosModule.CreateNewPaxos(
+		types.PaxosTypeMPC,
+		"MPC.LastBlockKey",
+		m.mpcThreshold,
+		m.mpcCallback,
+	)
 	if err != nil {
 		panic(err)
 	}
-	// register callback here
-	instance.Callback = m.paxosCallback
 	m.PaxosInstance = instance
 
 	// message registery
@@ -61,10 +64,3 @@ func (m *MPCModule) SetMPCValue(key string, value int) error {
 }
 
 /** Private Helpfer Functions **/
-
-// paxosCallback is a callback function called by paxos when consensus is reached
-func (m *MPCModule) paxosCallback(*types.PaxosValue) error {
-	// compute MPC
-	// channel to tell outside?
-	return nil
-}

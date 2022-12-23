@@ -13,6 +13,7 @@ import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -37,7 +38,12 @@ func NewDataSharingModule(conf *peer.Configuration, messageModule *message.Messa
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
 	}
-	instance, err := paxosModule.CreateNewPaxos(types.PaxosTypeTag)
+	instance, err := paxosModule.CreateNewPaxos(
+		types.PaxosTypeTag,
+		storage.LastBlockKey,
+		m.tagThreshold,
+		m.tagCallback,
+	)
 	if err != nil {
 		panic(err)
 	}
