@@ -6,8 +6,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// InitTagConcensus inits a paxos to consensus on tag value
-func (m *DataSharingModule) InitTagConcensus(name string, mh string) (err error) {
+// initTagConcensus inits a paxos to consensus on tag value
+func (m *DataSharingModule) initTagConcensus(name string, mh string) (err error) {
 	if m.Type != types.PaxosTypeTag {
 		return xerrors.Errorf("invalid operation")
 	}
@@ -19,7 +19,7 @@ func (m *DataSharingModule) InitTagConcensus(name string, mh string) (err error)
 	if step, ok := m.CheckAndWait(); ok {
 		return m.proposeTag(name, mh, step)
 	}
-	return m.InitTagConcensus(name, mh)
+	return m.initTagConcensus(name, mh)
 }
 
 /** Private Helpfer Functions **/
@@ -49,7 +49,7 @@ func (m *DataSharingModule) proposeTag(name string, mh string, step uint) error 
 	if tagValue.Filename == name && tagValue.Metahash == mh {
 		return nil
 	}
-	return m.InitTagConcensus(name, mh)
+	return m.initTagConcensus(name, mh)
 }
 
 // tagThreshold calculates the threshold to enter next paxos stage

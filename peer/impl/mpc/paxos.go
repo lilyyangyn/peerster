@@ -6,20 +6,18 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// InitMPCConcensus inits a paxos to consensus on mpc value
-func (m *MPCModule) InitMPCConcensus(budget float64, expression string) (err error) {
+// initMPCConcensus inits a paxos to consensus on mpc value
+func (m *MPCModule) initMPCConcensus(budget float64, expression string) (err error) {
 	if m.Type != types.PaxosTypeMPC {
 		return xerrors.Errorf("invalid operation")
 	}
-
-	// TODO: check expression not exists in records
 
 	// TODO: check balance
 
 	if step, ok := m.CheckAndWait(); ok {
 		return m.proposeMPC(budget, expression, step)
 	}
-	return m.InitMPCConcensus(budget, expression)
+	return m.initMPCConcensus(budget, expression)
 }
 
 /** Private Helpfer Functions **/
@@ -52,7 +50,7 @@ func (m *MPCModule) proposeMPC(budget float64, expression string, step uint) err
 	if mpcValue.Initiator == initiator && mpcValue.Expression == expression {
 		return nil
 	}
-	return m.InitMPCConcensus(budget, expression)
+	return m.initMPCConcensus(budget, expression)
 }
 
 // mpcThreshold calculates the threshold to enter next paxos stage

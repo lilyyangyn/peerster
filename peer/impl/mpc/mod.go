@@ -15,6 +15,7 @@ type MPCModule struct {
 	valueDB *ValueDB
 	*MPC
 
+	expressions map[string]struct{}
 	*paxos.PaxosInstance
 }
 
@@ -46,7 +47,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 // StartMPC start a new MPC from making consensus on budget and expression.
 // It will then initiate the MPC automatically
 func (m *MPCModule) StartMPC(budget float64, expression string) (int, error) {
-	err := m.InitMPCConcensus(budget, expression)
+	err := m.initMPCConcensus(budget, expression)
 	if err != nil {
 		return -1, err
 	}
