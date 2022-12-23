@@ -104,8 +104,8 @@ func CreateTLCBlock(currClock uint, val *PaxosValue, prevHash []byte) *Blockchai
 	// compute block hash
 	h := crypto.SHA256.New()
 	h.Write([]byte(strconv.Itoa(int(block.Index))))
-	h.Write([]byte(block.Value.Type))
 	h.Write([]byte(block.Value.UniqID))
+	h.Write([]byte(block.Value.Type))
 	h.Write([]byte(block.Value.Content))
 	// h.Write([]byte(block.Value.UniqID))
 	// h.Write([]byte(block.Value.Filename))

@@ -172,3 +172,8 @@ func (n *node) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
 func (n *node) GetPubkeyStore() peer.PubkeyStore {
 	return n.message.GetPubkeyStore()
 }
+
+// Calculate implements peer.Calculate
+func (n *node) Calculate(expression string, budget float64) (int, error) {
+	return n.mpc.Calculate(expression, budget)
+}

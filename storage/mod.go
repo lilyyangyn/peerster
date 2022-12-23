@@ -1,8 +1,9 @@
 package storage
 
-// LastBlockKey defines the key in the blockchain store that stores the last
+// TagLastBlockKey defines the key in the blockchain store that stores the last
 // blockchain block's hash.
-const LastBlockKey = "0000000000000000000000000000000000000000000000000000000000000000"
+const TagLastBlockKey = "0000000000000000000000000000000000000000000000000000000000000000"
+const MPCLastBlockKey = "MPC.LastBlockKey"
 
 // Storage describes the stores provided to the peer that must be used.
 type Storage interface {

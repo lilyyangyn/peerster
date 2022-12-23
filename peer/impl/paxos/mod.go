@@ -59,6 +59,7 @@ func (m *PaxosModule) CreateNewPaxos(paxosType types.PaxosType,
 	}
 
 	instance := NewPaxosInstance(m)
+	instance.Type = paxosType
 	instance.threshold = threshold
 	instance.callback = callback
 	instance.lastBlockKey = lastBlockKey

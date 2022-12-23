@@ -21,3 +21,8 @@ type MPCInterpolationMessage struct {
 
 type MPCExpression struct {
 }
+
+func NewMPCExpression(exp string) *MPCExpression {
+	expression := MPCExpression{}
+	return &expression
+}

@@ -40,7 +40,7 @@ func NewDataSharingModule(conf *peer.Configuration, messageModule *message.Messa
 	}
 	instance, err := paxosModule.CreateNewPaxos(
 		types.PaxosTypeTag,
-		storage.LastBlockKey,
+		storage.TagLastBlockKey,
 		m.tagThreshold,
 		m.tagCallback,
 	)

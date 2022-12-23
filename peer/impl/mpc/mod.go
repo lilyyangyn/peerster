@@ -1,9 +1,12 @@
 package mpc
 
 import (
+	"log"
+
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
@@ -15,7 +18,6 @@ type MPCModule struct {
 	valueDB *ValueDB
 	*MPC
 
-	expressions map[string]struct{}
 	*paxos.PaxosInstance
 }
 
@@ -27,7 +29,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 	}
 	instance, err := paxosModule.CreateNewPaxos(
 		types.PaxosTypeMPC,
-		"MPC.LastBlockKey",
+		storage.MPCLastBlockKey,
 		m.mpcThreshold,
 		m.mpcCallback,
 	)
@@ -44,15 +46,20 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 
 /** Feature Functions **/
 
-// StartMPC start a new MPC from making consensus on budget and expression.
+// Calculate start a new MPC from making consensus on budget and expression.
 // It will then initiate the MPC automatically
-func (m *MPCModule) StartMPC(budget float64, expression string) (int, error) {
+func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
+	if m.conf.TotalPeers == 1 {
+		log.Println("No MPC. Direct calculate the result.")
+		return 0, nil
+	}
+
 	err := m.initMPCConcensus(budget, expression)
 	if err != nil {
 		return -1, err
 	}
 
-	return -1, nil
+	return 0, nil
 }
 
 func (m *MPCModule) SetMPCValue(key string, value int) error {
