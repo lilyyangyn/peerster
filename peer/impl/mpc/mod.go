@@ -18,7 +18,7 @@ type MPCModule struct {
 	conf *peer.Configuration
 
 	valueDB *ValueDB
-	*MPC
+	mpc     *MPC
 }
 
 func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule) *MPCModule {
@@ -26,6 +26,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 		MessageModule: messageModule,
 		conf:          conf,
 		valueDB:       NewValueDB(),
+		mpc:           NewMPC(1),
 	}
 
 	// message registery
@@ -35,15 +36,6 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 }
 
 /** Feature Functions **/
-
-func (m *MPCModule) SetMPCValue(key string, value int) error {
-	ok := m.valueDB.add(key, value)
-	if !ok {
-		return xerrors.Errorf("key for MPC value already used")
-	}
-
-	return nil
-}
 
 func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 	ok := m.valueDB.addAsset(key, value)
@@ -93,7 +85,7 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 			continue
 		}
 		// Add to temp for secret share
-		m.valueDB.add(key, value)
+		m.mpc.addValue(key, value)
 
 		// SSS the value
 		m.shareSecret(key, participants)
@@ -200,9 +192,9 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 
 	// boardcast the result and compute the final result
 	mpcKey := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(len(postfix))
-	m.valueDB.add(mpcKey, s[0])
+	m.mpc.addValue(mpcKey, s[0])
 	shareMsg := types.MPCShareMessage{
-		ReqID: m.MPC.id,
+		ReqID: m.mpc.id,
 		Value: types.MPCSecretValue{
 			Owner: m.conf.Socket.GetAddress(),
 			Key:   mpcKey,
@@ -231,7 +223,7 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 		return 0, err
 	}
 
-	peerIDs, err := m.getPeerIDs(participants)
+	peerIDs, err := m.mpc.getPeerIDs(participants)
 	if err != nil {
 		return 0, err
 	}
@@ -248,11 +240,11 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 }
 
 func (m *MPCModule) getValueFromSSS(key string) int {
-	value, ok := m.valueDB.get(key)
+	value, ok := m.mpc.getValue(key)
 	for !ok {
 		// Busy wait here
 		time.Sleep(time.Millisecond * 1)
-		value, ok = m.valueDB.get(key)
+		value, ok = m.mpc.getValue(key)
 	}
 	return value
 }
@@ -271,13 +263,13 @@ func (m *MPCModule) computeMult(a int, b int, step int, participants []string) (
 
 	d := a * b
 	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(step)
-	m.valueDB.add(key, d)
+	m.mpc.addValue(key, d)
 
 	// TODO: save participants in proposer and get using proposerID to avoid copy the whole list.
 	m.shareSecret(key, participants)
 
 	// generate the list of MPC id
-	peerIDs, err := m.getPeerIDs(participants)
+	peerIDs, err := m.mpc.getPeerIDs(participants)
 	if err != nil {
 		return 0, err
 	}

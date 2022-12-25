@@ -43,7 +43,7 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 	nodeC.SetPubkeyEntry(nodeA.GetAddr(), &pubkeyA)
 	nodeC.SetPubkeyEntry(nodeB.GetAddr(), &pubkeyB)
 
-	// TODO nodeA set asset
+	// nodeA set asset
 	valueA := 5
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)

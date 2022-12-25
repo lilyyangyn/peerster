@@ -11,7 +11,6 @@ import (
 type ValueDB struct {
 	*sync.RWMutex
 	asset map[string]int
-	temp  map[string]int
 }
 
 func (db *ValueDB) addAsset(key string, value int) bool {
@@ -26,26 +25,10 @@ func (db *ValueDB) getAsset(key string) (int, bool) {
 	value, ok := db.asset[key]
 	return value, ok
 }
-func (db *ValueDB) add(key string, value int) bool {
-	db.Lock()
-	defer db.Unlock()
-	old, ok := db.temp[key]
-	if ok && old != value {
-		return false
-	}
-	db.temp[key] = value
-	return true
-}
-func (db *ValueDB) get(key string) (int, bool) {
-	db.RLock()
-	defer db.RUnlock()
-	value, ok := db.temp[key]
-	return value, ok
-}
+
 func NewValueDB() *ValueDB {
 	db := ValueDB{
 		&sync.RWMutex{},
-		map[string]int{},
 		map[string]int{},
 	}
 	return &db

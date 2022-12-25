@@ -15,15 +15,15 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	if secretMsg.ReqID != m.id {
+	if secretMsg.ReqID != m.mpc.id {
 		return nil
 	}
 
-	log.Info().Msgf("mpc value for req %d, %s:%s",
+	log.Info().Msgf("mpc value for req %d, %s:%d",
 		secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
-	// TODO: MPC operation
-	m.valueDB.add(secretMsg.Value.Key, secretMsg.Value.Value)
+	// MPC operation
+	m.mpc.addValue(secretMsg.Value.Key, secretMsg.Value.Value)
 
 	return nil
 }

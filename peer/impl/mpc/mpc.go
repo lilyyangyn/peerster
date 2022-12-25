@@ -1,14 +1,31 @@
 package mpc
 
-import "golang.org/x/xerrors"
+import (
+	"sync"
+
+	"golang.org/x/xerrors"
+)
 
 // MPC handlers mpc related information
 type MPC struct {
-	id    int
-	peers map[string]int
+	*sync.RWMutex
+	id         int
+	peers      map[string]int
+	interStore map[string]int
+}
+
+func (mpc *MPC) addPeers(peersMap map[string]int) error {
+	mpc.Lock()
+	defer mpc.Unlock()
+	for peer, id := range peersMap {
+		mpc.peers[peer] = id
+	}
+	return nil
 }
 
 func (mpc *MPC) getPeerID(peer string) (int, bool) {
+	mpc.RLock()
+	defer mpc.RUnlock()
 	id, ok := mpc.peers[peer]
 	return id, ok
 }
@@ -25,8 +42,28 @@ func (mpc *MPC) getPeerIDs(peers []string) ([]int, error) {
 	return peerIDs, nil
 }
 
-func NewMPC() *MPC {
+func (mpc *MPC) addValue(key string, value int) bool {
+	mpc.Lock()
+	defer mpc.Unlock()
+	old, ok := mpc.interStore[key]
+	if ok && old != value {
+		return false
+	}
+	mpc.interStore[key] = value
+	return true
+}
+func (mpc *MPC) getValue(key string) (int, bool) {
+	mpc.RLock()
+	defer mpc.RUnlock()
+	value, ok := mpc.interStore[key]
+	return value, ok
+}
+
+func NewMPC(id int) *MPC {
 	return &MPC{
-		peers: map[string]int{},
+		&sync.RWMutex{},
+		id,
+		map[string]int{},
+		map[string]int{},
 	}
 }

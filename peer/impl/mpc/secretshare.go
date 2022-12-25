@@ -22,13 +22,13 @@ func (m *MPCModule) shamirSecretShare(value int, peers []int) (results []int, er
 }
 
 func (m *MPCModule) shareSecret(key string, peers []string) error {
-	value, ok := m.valueDB.get(key)
+	value, ok := m.mpc.getValue(key)
 	if !ok {
 		return xerrors.Errorf("no valid value is found for key %s", key)
 	}
 
 	// generate the list of MPC id
-	peerIDs, err := m.getPeerIDs(peers)
+	peerIDs, err := m.mpc.getPeerIDs(peers)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 // sendShareMessage sends the share secret in encrypted message
 func (m *MPCModule) sendShareMessage(peer string, id int, key string, value int) error {
 	shareMsg := types.MPCShareMessage{
-		ReqID: m.MPC.id,
+		ReqID: m.mpc.id,
 		Value: types.MPCSecretValue{
 			Owner: m.conf.Socket.GetAddress(),
 			Key:   key,
