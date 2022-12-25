@@ -55,6 +55,8 @@ func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 
 // This is the entry point of the calling the MPC.
 func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
+	// check if we receive all public key
+
 	// change infix to postfix
 	postfix, err := infixToPostfix(expr)
 	if err != nil {
