@@ -1,12 +1,12 @@
 package mpc
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/types"
@@ -69,13 +69,24 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 		}
 	}
 
+	// TODO change here to use hash of pubkey
+	// add MPC peer
+	peersMap := map[string]int{}
+	for _, participant := range participants {
+		peerIDstr := strings.Split(participant, ":")[1]
+		peerID, _ := strconv.Atoi(peerIDstr)
+		peersMap[participant] = peerID
+	}
+	m.mpc.addPeers(peersMap)
+
 	propose := MPCPropose{
 		proposer:     m.conf.Socket.GetAddress(),
 		budget:       budget,
 		participants: participants,
 		postfix:      postfix,
 	}
-	fmt.Println(propose)
+	log.Info().Msgf("MPCPropose, proposer: %s, budget: %d, participans: %s, postfix: %s",
+		propose.proposer, propose.budget, propose.participants, propose.postfix)
 
 	// SSS to all participants that the peer have public key
 	for _, key := range variablesNeed {
@@ -88,11 +99,18 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 		m.mpc.addValue(key, value)
 
 		// SSS the value
-		m.shareSecret(key, participants)
+		log.Info().Msgf("%s: I own value %s, sharing to participants: %s",
+			m.conf.Socket.GetAddress(), key, participants)
+		err = m.shareSecret(key, participants)
+		if err != nil {
+			log.Error().Msgf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
+			return -1, err
+		}
 	}
 
 	ans, err := m.computeResult(postfix, participants)
 	if err != nil {
+		log.Error().Msgf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
 		return -1, err
 	}
 

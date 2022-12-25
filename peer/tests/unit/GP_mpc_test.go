@@ -34,7 +34,7 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 
 	pubkeyA := nodeA.GetPubkeyStore()[nodeA.GetAddr()]
 	pubkeyB := nodeB.GetPubkeyStore()[nodeB.GetAddr()]
-	pubkeyC := nodeB.GetPubkeyStore()[nodeB.GetAddr()]
+	pubkeyC := nodeC.GetPubkeyStore()[nodeC.GetAddr()]
 
 	nodeA.SetPubkeyEntry(nodeB.GetAddr(), &pubkeyB)
 	nodeA.SetPubkeyEntry(nodeC.GetAddr(), &pubkeyC)

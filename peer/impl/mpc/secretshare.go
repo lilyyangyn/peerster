@@ -1,15 +1,17 @@
 package mpc
 
 import (
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
 
-func (m *MPCModule) shamirSecretShare(value int, peers []int) (results []int, err error) {
+func (m *MPCModule) shamirSecretShare(value int, peers []int) ([]int, error) {
 	// no redundancy. assume participants will not down during MPC
 	degree := len(peers)
 
 	p := NewRandomPolynomial(value, degree)
+	results := make([]int, degree)
 	for idx, id := range peers {
 		// id should not equal to zero, or the secret will be directly leaked
 		if id == 0 {
@@ -22,6 +24,9 @@ func (m *MPCModule) shamirSecretShare(value int, peers []int) (results []int, er
 }
 
 func (m *MPCModule) shareSecret(key string, peers []string) error {
+	log.Info().Msgf("%s: start share secret, key: %s, peers: %s",
+		m.conf.Socket.GetAddress(), key, peers)
+
 	value, ok := m.mpc.getValue(key)
 	if !ok {
 		return xerrors.Errorf("no valid value is found for key %s", key)
@@ -32,12 +37,15 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 	if err != nil {
 		return err
 	}
+	log.Info().Msgf("%s: peerIDs: %s", m.conf.Socket.GetAddress(), peerIDs)
 
 	// generate shared secrets
 	results, err := m.shamirSecretShare(value, peerIDs)
 	if err != nil {
 		return err
 	}
+
+	log.Info().Msgf("%s: generated sss result: %s", m.conf.Socket.GetAddress(), key, results)
 
 	// send shared secrets
 	for idx, result := range results {

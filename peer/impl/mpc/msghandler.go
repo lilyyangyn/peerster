@@ -19,8 +19,8 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return nil
 	}
 
-	log.Info().Msgf("mpc value for req %d, %s:%d",
-		secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
+	log.Info().Msgf("%s: mpc value for req %d, %s:%d",
+		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
 	m.mpc.addValue(secretMsg.Value.Key, secretMsg.Value.Value)
