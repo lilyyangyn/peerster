@@ -644,6 +644,42 @@ func GetPrivate(t *testing.T, msg *transport.Message) types.PrivateMessage {
 	return privateMessage
 }
 
+func GetEncrypt(t *testing.T, msg *transport.Message) types.EncryptedMessage {
+	require.Equal(t, "encrypt", msg.Type)
+
+	var encMessage types.EncryptedMessage
+
+	err := json.Unmarshal(msg.Payload, &encMessage)
+	require.NoError(t, err)
+
+	return encMessage
+
+}
+
+// GetShare returns the SSS message associated to the transport.Message.
+func GetShare(t *testing.T, msg *transport.Message) types.MPCShareMessage {
+	require.Equal(t, "mpcshare", msg.Type)
+
+	var shareMessage types.MPCShareMessage
+
+	err := json.Unmarshal(msg.Payload, &shareMessage)
+	require.NoError(t, err)
+
+	return shareMessage
+}
+
+// GetInterpolation returns the SSS message associated to the transport.Message.
+func GetInterpolation(t *testing.T, msg *transport.Message) types.MPCInterpolationMessage {
+	require.Equal(t, "mpcinterpolation", msg.Type)
+
+	var interpolationMessage types.MPCInterpolationMessage
+
+	err := json.Unmarshal(msg.Payload, &interpolationMessage)
+	require.NoError(t, err)
+
+	return interpolationMessage
+}
+
 // DisplayBlokchainBlocks writes a string representation of all blocks store in
 // the storage.
 func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store) {
