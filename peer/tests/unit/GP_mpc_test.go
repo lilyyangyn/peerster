@@ -69,6 +69,13 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
+	// check all received ans is equal
+	recvValue := ans[0]
+	for i := 0; i < 3; i++ {
+		require.Equal(t, recvValue, ans[i])
+	}
+
+	// check equal to the expected ans
 	for i := 0; i < 3; i++ {
 		require.Equal(t, valueA, ans[i])
 	}

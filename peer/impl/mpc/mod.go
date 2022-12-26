@@ -31,6 +31,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
+	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCInterpolationMessage{}, m.ProcessMPCInterpolationMsg)
 
 	return &m
 }
@@ -209,38 +210,9 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 	}
 
 	// boardcast the result and compute the final result
-	mpcKey := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(len(postfix))
-	m.mpc.addValue(mpcKey, s[0])
-	shareMsg := types.MPCShareMessage{
-		ReqID: m.mpc.id,
-		Value: types.MPCSecretValue{
-			Owner: m.conf.Socket.GetAddress(),
-			Key:   mpcKey,
-			Value: s[0],
-		},
-	}
-	shareMsgMarshal, err := m.CreateMsg(shareMsg)
-	if err != nil {
-		return 0, err
-	}
-	// wrap in private msg
-	privRecipients := map[string]struct{}{}
-	for _, participant := range participants {
-		privRecipients[participant] = struct{}{}
-	}
-	privMsg := types.PrivateMessage{
-		Recipients: privRecipients,
-		Msg:        &shareMsgMarshal,
-	}
-	privMsgMarshal, err := m.CreateMsg(privMsg)
-	if err != nil {
-		return 0, err
-	}
-	err = m.Broadcast(privMsgMarshal)
-	if err != nil {
-		return 0, err
-	}
+	m.boardcastInterpolationResult(s[0], participants)
 
+	// Use interpolation to compute the final result
 	peerIDs, err := m.mpc.getPeerIDs(participants)
 	if err != nil {
 		return 0, err
@@ -249,12 +221,38 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 	// TODO: this is not receive from boardcast not sss, might need to change the function name.
 	shareResult := make([]int, len(participants))
 	for i := 0; i < len(participants); i++ {
-		tmpKey := participants[i] + "|" + strconv.Itoa(len(postfix))
+		tmpKey := participants[i] + "|InterpolationResult"
 		shareResult[i] = m.getValueFromSSS(tmpKey)
 	}
 
 	return m.lagrangeInterpolation(shareResult, peerIDs), nil
-	// return s[0], nil
+}
+
+func (m *MPCModule) boardcastInterpolationResult(result int, participants []string) error {
+	// boardcast the result and compute the final result
+	interpolationMsg := types.MPCInterpolationMessage{
+		ReqID: m.mpc.id,
+		Owner: m.conf.Socket.GetAddress(),
+		Value: result,
+	}
+	interpolationMsgMarshal, err := m.CreateMsg(interpolationMsg)
+	if err != nil {
+		return err
+	}
+	// wrap in private msg
+	privRecipients := map[string]struct{}{}
+	for _, participant := range participants {
+		privRecipients[participant] = struct{}{}
+	}
+	privMsg := types.PrivateMessage{
+		Recipients: privRecipients,
+		Msg:        &interpolationMsgMarshal,
+	}
+	privMsgMarshal, err := m.CreateMsg(privMsg)
+	if err != nil {
+		return err
+	}
+	return m.Broadcast(privMsgMarshal)
 }
 
 func (m *MPCModule) getValueFromSSS(key string) int {

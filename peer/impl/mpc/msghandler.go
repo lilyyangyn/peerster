@@ -27,3 +27,24 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 
 	return nil
 }
+
+// ProcessShareMsg is a callback function to handle received secret share message
+func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.Packet) error {
+	interpolationMsg, ok := msg.(*types.MPCInterpolationMessage)
+	if !ok {
+		return xerrors.Errorf("wrong type: %T", msg)
+	}
+
+	// ignore message with wrong id
+	if interpolationMsg.ReqID != m.mpc.id {
+		return nil
+	}
+
+	log.Info().Msgf("%s: interpolation msg req: %d, owner: %s, value: %d",
+		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
+
+	// Add to intermediate value
+	m.mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", interpolationMsg.Value)
+
+	return nil
+}
