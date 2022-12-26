@@ -36,20 +36,22 @@ func (m *MPCModule) lagrangeInterpolationZp(ycoord []big.Int, xcoord []big.Int, 
 }
 
 // SSS in Zp
-func (m *MPCModule) shamirSecretShareZp(secret, prime big.Int, xcoord []big.Int) (results []big.Int, err error) {
+func (m *MPCModule) shamirSecretShareZp(secret, prime big.Int, xcoord []big.Int) ([]big.Int, error) {
 	// no redundancy. assume participants will not down during MPC
 	degree := len(xcoord)
+	results := make([]big.Int, degree)
 
 	poly, err := NewRandomPolynomialZp(secret, degree, &prime)
 	if err != nil {
-		return
+		return results, err
 	}
+
 	zero := big.NewInt(0)
 	for idx, id := range xcoord {
 		// id should not equal to zero, or the secret will be directly leaked
 		if id.Cmp(zero) == 0 {
 			err = xerrors.Errorf("illegal input x equals to 0")
-			return
+			return results, err
 		}
 		results[idx] = poly.computePolynomialZp(&id, &prime)
 	}

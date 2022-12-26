@@ -1,6 +1,8 @@
 package mpc
 
 import (
+	"math/big"
+
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
@@ -19,11 +21,12 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return nil
 	}
 
-	log.Info().Msgf("%s: mpc value for req %d, %s:%d",
+	log.Info().Msgf("%s: mpc value for req %d, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
-	m.mpc.addValue(secretMsg.Value.Key, secretMsg.Value.Value)
+	valueBig, _ := new(big.Int).SetString(secretMsg.Value.Value, 0)
+	m.mpc.addValue(secretMsg.Value.Key, *valueBig)
 
 	return nil
 }
@@ -40,11 +43,12 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 		return nil
 	}
 
-	log.Info().Msgf("%s: interpolation msg req: %d, owner: %s, value: %d",
+	log.Info().Msgf("%s: interpolation msg req: %d, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value
-	m.mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", interpolationMsg.Value)
+	valueBig, _ := new(big.Int).SetString(interpolationMsg.Value, 0)
+	m.mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
 
 	return nil
 }

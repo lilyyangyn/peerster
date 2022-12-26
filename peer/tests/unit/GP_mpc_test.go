@@ -75,7 +75,6 @@ func Test_GP_SHAMIR_SECRET_SHARE_SEND(t *testing.T) {
 			continue
 		}
 		rumor = z.GetRumor(t, nodeBIns[i].Msg)
-		require.Len(t, rumor.Rumors, 1)
 		if rumor.Rumors[0].Msg.Type != "private" {
 			continue
 		}
@@ -101,7 +100,6 @@ func Test_GP_SHAMIR_SECRET_SHARE_SEND(t *testing.T) {
 			continue
 		}
 		rumor = z.GetRumor(t, nodeCIns[i].Msg)
-		require.Len(t, rumor.Rumors, 1)
 		if rumor.Rumors[0].Msg.Type != "private" {
 			continue
 		}

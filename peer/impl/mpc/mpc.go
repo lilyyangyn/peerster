@@ -1,6 +1,7 @@
 package mpc
 
 import (
+	"math/big"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -11,7 +12,7 @@ type MPC struct {
 	*sync.RWMutex
 	id         int
 	peers      map[string]int
-	interStore map[string]int
+	interStore map[string]big.Int
 }
 
 func (mpc *MPC) addPeers(peersMap map[string]int) error {
@@ -42,17 +43,13 @@ func (mpc *MPC) getPeerIDs(peers []string) ([]int, error) {
 	return peerIDs, nil
 }
 
-func (mpc *MPC) addValue(key string, value int) bool {
+func (mpc *MPC) addValue(key string, value big.Int) bool {
 	mpc.Lock()
 	defer mpc.Unlock()
-	old, ok := mpc.interStore[key]
-	if ok && old != value {
-		return false
-	}
 	mpc.interStore[key] = value
 	return true
 }
-func (mpc *MPC) getValue(key string) (int, bool) {
+func (mpc *MPC) getValue(key string) (big.Int, bool) {
 	mpc.RLock()
 	defer mpc.RUnlock()
 	value, ok := mpc.interStore[key]
@@ -64,6 +61,6 @@ func NewMPC(id int) *MPC {
 		&sync.RWMutex{},
 		id,
 		map[string]int{},
-		map[string]int{},
+		map[string]big.Int{},
 	}
 }

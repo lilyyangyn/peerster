@@ -1,6 +1,8 @@
 package mpc
 
 import (
+	"math/big"
+
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -23,7 +25,7 @@ func (m *MPCModule) shamirSecretShare(value int, peers []int) ([]int, error) {
 	return results, nil
 }
 
-func (m *MPCModule) shareSecret(key string, peers []string) error {
+func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error {
 	log.Info().Msgf("%s: start share secret, key: %s, peers: %s",
 		m.conf.Socket.GetAddress(), key, peers)
 
@@ -37,9 +39,14 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 	if err != nil {
 		return err
 	}
+	bigPeerIDs := make([]big.Int, len(peerIDs))
+	for idx, peerID := range peerIDs {
+		bigPeerIDs[idx] = *big.NewInt(int64(peerID))
+	}
 
 	// generate shared secrets
-	results, err := m.shamirSecretShare(value, peerIDs)
+	// results, err := m.shamirSecretShare(value, peerIDs)
+	results, err := m.shamirSecretShareZp(value, prime, bigPeerIDs)
 	if err != nil {
 		return err
 	}
@@ -59,19 +66,18 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 }
 
 // sendShareMessage sends the share secret in encrypted message
-func (m *MPCModule) sendShareMessage(peer string, id int, key string, value int) error {
+func (m *MPCModule) sendShareMessage(peer string, id int, key string, value big.Int) error {
 	shareMsg := types.MPCShareMessage{
 		ReqID: m.mpc.id,
 		Value: types.MPCSecretValue{
 			Owner: m.conf.Socket.GetAddress(),
 			Key:   key,
-			Value: value,
+			Value: value.Text(10),
 		},
 	}
 	shareMsgMarshal, err := m.CreateMsg(shareMsg)
 	if err != nil {
 		return err
 	}
-
 	return m.SendEncryptedMessage(shareMsgMarshal, peer)
 }

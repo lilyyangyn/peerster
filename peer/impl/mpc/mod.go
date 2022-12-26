@@ -1,6 +1,7 @@
 package mpc
 
 import (
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
@@ -70,6 +71,9 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 		}
 	}
 
+	// TODO make prime into the proposer
+	mpcPrime := *big.NewInt(1000000009)
+
 	// TODO change here to use hash of pubkey
 	// add MPC peer
 	peersMap := map[string]int{}
@@ -97,25 +101,25 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 			continue
 		}
 		// Add to temp for secret share
-		m.mpc.addValue(key, value)
+		m.mpc.addValue(key, *big.NewInt(int64(value)))
 
 		// SSS the value
 		log.Info().Msgf("%s: I own value %s, sharing to participants: %s",
 			m.conf.Socket.GetAddress(), key, participants)
-		err = m.shareSecret(key, participants)
+		err = m.shareSecret(key, participants, mpcPrime)
 		if err != nil {
 			log.Error().Msgf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
 			return -1, err
 		}
 	}
 
-	ans, err := m.computeResult(postfix, participants)
+	ans, err := m.computeResult(postfix, participants, mpcPrime)
 	if err != nil {
 		log.Error().Msgf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
 		return -1, err
 	}
 
-	return ans, nil
+	return int(ans.Uint64()), nil
 }
 
 /** Private Helpfer Functions **/
@@ -177,35 +181,36 @@ func infixToPostfix(infix string) ([]string, error) {
 	return postfix, nil
 }
 
-func (m *MPCModule) computeResult(postfix []string, participants []string) (int, error) {
-	var s []int
+func (m *MPCModule) computeResult(postfix []string, participants []string, prime big.Int) (big.Int, error) {
+	var s []big.Int
 	for i := 0; i < len(postfix); i++ {
 		switch ch := postfix[i]; ch {
 		case "+", "-", "*", "/":
 			num1, num2 := s[len(s)-2], s[len(s)-1]
 			s = s[:len(s)-2]
-			var res int
+			var res big.Int
 			var err error
 			if ch == "+" {
-				res, err = m.computeAdd(num1, num2, false)
+				res = addZp(&num1, &num2, &prime)
 			} else if ch == "-" {
-				res, err = m.computeAdd(num1, num2, true)
+				res = subZp(&num1, &num2, &prime)
 			} else {
-				res, err = m.computeMult(num1, num2, i, participants)
+				res, err = m.computeMult(num1, num2, prime, i, participants)
 			}
 			if err != nil {
-				return 0, err
+				return *big.NewInt(0), err
 			}
 			s = append(s, res)
 		default:
 			// TODO change num to SSS
-			num, err := strconv.Atoi(ch)
+			num, err := strconv.ParseInt(ch, 10, 64)
+			bigNum := *big.NewInt(num)
 			if err != nil {
 				// this is a value needed from SSS.
 				key := ch + "|" + m.conf.Socket.GetAddress()
-				num = m.getValueFromSSS(key)
+				bigNum = m.getValueFromSSS(key)
 			}
-			s = append(s, num)
+			s = append(s, bigNum)
 		}
 	}
 
@@ -215,25 +220,31 @@ func (m *MPCModule) computeResult(postfix []string, participants []string) (int,
 	// Use interpolation to compute the final result
 	peerIDs, err := m.mpc.getPeerIDs(participants)
 	if err != nil {
-		return 0, err
+		return *big.NewInt(0), err
 	}
+	bigPeerIDs := make([]big.Int, len(peerIDs))
+	for idx, peerID := range peerIDs {
+		bigPeerIDs[idx] = *big.NewInt(int64(peerID))
+	}
+
 	// busy wait for other key to receive.
 	// TODO: this is not receive from boardcast not sss, might need to change the function name.
-	shareResult := make([]int, len(participants))
+	shareResult := make([]big.Int, len(participants))
 	for i := 0; i < len(participants); i++ {
 		tmpKey := participants[i] + "|InterpolationResult"
 		shareResult[i] = m.getValueFromSSS(tmpKey)
 	}
 
-	return m.lagrangeInterpolation(shareResult, peerIDs), nil
+	// return m.lagrangeInterpolation(shareResult, peerIDs), nil
+	return m.lagrangeInterpolationZp(shareResult, bigPeerIDs, &prime), nil
 }
 
-func (m *MPCModule) boardcastInterpolationResult(result int, participants []string) error {
+func (m *MPCModule) boardcastInterpolationResult(result big.Int, participants []string) error {
 	// boardcast the result and compute the final result
 	interpolationMsg := types.MPCInterpolationMessage{
 		ReqID: m.mpc.id,
 		Owner: m.conf.Socket.GetAddress(),
-		Value: result,
+		Value: result.Text(10),
 	}
 	interpolationMsgMarshal, err := m.CreateMsg(interpolationMsg)
 	if err != nil {
@@ -255,7 +266,7 @@ func (m *MPCModule) boardcastInterpolationResult(result int, participants []stri
 	return m.Broadcast(privMsgMarshal)
 }
 
-func (m *MPCModule) getValueFromSSS(key string) int {
+func (m *MPCModule) getValueFromSSS(key string) big.Int {
 	value, ok := m.mpc.getValue(key)
 	for !ok {
 		// Busy wait here
@@ -265,38 +276,46 @@ func (m *MPCModule) getValueFromSSS(key string) int {
 	return value
 }
 
-func (m *MPCModule) computeAdd(x int, y int, z bool) (int, error) {
-	if z {
-		return x - y, nil
-	}
-	return x + y, nil
-}
+// func (m *MPCModule) computeAdd(x int, y int, z bool) (int, error) {
+// 	if z {
+// 		return subZp(x, y), nil
+// 	}
+// 	return addZp(x, y), nil
+// }
 
-func (m *MPCModule) computeMult(a int, b int, step int, participants []string) (int, error) {
+func (m *MPCModule) computeMult(a big.Int, b big.Int, prime big.Int, step int, participants []string) (big.Int, error) {
 	// 1. ∀Pi: compute di = aibi.
 	// 2. ∀Pi: share di → di1, . . . , din.
 	// 3. ∀Pj: compute cj = w1d1j + . . . + wndnj.
 
-	d := a * b
+	d := multZp(&a, &b, &prime)
+
 	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(step)
 	m.mpc.addValue(key, d)
 
 	// TODO: save participants in proposer and get using proposerID to avoid copy the whole list.
-	m.shareSecret(key, participants)
+	err := m.shareSecret(key, participants, prime)
+	if err != nil {
+		return *big.NewInt(0), err
+	}
 
 	// generate the list of MPC id
 	peerIDs, err := m.mpc.getPeerIDs(participants)
 	if err != nil {
-		return 0, err
+		return *big.NewInt(0), err
+	}
+	bigPeerIDs := make([]big.Int, len(peerIDs))
+	for idx, peerID := range peerIDs {
+		bigPeerIDs[idx] = *big.NewInt(int64(peerID))
 	}
 
-	// collect all m.shareSecret()
-	shareD := make([]int, len(participants))
+	// collect all share secret
+	shareD := make([]big.Int, len(participants))
 	for i := 0; i < len(participants); i++ {
 		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.conf.Socket.GetAddress()
 		shareD[i] = m.getValueFromSSS(tmpKey)
 	}
 
-	return m.lagrangeInterpolation(shareD, peerIDs), nil
+	return m.lagrangeInterpolationZp(shareD, bigPeerIDs, &prime), nil
 	// return x * y, nil
 }
