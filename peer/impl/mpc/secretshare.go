@@ -37,7 +37,6 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 	if err != nil {
 		return err
 	}
-	log.Info().Msgf("%s: peerIDs: %s", m.conf.Socket.GetAddress(), peerIDs)
 
 	// generate shared secrets
 	results, err := m.shamirSecretShare(value, peerIDs)
@@ -45,7 +44,7 @@ func (m *MPCModule) shareSecret(key string, peers []string) error {
 		return err
 	}
 
-	log.Info().Msgf("%s: generated sss result: %s", m.conf.Socket.GetAddress(), key, results)
+	// log.Info().Msgf("%s: generated sss result: %s: %s", m.conf.Socket.GetAddress(), key, results)
 
 	// send shared secrets
 	for idx, result := range results {
