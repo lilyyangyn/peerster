@@ -113,6 +113,11 @@ func (m *EncryptionModule) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
 	m.pubkeyStore.add(origin, pubkey)
 }
 
+// GetSelfPubkey returns the public key of myself
+func (m *EncryptionModule) GetPubkey() types.Pubkey {
+	return types.Pubkey(m.privkey.PublicKey)
+}
+
 // GetPubkeyStore returns the node's pubkey store. It should be a copy.
 func (m *EncryptionModule) GetPubkeyStore() peer.PubkeyStore {
 	return m.pubkeyStore.getAll()

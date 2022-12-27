@@ -18,3 +18,11 @@ type MPCInterpolationMessage struct {
 	Owner string
 	Value string
 }
+
+type MPCExpression struct {
+}
+
+func NewMPCExpression(exp string) *MPCExpression {
+	expression := MPCExpression{}
+	return &expression
+}

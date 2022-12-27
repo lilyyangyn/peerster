@@ -26,7 +26,7 @@ func (m *MPCModule) shamirSecretShare(value int, peers []int) ([]int, error) {
 }
 
 func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error {
-	log.Info().Msgf("%s: start share secret, key: %s, peers: %s",
+	log.Printf("%s: start share secret, key: %s, peers: %s",
 		m.conf.Socket.GetAddress(), key, peers)
 
 	value, ok := m.mpc.getValue(key)
@@ -51,7 +51,7 @@ func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error
 		return err
 	}
 
-	// log.Info().Msgf("%s: generated sss result: %s: %s", m.conf.Socket.GetAddress(), key, results)
+	// log.Printf("%s: generated sss result: %s: %s", m.conf.Socket.GetAddress(), key, results)
 
 	// send shared secrets
 	for idx, result := range results {

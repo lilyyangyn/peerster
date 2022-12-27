@@ -682,8 +682,8 @@ func GetInterpolation(t *testing.T, msg *transport.Message) types.MPCInterpolati
 
 // DisplayBlokchainBlocks writes a string representation of all blocks store in
 // the storage.
-func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 	endBlockHasHex := hex.EncodeToString(make([]byte, 32))
 
 	for lastBlockHashHex != endBlockHasHex {
@@ -702,8 +702,8 @@ func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store) {
 
 // DisplayLastBlockchainBlock writes the string representation of the last
 // blockchain block.
-func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 	lastBlockBuf := store.Get(string(lastBlockHashHex))
 
 	var lastBlock types.BlockchainBlock
@@ -716,8 +716,8 @@ func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store
 
 // ValidateBlockchain parses the whole blockchain and checks the hash of each
 // block.
-func ValidateBlockchain(t *testing.T, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func ValidateBlockchain(t *testing.T, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 
 	endBlockHasHex := hex.EncodeToString(make([]byte, 32))
 	var block types.BlockchainBlock
@@ -731,9 +731,12 @@ func ValidateBlockchain(t *testing.T, store storage.Store) {
 		h := sha256.New()
 
 		h.Write([]byte(strconv.Itoa(int(block.Index))))
+		// h.Write([]byte(block.Value.UniqID))
+		// h.Write([]byte(block.Value.Filename))
+		// h.Write([]byte(block.Value.Metahash))
 		h.Write([]byte(block.Value.UniqID))
-		h.Write([]byte(block.Value.Filename))
-		h.Write([]byte(block.Value.Metahash))
+		h.Write([]byte(block.Value.Type))
+		h.Write([]byte(block.Value.Content))
 		h.Write(block.PrevHash)
 
 		blockHash := h.Sum(nil)

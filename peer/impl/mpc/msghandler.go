@@ -21,7 +21,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return nil
 	}
 
-	log.Info().Msgf("%s: mpc value for req %d, %s:%s",
+	log.Printf("%s: mpc value for req %d, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
@@ -43,7 +43,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 		return nil
 	}
 
-	log.Info().Msgf("%s: interpolation msg req: %d, owner: %s, value: %s",
+	log.Printf("%s: interpolation msg req: %d, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value

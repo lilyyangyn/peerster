@@ -1,15 +1,17 @@
 package mpc
 
 import (
+	"log"
 	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
@@ -20,15 +22,26 @@ type MPCModule struct {
 
 	valueDB *ValueDB
 	mpc     *MPC
+	*paxos.PaxosInstance
 }
 
-func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule) *MPCModule {
+func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *MPCModule {
 	m := MPCModule{
 		MessageModule: messageModule,
 		conf:          conf,
 		valueDB:       NewValueDB(),
 		mpc:           NewMPC(1),
 	}
+	instance, err := paxosModule.CreateNewPaxos(
+		types.PaxosTypeMPC,
+		storage.MPCLastBlockKey,
+		m.mpcThreshold,
+		m.mpcCallback,
+	)
+	if err != nil {
+		panic(err)
+	}
+	m.PaxosInstance = instance
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
@@ -45,6 +58,22 @@ func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 		return xerrors.Errorf("Add Assets failed")
 	}
 	return nil
+}
+
+// Calculate start a new MPC from making consensus on budget and expression.
+// It will then initiate the MPC automatically
+func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
+	if m.conf.TotalPeers == 1 {
+		log.Println("No MPC. Direct calculate the result.")
+		return 0, nil
+	}
+
+	err := m.initMPCConcensus(budget, expression)
+	if err != nil {
+		return -1, err
+	}
+
+	return 0, nil
 }
 
 // This is the entry point of the calling the MPC.
@@ -90,7 +119,7 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 		participants: participants,
 		postfix:      postfix,
 	}
-	log.Info().Msgf("MPCPropose, proposer: %s, budget: %d, participans: %s, postfix: %s",
+	log.Printf("MPCPropose, proposer: %s, budget: %d, participans: %s, postfix: %s",
 		propose.proposer, propose.budget, propose.participants, propose.postfix)
 
 	// SSS to all participants that the peer have public key
@@ -104,18 +133,18 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 		m.mpc.addValue(key, *big.NewInt(int64(value)))
 
 		// SSS the value
-		log.Info().Msgf("%s: I own value %s, sharing to participants: %s",
+		log.Printf("%s: I own value %s, sharing to participants: %s",
 			m.conf.Socket.GetAddress(), key, participants)
 		err = m.shareSecret(key, participants, mpcPrime)
 		if err != nil {
-			log.Error().Msgf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
+			log.Printf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
 			return -1, err
 		}
 	}
 
 	ans, err := m.computeResult(postfix, participants, mpcPrime)
 	if err != nil {
-		log.Error().Msgf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
+		log.Printf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
 		return -1, err
 	}
 
