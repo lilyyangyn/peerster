@@ -68,43 +68,40 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 		return 0, nil
 	}
 
-	err := m.initMPCConcensus(budget, expression)
+	prime := "1000000009"
+
+	err := m.initMPCConcensus(budget, expression, prime)
 	if err != nil {
 		return -1, err
 	}
 
+	// TODO add channel wait mpc result
+
 	return 0, nil
 }
 
-// This is the entry point of the calling the MPC.
-func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
-	// check if we receive all public key
-
+func (m *MPCModule) ComputeExpression(uniqID string, expr string, budget uint, prime string) (int, error) {
 	// change infix to postfix
 	postfix, err := infixToPostfix(expr)
 	if err != nil {
 		return -1, err
 	}
 
-	// TODO: change here to paxos
+	// TODO: Init MPC function.
+	m.Lock() // add lock
+	localMPC := NewMPC(uniqID)
+	m.mpc = localMPC
+
+	// Use public key as participants
 	pubKeyStore := m.GetPubkeyStore()
+	if int(m.conf.TotalPeers) != len(pubKeyStore) {
+		panic(xerrors.Errorf("%s: not received everyone's public key", m.conf.Socket.GetAddress()))
+	}
 	participants := make([]string, 0, len(pubKeyStore))
 	for key := range pubKeyStore {
 		participants = append(participants, key)
 	}
-	variablesNeed := []string{}
-	for _, exp := range postfix {
-		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-		if IsVariableName(exp) {
-			variablesNeed = append(variablesNeed, exp)
-		}
-	}
-
-	// TODO make prime into the proposer
-	mpcPrime := *big.NewInt(1000000009)
-
-	// TODO change here to use hash of pubkey
-	// add MPC peer
+	// add MPC peer, use port as the mpc id.
 	peersMap := map[string]int{}
 	for _, participant := range participants {
 		peerIDstr := strings.Split(participant, ":")[1]
@@ -113,14 +110,25 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 	}
 	m.mpc.addPeers(peersMap)
 
-	propose := MPCPropose{
-		proposer:     m.conf.Socket.GetAddress(),
-		budget:       budget,
-		participants: participants,
-		postfix:      postfix,
+	mpcPrime, _ := new(big.Int).SetString(prime, 10)
+
+	m.Unlock()
+	// propose := MPCPropose{
+	// 	proposer:     m.conf.Socket.GetAddress(),
+	// 	budget:       budget,
+	// 	participants: participants,
+	// 	postfix:      postfix,
+	// }
+	// log.Printf("MPCPropose, proposer: %s, budget: %d, participans: %s, postfix: %s",
+	// 	propose.proposer, propose.budget, propose.participants, propose.postfix)
+
+	variablesNeed := []string{}
+	for _, exp := range postfix {
+		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
+		if IsVariableName(exp) {
+			variablesNeed = append(variablesNeed, exp)
+		}
 	}
-	log.Printf("MPCPropose, proposer: %s, budget: %d, participans: %s, postfix: %s",
-		propose.proposer, propose.budget, propose.participants, propose.postfix)
 
 	// SSS to all participants that the peer have public key
 	for _, key := range variablesNeed {
@@ -130,19 +138,19 @@ func (m *MPCModule) ComputeExpression(expr string, budget uint) (int, error) {
 			continue
 		}
 		// Add to temp for secret share
-		m.mpc.addValue(key, *big.NewInt(int64(value)))
+		localMPC.addValue(key, *big.NewInt(int64(value)))
 
 		// SSS the value
 		log.Printf("%s: I own value %s, sharing to participants: %s",
 			m.conf.Socket.GetAddress(), key, participants)
-		err = m.shareSecret(key, participants, mpcPrime)
+		err = m.shareSecret(key, participants, *mpcPrime)
 		if err != nil {
 			log.Printf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
 			return -1, err
 		}
 	}
 
-	ans, err := m.computeResult(postfix, participants, mpcPrime)
+	ans, err := m.computeResult(postfix, participants, *mpcPrime)
 	if err != nil {
 		log.Printf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
 		return -1, err
@@ -231,13 +239,12 @@ func (m *MPCModule) computeResult(postfix []string, participants []string, prime
 			}
 			s = append(s, res)
 		default:
-			// TODO change num to SSS
 			num, err := strconv.ParseInt(ch, 10, 64)
 			bigNum := *big.NewInt(num)
 			if err != nil {
 				// this is a value needed from SSS.
 				key := ch + "|" + m.conf.Socket.GetAddress()
-				bigNum = m.getValueFromSSS(key)
+				bigNum = m.getValueFromTemp(key)
 			}
 			s = append(s, bigNum)
 		}
@@ -257,11 +264,10 @@ func (m *MPCModule) computeResult(postfix []string, participants []string, prime
 	}
 
 	// busy wait for other key to receive.
-	// TODO: this is not receive from boardcast not sss, might need to change the function name.
 	shareResult := make([]big.Int, len(participants))
 	for i := 0; i < len(participants); i++ {
 		tmpKey := participants[i] + "|InterpolationResult"
-		shareResult[i] = m.getValueFromSSS(tmpKey)
+		shareResult[i] = m.getValueFromTemp(tmpKey)
 	}
 
 	// return m.lagrangeInterpolation(shareResult, peerIDs), nil
@@ -295,7 +301,7 @@ func (m *MPCModule) boardcastInterpolationResult(result big.Int, participants []
 	return m.Broadcast(privMsgMarshal)
 }
 
-func (m *MPCModule) getValueFromSSS(key string) big.Int {
+func (m *MPCModule) getValueFromTemp(key string) big.Int {
 	value, ok := m.mpc.getValue(key)
 	for !ok {
 		// Busy wait here
@@ -342,7 +348,7 @@ func (m *MPCModule) computeMult(a big.Int, b big.Int, prime big.Int, step int, p
 	shareD := make([]big.Int, len(participants))
 	for i := 0; i < len(participants); i++ {
 		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.conf.Socket.GetAddress()
-		shareD[i] = m.getValueFromSSS(tmpKey)
+		shareD[i] = m.getValueFromTemp(tmpKey)
 	}
 
 	return m.lagrangeInterpolationZp(shareD, bigPeerIDs, &prime), nil

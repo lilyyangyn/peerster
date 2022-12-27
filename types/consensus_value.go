@@ -123,6 +123,7 @@ type PaxosMPCValue struct {
 	Initiator  string
 	Budget     float64
 	Expression string
+	Prime      string
 }
 
 // NewEmpty implements types.PaxosValueContent.
@@ -137,7 +138,7 @@ func (v PaxosMPCValue) Name() PaxosType {
 
 // String implements types.PaxosValueContent.
 func (v PaxosMPCValue) String() string {
-	return fmt.Sprintf("(paxos MPC - {Initiator: %s, Budget: %d})", v.Initiator, v.Budget)
+	return fmt.Sprintf("(paxos MPC - {Initiator: %s, Budget: %f})", v.Initiator, v.Budget)
 }
 
 // UniqID implements types.PaxosTagValue.

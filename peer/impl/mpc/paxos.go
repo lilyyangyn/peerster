@@ -7,7 +7,7 @@ import (
 )
 
 // initMPCConcensus inits a paxos to consensus on mpc value
-func (m *MPCModule) initMPCConcensus(budget float64, expression string) (err error) {
+func (m *MPCModule) initMPCConcensus(budget float64, expression string, prime string) (err error) {
 	if m.Type != types.PaxosTypeMPC {
 		return xerrors.Errorf("invalid operation")
 	}
@@ -15,15 +15,15 @@ func (m *MPCModule) initMPCConcensus(budget float64, expression string) (err err
 	// TODO: check balance
 
 	if step, ok := m.CheckAndWait(); ok {
-		return m.proposeMPC(budget, expression, step)
+		return m.proposeMPC(budget, expression, prime, step)
 	}
-	return m.initMPCConcensus(budget, expression)
+	return m.initMPCConcensus(budget, expression, prime)
 }
 
 /** Private Helpfer Functions **/
 
 // proposeMPC starts a new paxos starting from phase one
-func (m *MPCModule) proposeMPC(budget float64, expression string, step uint) error {
+func (m *MPCModule) proposeMPC(budget float64, expression string, prime string, step uint) error {
 	// TODO: use public key hash?
 	initiator := m.GetPubkey().N.String()
 	proposeValContent := types.PaxosMPCValue{
@@ -31,6 +31,7 @@ func (m *MPCModule) proposeMPC(budget float64, expression string, step uint) err
 		Initiator:  initiator,
 		Budget:     budget,
 		Expression: expression,
+		Prime:      prime,
 	}
 	proposeVal, err := types.CreatePaxosValue(proposeValContent)
 	if err != nil {
@@ -50,7 +51,7 @@ func (m *MPCModule) proposeMPC(budget float64, expression string, step uint) err
 	if mpcValue.Initiator == initiator && mpcValue.Expression == expression {
 		return nil
 	}
-	return m.initMPCConcensus(budget, expression)
+	return m.initMPCConcensus(budget, expression, prime)
 }
 
 // mpcThreshold calculates the threshold to enter next paxos stage

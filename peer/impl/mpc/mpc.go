@@ -10,7 +10,7 @@ import (
 // MPC handlers mpc related information
 type MPC struct {
 	*sync.RWMutex
-	id         int
+	id         string
 	peers      map[string]int
 	interStore map[string]big.Int
 }
@@ -56,7 +56,7 @@ func (mpc *MPC) getValue(key string) (big.Int, bool) {
 	return value, ok
 }
 
-func NewMPC(id int) *MPC {
+func NewMPC(id string) *MPC {
 	return &MPC{
 		&sync.RWMutex{},
 		id,

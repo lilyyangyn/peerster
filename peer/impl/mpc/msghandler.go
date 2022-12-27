@@ -25,7 +25,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
-	valueBig, _ := new(big.Int).SetString(secretMsg.Value.Value, 0)
+	valueBig, _ := new(big.Int).SetString(secretMsg.Value.Value, 10)
 	m.mpc.addValue(secretMsg.Value.Key, *valueBig)
 
 	return nil
@@ -47,7 +47,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value
-	valueBig, _ := new(big.Int).SetString(interpolationMsg.Value, 0)
+	valueBig, _ := new(big.Int).SetString(interpolationMsg.Value, 10)
 	m.mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
 
 	return nil

@@ -48,7 +48,6 @@ func (p *polynomial) compute(x int) int {
 		return p.coefficients[0]
 	}
 
-	// TODO i-1 will return index out of range -1
 	value := p.coefficients[p.degree]
 	for i := p.degree - 1; i > -1; i-- {
 		value *= x
