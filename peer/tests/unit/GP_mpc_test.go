@@ -163,9 +163,9 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 	}
 
 	// check equal to the expected ans
-	// for i := 0; i < 3; i++ {
-	// 	require.Equal(t, valueA, ans[i])
-	// }
+	for i := 0; i < 3; i++ {
+		require.Equal(t, valueA, ans[i])
+	}
 
 }
 
@@ -216,9 +216,9 @@ func Test_GP_ComputeExpression_Add(t *testing.T) {
 	}
 
 	// check equal to the expected ans
-	// for i := 0; i < 3; i++ {
-	// 	require.Equal(t, valueA+valueB, ans[i])
-	// }
+	for i := 0; i < 3; i++ {
+		require.Equal(t, valueA+valueB, ans[i])
+	}
 }
 
 func Test_GP_ComputeExpression_Mult(t *testing.T) {
@@ -268,9 +268,9 @@ func Test_GP_ComputeExpression_Mult(t *testing.T) {
 	}
 
 	// check equal to the expected ans
-	// for i := 0; i < 3; i++ {
-	// 	require.Equal(t, valueA*valueB, ans[i])
-	// }
+	for i := 0; i < 3; i++ {
+		require.Equal(t, valueA*valueB, ans[i])
+	}
 }
 
 func Test_GP_ComputeExpression_Complex(t *testing.T) {
@@ -324,9 +324,9 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 	}
 
 	// check equal to the expected ans
-	// for i := 0; i < 3; i++ {
-	// 	require.Equal(t, (valueA+valueB2)*valueB2, ans[i])
-	// }
+	for i := 0; i < 3; i++ {
+		require.Equal(t, (valueA+valueB2)*valueB2, ans[i])
+	}
 }
 
 func Test_GP_ComputeExpression_Complete(t *testing.T) {
