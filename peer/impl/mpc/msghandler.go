@@ -17,16 +17,16 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	if secretMsg.ReqID != m.mpc.id {
-		return nil
-	}
+	// if secretMsg.ReqID != m.mpc.id {
+	// 	return nil
+	// }
 
-	log.Printf("%s: mpc value for req %d, %s:%s",
+	log.Printf("%s: mpc value for req %s, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
 	valueBig, _ := new(big.Int).SetString(secretMsg.Value.Value, 10)
-	m.mpc.addValue(secretMsg.Value.Key, *valueBig)
+	m.mpc[secretMsg.ReqID].addValue(secretMsg.Value.Key, *valueBig)
 
 	return nil
 }
@@ -39,16 +39,16 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 	}
 
 	// ignore message with wrong id
-	if interpolationMsg.ReqID != m.mpc.id {
-		return nil
-	}
+	// if interpolationMsg.ReqID != m.mpc.id {
+	// 	return nil
+	// }
 
-	log.Printf("%s: interpolation msg req: %d, owner: %s, value: %s",
+	log.Printf("%s: interpolation msg req: %s, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value
 	valueBig, _ := new(big.Int).SetString(interpolationMsg.Value, 10)
-	m.mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
+	m.mpc[interpolationMsg.ReqID].addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
 
 	return nil
 }

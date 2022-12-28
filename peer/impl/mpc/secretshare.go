@@ -3,7 +3,6 @@ package mpc
 import (
 	"math/big"
 
-	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
 )
@@ -25,28 +24,24 @@ func (m *MPCModule) shamirSecretShare(value int, peers []int) ([]int, error) {
 	return results, nil
 }
 
-func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error {
-	log.Printf("%s: start share secret, key: %s, peers: %s",
-		m.conf.Socket.GetAddress(), key, peers)
+func (m *MPCModule) shareSecret(key string, mpc *MPC) error {
+	// log.Printf("%s: start share secret, key: %s, peers: %s",
+	// 	m.conf.Socket.GetAddress(), key, peers)
 
-	value, ok := m.mpc.getValue(key)
+	value, ok := mpc.getValue(key)
 	if !ok {
 		return xerrors.Errorf("no valid value is found for key %s", key)
 	}
 
 	// generate the list of MPC id
-	peerIDs, err := m.mpc.getPeerIDs(peers)
+	peerIDs, err := mpc.getPeerIDs()
 	if err != nil {
 		return err
-	}
-	bigPeerIDs := make([]big.Int, len(peerIDs))
-	for idx, peerID := range peerIDs {
-		bigPeerIDs[idx] = *big.NewInt(int64(peerID))
 	}
 
 	// generate shared secrets
 	// results, err := m.shamirSecretShare(value, peerIDs)
-	results, err := m.shamirSecretShareZp(value, prime, bigPeerIDs)
+	results, err := m.shamirSecretShareZp(value, mpc.prime, peerIDs)
 	if err != nil {
 		return err
 	}
@@ -54,9 +49,10 @@ func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error
 	// log.Printf("%s: generated sss result: %s: %s", m.conf.Socket.GetAddress(), key, results)
 
 	// send shared secrets
+	peers := mpc.getParticipants()
 	for idx, result := range results {
 		err := m.sendShareMessage(
-			peers[idx], peerIDs[idx], key+"|"+peers[idx], result)
+			mpc.id, peers[idx], int(peerIDs[idx].Uint64()), key+"|"+peers[idx], result)
 		if err != nil {
 			return err
 		}
@@ -66,9 +62,9 @@ func (m *MPCModule) shareSecret(key string, peers []string, prime big.Int) error
 }
 
 // sendShareMessage sends the share secret in encrypted message
-func (m *MPCModule) sendShareMessage(peer string, id int, key string, value big.Int) error {
+func (m *MPCModule) sendShareMessage(uniqID string, peer string, id int, key string, value big.Int) error {
 	shareMsg := types.MPCShareMessage{
-		ReqID: m.mpc.id,
+		ReqID: uniqID,
 		Value: types.MPCSecretValue{
 			Owner: m.conf.Socket.GetAddress(),
 			Key:   key,

@@ -48,11 +48,12 @@ func Test_GP_SHAMIR_SECRET_SHARE_SEND(t *testing.T) {
 	defer nodeC.Stop()
 
 	// nodeA set asset and send sss
+	prime := "1000000009"
 	valueA := 5
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)
 	go func() {
-		_, err := nodeA.ComputeExpression("a", 3)
+		_, err := nodeA.ComputeExpression("test", "a", prime)
 		require.NoError(t, err)
 	}()
 	time.Sleep(time.Second * 1)
@@ -134,19 +135,21 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 
 	// TODO now structure is all node will need to run compute Expression.
 	// will change to only one node run expression
+	prime := "1000000009"
+
 	ans := make([]int, 3)
 	go func() {
-		ansA, err := nodeA.ComputeExpression("a", 3)
+		ansA, err := nodeA.ComputeExpression("test", "a", prime)
 		ans[0] = ansA
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansB, err := nodeB.ComputeExpression("a", 3)
+		ansB, err := nodeB.ComputeExpression("test", "a", prime)
 		ans[1] = ansB
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansC, err := nodeC.ComputeExpression("a", 3)
+		ansC, err := nodeC.ComputeExpression("test", "a", prime)
 		ans[2] = ansC
 		require.NoError(t, err)
 	}()
@@ -186,19 +189,20 @@ func Test_GP_ComputeExpression_Add(t *testing.T) {
 
 	// TODO now structure is all node will need to run compute Expression.
 	// will change to only one node run expression
+	prime := "1000000009"
 	ans := make([]int, 3)
 	go func() {
-		ansA, err := nodeA.ComputeExpression("a+b", 3)
+		ansA, err := nodeA.ComputeExpression("test", "a+b", prime)
 		ans[0] = ansA
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansB, err := nodeB.ComputeExpression("a+b", 3)
+		ansB, err := nodeB.ComputeExpression("test", "a+b", prime)
 		ans[1] = ansB
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansC, err := nodeC.ComputeExpression("a+b", 3)
+		ansC, err := nodeC.ComputeExpression("test", "a+b", prime)
 		ans[2] = ansC
 		require.NoError(t, err)
 	}()
@@ -237,19 +241,20 @@ func Test_GP_ComputeExpression_Mult(t *testing.T) {
 
 	// TODO now structure is all node will need to run compute Expression.
 	// will change to only one node run expression
+	prime := "1000000009"
 	ans := make([]int, 3)
 	go func() {
-		ansA, err := nodeA.ComputeExpression("a*b", 3)
+		ansA, err := nodeA.ComputeExpression("test", "a*b", prime)
 		ans[0] = ansA
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansB, err := nodeB.ComputeExpression("a*b", 3)
+		ansB, err := nodeB.ComputeExpression("test", "a*b", prime)
 		ans[1] = ansB
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansC, err := nodeC.ComputeExpression("a*b", 3)
+		ansC, err := nodeC.ComputeExpression("test", "a*b", prime)
 		ans[2] = ansC
 		require.NoError(t, err)
 	}()
@@ -292,19 +297,20 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 
 	// TODO now structure is all node will need to run compute Expression.
 	// will change to only one node run expression
+	prime := "1000000009"
 	ans := make([]int, 3)
 	go func() {
-		ansA, err := nodeA.ComputeExpression("(a+b1)*b2", 3)
+		ansA, err := nodeA.ComputeExpression("test", "(a+b1)*b2", prime)
 		ans[0] = ansA
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansB, err := nodeB.ComputeExpression("(a+b1)*b2", 3)
+		ansB, err := nodeB.ComputeExpression("test", "(a+b1)*b2", prime)
 		ans[1] = ansB
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansC, err := nodeC.ComputeExpression("(a+b1)*b2", 3)
+		ansC, err := nodeC.ComputeExpression("test", "(a+b1)*b2", prime)
 		ans[2] = ansC
 		require.NoError(t, err)
 	}()

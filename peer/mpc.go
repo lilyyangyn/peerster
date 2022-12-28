@@ -7,7 +7,7 @@ type MPC interface {
 
 	// start MPC with given expression and return the result
 	// ComputeExpression(expression MPCExpression) (int, error)
-	ComputeExpression(expr string, budget uint) (int, error)
+	ComputeExpression(uniqID string, expr string, prime string) (int, error)
 
 	// SetValueDBAsset set the asset of the peers. Overwrites it if the entry
 	// already exists.

@@ -3,6 +3,7 @@ package mpc
 import (
 	"math/big"
 	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -10,9 +11,11 @@ import (
 // MPC handlers mpc related information
 type MPC struct {
 	*sync.RWMutex
-	id         string
-	peers      map[string]int
-	interStore map[string]big.Int
+	id           string
+	prime        big.Int
+	participants []string
+	peers        map[string]int
+	interStore   map[string]big.Int
 }
 
 func (mpc *MPC) addPeers(peersMap map[string]int) error {
@@ -24,6 +27,20 @@ func (mpc *MPC) addPeers(peersMap map[string]int) error {
 	return nil
 }
 
+func (mpc *MPC) addParticipants(participants []string) error {
+	mpc.Lock()
+	defer mpc.Unlock()
+	mpc.participants = append(mpc.participants, participants...)
+	return nil
+}
+
+func (mpc *MPC) getParticipants() []string {
+	mpc.RLock()
+	defer mpc.RUnlock()
+	participants := mpc.participants
+	return participants
+}
+
 func (mpc *MPC) getPeerID(peer string) (int, bool) {
 	mpc.RLock()
 	defer mpc.RUnlock()
@@ -31,14 +48,15 @@ func (mpc *MPC) getPeerID(peer string) (int, bool) {
 	return id, ok
 }
 
-func (mpc *MPC) getPeerIDs(peers []string) ([]int, error) {
-	peerIDs := make([]int, len(peers))
+func (mpc *MPC) getPeerIDs() ([]big.Int, error) {
+	peers := mpc.getParticipants()
+	peerIDs := make([]big.Int, len(peers))
 	for idx, peer := range peers {
 		id, ok := mpc.getPeerID(peer)
 		if !ok {
-			return []int{}, xerrors.Errorf("no id for peer %s", peer)
+			return []big.Int{}, xerrors.Errorf("no id for peer %s", peer)
 		}
-		peerIDs[idx] = id
+		peerIDs[idx] = *big.NewInt(int64(id))
 	}
 	return peerIDs, nil
 }
@@ -56,10 +74,22 @@ func (mpc *MPC) getValue(key string) (big.Int, bool) {
 	return value, ok
 }
 
-func NewMPC(id string) *MPC {
+func (mpc *MPC) waitValueFromTemp(key string) big.Int {
+	value, ok := mpc.getValue(key)
+	for !ok {
+		// Busy wait here
+		time.Sleep(time.Millisecond * 1)
+		value, ok = mpc.getValue(key)
+	}
+	return value
+}
+
+func NewMPC(id string, prime big.Int) *MPC {
 	return &MPC{
 		&sync.RWMutex{},
 		id,
+		prime,
+		[]string{},
 		map[string]int{},
 		map[string]big.Int{},
 	}

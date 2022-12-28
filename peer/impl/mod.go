@@ -174,8 +174,8 @@ func (n *node) GetPubkeyStore() peer.PubkeyStore {
 }
 
 // GetPubkeyStore implements peer.ComputeExpression
-func (n *node) ComputeExpression(expr string, budget uint) (int, error) {
-	return n.mpc.ComputeExpression(expr, budget)
+func (n *node) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
+	return n.mpc.ComputeExpression(uniqID, expr, prime)
 }
 
 // GetPubkeyStore implements peer.SetValueDBAsset
