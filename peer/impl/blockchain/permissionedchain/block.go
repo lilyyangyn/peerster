@@ -16,7 +16,7 @@ import (
 type Block struct {
 	*BlockHeader
 	States       storage.KVStore
-	Transactions []*SignedTransaction
+	Transactions []SignedTransaction
 }
 
 // BlkType helps to defer different types of txns & blocks
@@ -27,6 +27,16 @@ const (
 	BlkTypeTxn    BlkType = "blk-txn"
 )
 
+// GetWorldState returns a copy of block's world state
+func (b *Block) GetWorldState() storage.KVStore {
+	return b.States.Copy()
+}
+
+// GetConfig returns a copy of blockchain's config
+func (b *Block) GetConfig() ChainConfig {
+	return *getConfigFromWorldState(b.States)
+}
+
 // -----------------------------------------------------------------------------
 // BlockHeader
 
@@ -35,6 +45,7 @@ type BlockHeader struct {
 	PrevHash string
 	Height   uint
 	Type     BlkType
+	Miner    string
 
 	StateHash      []byte
 	TransationHash []byte
@@ -46,6 +57,7 @@ func (bh *BlockHeader) Hash() string {
 	h.Write([]byte(bh.PrevHash))
 	h.Write([]byte(strconv.Itoa(int(bh.Height))))
 	h.Write([]byte(bh.Type))
+	h.Write([]byte(bh.Miner))
 
 	h.Write(bh.StateHash)
 	h.Write(bh.TransationHash)
@@ -70,14 +82,15 @@ type BlockBuilder struct {
 	prevHash     string
 	height       uint
 	blockType    BlkType
+	miner        string
 	states       storage.KVStore
-	transactions []*SignedTransaction
+	transactions []SignedTransaction
 }
 
 func NewBlockBuilder(blockType BlkType) *BlockBuilder {
 	return &BlockBuilder{
 		blockType:    blockType,
-		transactions: make([]*SignedTransaction, 0),
+		transactions: make([]SignedTransaction, 0),
 	}
 }
 
@@ -86,7 +99,7 @@ func (bb *BlockBuilder) AddTxn(txn *SignedTransaction) error {
 		return fmt.Errorf("unable to append txn to a config block: %T", txn.Txn)
 	}
 
-	bb.transactions = append(bb.transactions, txn)
+	bb.transactions = append(bb.transactions, *txn)
 	return nil
 }
 
@@ -109,6 +122,11 @@ func (bb *BlockBuilder) SetHeight(height uint) *BlockBuilder {
 	return bb
 }
 
+func (bb *BlockBuilder) SetMinder(miner string) *BlockBuilder {
+	bb.miner = miner
+	return bb
+}
+
 func (bb *BlockBuilder) SetState(state storage.KVStore) *BlockBuilder {
 	bb.states = state
 	return bb
@@ -123,6 +141,7 @@ func (bb *BlockBuilder) Build() *Block {
 	header := BlockHeader{
 		PrevHash:       bb.prevHash,
 		Height:         bb.height,
+		Miner:          bb.miner,
 		StateHash:      []byte(bb.states.Hash()),
 		TransationHash: h.Sum(nil),
 	}

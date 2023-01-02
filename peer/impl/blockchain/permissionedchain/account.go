@@ -1,8 +1,8 @@
 package permissioned
 
 import (
-	"crypto/ecdsa"
-	"sync"
+	"crypto/sha256"
+	"encoding/hex"
 )
 
 // -----------------------------------------------------------------------------
@@ -14,19 +14,21 @@ type Address struct {
 	Hex string
 }
 
-func NewAddress(pubkey *ecdsa.PublicKey) *Address {
-	// TODO
-	// h := sha256.New()
+func NewAddress(pubkey []byte) *Address {
+	h := sha256.New()
+	h.Write(pubkey)
+	hash := h.Sum(nil)
 
-	return &Address{}
+	// TODO: Whether we need to truncate to a fixed size?
+
+	return &Address{Hex: hex.EncodeToString(hash)}
 }
 
 // -----------------------------------------------------------------------------
 // Account
 
 type Account struct {
-	*sync.RWMutex
-
+	// *sync.RWMutex
 	addr          Address
 	balance       float64
 	lockedBalance float64
@@ -35,30 +37,30 @@ type Account struct {
 
 func NewAccount(addr Address) *Account {
 	return &Account{
-		RWMutex: &sync.RWMutex{},
+		// RWMutex: &sync.RWMutex{},
 		addr:    addr,
 		balance: 0,
 		nonce:   0,
 	}
 }
 
-func (ac *Account) GetAddress() Address {
-	ac.RLock()
-	defer ac.RUnlock()
+// func (ac *Account) GetAddress() Address {
+// 	ac.RLock()
+// 	defer ac.RUnlock()
 
-	return ac.addr
-}
+// 	return ac.addr
+// }
 
-func (ac *Account) GetAvailableBalance() float64 {
-	ac.RLock()
-	defer ac.RUnlock()
+// func (ac *Account) GetAvailableBalance() float64 {
+// 	ac.RLock()
+// 	defer ac.RUnlock()
 
-	return ac.balance - ac.lockedBalance
-}
+// 	return ac.balance - ac.lockedBalance
+// }
 
-func (ac *Account) GetNonce() uint {
-	ac.RLock()
-	defer ac.RUnlock()
+// func (ac *Account) GetNonce() uint {
+// 	ac.RLock()
+// 	defer ac.RUnlock()
 
-	return ac.nonce
-}
+// 	return ac.nonce
+// }

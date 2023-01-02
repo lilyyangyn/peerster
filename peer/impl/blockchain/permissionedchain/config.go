@@ -18,16 +18,25 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 type ChainConfig struct {
 	ID           string
 	Participants map[string]struct{}
-	Threshold    int
 	InitialGain  uint
+
+	MaxTxnsPerBlk int
+	WaitTimeout   int
+
+	JoinThreshold int
 }
 
 // NewChainConfig creates a new config and computes its ID
-func NewChainConfig(participant map[string]struct{}, threshold int, initialGain uint) *ChainConfig {
+func NewChainConfig(participant map[string]struct{}, initialGain uint,
+	maxTxnsPerBlk int, waitTimeout int, threshold int) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
-		Threshold:    threshold,
 		InitialGain:  initialGain,
+
+		MaxTxnsPerBlk: maxTxnsPerBlk,
+		WaitTimeout:   waitTimeout,
+
+		JoinThreshold: threshold,
 	}
 	cc.ID = cc.Hash()
 
@@ -58,7 +67,7 @@ func (c *ChainConfig) Hash() string {
 	for participant, _ := range c.Participants {
 		h.Write([]byte(participant))
 	}
-	h.Write([]byte(fmt.Sprintf("%d", c.Threshold)))
+	h.Write([]byte(fmt.Sprintf("%d", c.JoinThreshold)))
 	h.Write([]byte(fmt.Sprintf("%d", c.InitialGain)))
 
 	return hex.EncodeToString(h.Sum(nil))

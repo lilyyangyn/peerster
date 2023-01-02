@@ -31,11 +31,6 @@ type Transaction struct {
 	Type  TxnType
 	Value float64
 	Data  interface{}
-
-	// PreMPC    bool
-	// Initiator Address
-	// Budget    float64
-	// Result    float64
 }
 
 // NewTransaction creates a new transaction and computes its ID
@@ -78,12 +73,27 @@ func (txn *Transaction) Hash() string {
 	return hex.EncodeToString(txn.HashBytes())
 }
 
+// Exec executes the transaction based on the input worldState
 func (txn *Transaction) Exec(worldState storage.KVStore) error {
+	// check nonce
+	account := getAccountFromWorldState(worldState, txn.From)
+	if account.nonce != txn.Nonce {
+		return fmt.Errorf("transaction %s has invalid nonce from %s. Expected: %d, Got: %d",
+			txn.ID, txn.From, account.nonce, txn.Nonce)
+	}
+
+	// execute handler
 	handler, ok := txnHandlerStore[txn.Type]
 	if !ok {
 		return fmt.Errorf("invalid transaction type: %s", txn.Type)
 	}
-	return handler(worldState, txn)
+	err := handler(worldState, txn)
+	if err != nil {
+		return err
+	}
+
+	// advance nonce to avoid replay attack
+	return updateNonce(worldState, txn.From)
 }
 
 // -----------------------------------------------------------------------------
@@ -102,11 +112,6 @@ func (txn *Transaction) Sign(privateKey *ecdsa.PrivateKey) (*SignedTransaction, 
 	}
 
 	return &SignedTransaction{Txn: *txn, Signature: signature}, nil
-}
-
-// Verify verify the signature for the given expected signer
-func (signedTxn *SignedTransaction) Verify(signer *Address) bool {
-	return false
 }
 
 // Hash computes the hash of the signed transaction
@@ -128,6 +133,31 @@ func (signedTxn *SignedTransaction) Hash() []byte {
 	h.Write(signedTxn.Signature)
 
 	return h.Sum(nil)
+}
+
+// Verify verify the signature and then execute to see whether the result is consistent with worldState
+func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
+	// verify signature
+	txn := signedTxn.Txn
+	digestHash := txn.HashBytes()
+	publicKey, err := crypto.Ecrecover(digestHash, signedTxn.Signature)
+	if err != nil {
+		return err
+	}
+	addr := NewAddress(publicKey)
+	if addr.Hex != txn.From {
+		return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+	}
+	// verify sig input needs to be in [R || S] format
+	sigValid := crypto.VerifySignature(publicKey, digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
+	if !sigValid {
+		return fmt.Errorf("transaction %s has invalid signature from %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+	}
+
+	// execute txn
+	err = txn.Exec(worldState)
+
+	return err
 }
 
 // -----------------------------------------------------------------------------
@@ -159,6 +189,7 @@ func execPreMPC(worldState storage.KVStore, txn *Transaction) error {
 	err = worldState.Put(mpcKeyFromUniqID(record.UniqID), MPCEndorsement{
 		Peers:     config.Participants,
 		Endorsers: map[string]struct{}{},
+		Budget:    record.Budget,
 		Locked:    true,
 	})
 	if err != nil {
@@ -183,13 +214,10 @@ func NewTransactionPostMPC(from *Account, data MPCRecord) *Transaction {
 
 func execPostMPC(worldState storage.KVStore, txn *Transaction) error {
 	record := txn.Data.(MPCRecord)
-	initiator, err := getAccountFromWorldState(worldState, record.Initiator)
-	if err != nil {
-		panic(err)
-	}
+	initiator := getAccountFromWorldState(worldState, record.Initiator)
 
 	// update endorsement information, collect awawrd if threshold is reached
-	err = updateMPCEndorsement(worldState, mpcKeyFromUniqID(record.UniqID), initiator, txn.From)
+	err := updateMPCEndorsement(worldState, mpcKeyFromUniqID(record.UniqID), initiator, txn.From)
 	if err != nil {
 		return err
 	}
@@ -207,7 +235,7 @@ type MPCRecord struct {
 	Initiator  string
 	Budget     float64
 	Expression string
-	Result     string
+	Result     float64
 }
 
 type MPCEndorsement struct {
@@ -226,19 +254,19 @@ func mpcKeyFromUniqID(uniqID string) string {
 	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
 }
 
-func getAccountFromWorldState(worldState storage.KVStore, key string) (*Account, error) {
+func getAccountFromWorldState(worldState storage.KVStore, key string) *Account {
 	object, ok := worldState.Get(key)
 	if !ok {
-		return nil, fmt.Errorf("Initiator(%s) not exists", key)
+		return NewAccount(Address{Hex: key})
 	}
 	account := object.(Account)
-	return &account, nil
+	return &account
 }
 
 func getConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	object, ok := worldState.Get(STATE_CONFIG_KEY)
 	if !ok {
-		panic(fmt.Errorf("Config not exists"))
+		panic(fmt.Errorf("config not exists"))
 	}
 	config := object.(ChainConfig)
 	return &config
@@ -253,11 +281,19 @@ func getMPCEndorsementFromWorldState(worldState storage.KVStore, key string) *MP
 	return &endorsement
 }
 
-func lockBalance(worldState storage.KVStore, accountID string, amount float64) error {
-	account, err := getAccountFromWorldState(worldState, accountID)
+func updateNonce(worldState storage.KVStore, accountID string) error {
+	account := getAccountFromWorldState(worldState, accountID)
+	account.nonce++
+
+	err := worldState.Put(accountID, *account)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return nil
+}
+
+func lockBalance(worldState storage.KVStore, accountID string, amount float64) error {
+	account := getAccountFromWorldState(worldState, accountID)
 	if account.balance < amount {
 		return fmt.Errorf("Initiator(%s) balance not enough", accountID)
 	}
@@ -265,7 +301,7 @@ func lockBalance(worldState storage.KVStore, accountID string, amount float64) e
 	// lock balance
 	account.balance -= amount
 	account.lockedBalance += amount
-	err = worldState.Put(accountID, account)
+	err := worldState.Put(accountID, *account)
 	if err != nil {
 		panic(err)
 	}
@@ -273,9 +309,9 @@ func lockBalance(worldState storage.KVStore, accountID string, amount float64) e
 }
 
 func getAward(worldState storage.KVStore, from *Account, to string, amount float64) {
-	account, err := getAccountFromWorldState(worldState, to)
-	if err != nil {
-		account = NewAccount(Address{Hex: to})
+	account := from
+	if from.addr.Hex != to {
+		account = getAccountFromWorldState(worldState, to)
 	}
 
 	if from.lockedBalance < amount {
@@ -283,11 +319,11 @@ func getAward(worldState storage.KVStore, from *Account, to string, amount float
 	}
 	from.lockedBalance -= amount
 	account.balance += amount
-	err = worldState.Put(from.addr.Hex, from)
+	err := worldState.Put(from.addr.Hex, *from)
 	if err != nil {
 		panic(err)
 	}
-	err = worldState.Put(account.addr.Hex, account)
+	err = worldState.Put(account.addr.Hex, *account)
 	if err != nil {
 		panic(err)
 	}
@@ -317,6 +353,12 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Acc
 			getAward(worldState, initiator, endorser, endorsement.Budget)
 		}
 		endorsement.Locked = false
+		if len(endorsement.Endorsers) == len(endorsement.Peers) {
+			err := worldState.Del(key)
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
 	return nil
 }

@@ -14,6 +14,9 @@ type BlockchainModule struct {
 
 	account    *permissioned.Account
 	blockchain *permissioned.Blockchain
+
+	txnPool *TxnPool
+	blkChan chan *permissioned.Block
 }
 
 func NewBlockchainModule(conf *peer.Configuration, messageModule *message.MessageModule) *BlockchainModule {
@@ -31,7 +34,18 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 // Feature Functions
 
 func (m *BlockchainModule) MiningDaemon(ctx context.Context) error {
+	go m.Mine(ctx)
+	go m.VerifyBlock(ctx)
 	return nil
+}
+
+func (m *BlockchainModule) AcceptorDaemon(ctx context.Context) error {
+	go m.VerifyBlock(ctx)
+	return nil
+}
+
+func (m *BlockchainModule) StopMiner() {
+	m.txnPool.Finish()
 }
 
 // -----------------------------------------------------------------------------
