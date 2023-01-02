@@ -13,9 +13,17 @@ type MPC struct {
 	*sync.RWMutex
 	id           string
 	prime        big.Int
+	initiator    string
+	expression   string
 	participants []string
 	peers        map[string]int
 	interStore   map[string]big.Int
+	resultChan   chan MPCResult
+}
+
+type MPCResult struct {
+	result int
+	err    error
 }
 
 func (mpc *MPC) addPeers(peersMap map[string]int) error {
@@ -84,13 +92,17 @@ func (mpc *MPC) waitValueFromTemp(key string) big.Int {
 	return value
 }
 
-func NewMPC(id string, prime big.Int) *MPC {
+func NewMPC(id string, prime big.Int, initiator string,
+	expression string, resultChan chan MPCResult) *MPC {
 	return &MPC{
-		&sync.RWMutex{},
-		id,
-		prime,
-		[]string{},
-		map[string]int{},
-		map[string]big.Int{},
+		RWMutex:      &sync.RWMutex{},
+		id:           id,
+		prime:        prime,
+		initiator:    initiator,
+		expression:   expression,
+		participants: []string{},
+		peers:        map[string]int{},
+		interStore:   map[string]big.Int{},
+		resultChan:   resultChan,
 	}
 }

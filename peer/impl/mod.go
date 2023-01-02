@@ -173,6 +173,12 @@ func (n *node) GetPubkeyStore() peer.PubkeyStore {
 	return n.message.GetPubkeyStore()
 }
 
+// InitMPC implements peer.InitMPC
+func (n *node) InitMPC(uniqID string, prime string, initiator string,
+	expression string) error {
+	return n.mpc.InitMPC(uniqID, prime, initiator, expression, nil)
+}
+
 // GetPubkeyStore implements peer.ComputeExpression
 func (n *node) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
 	return n.mpc.ComputeExpression(uniqID, expr, prime)

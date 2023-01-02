@@ -22,7 +22,8 @@ import (
 func Test_GP_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -65,7 +66,8 @@ func Test_GP_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -108,7 +110,8 @@ func Test_GP_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -170,7 +173,8 @@ func Test_GP_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -222,7 +226,8 @@ func Test_GP_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -276,7 +281,8 @@ func Test_GP_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -412,7 +418,8 @@ func Test_GP_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 func Test_GP_Paxos_Acceptor_Propose_Correct(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -485,7 +492,8 @@ func Test_GP_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	proposer := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithPaxosProposerRetry(time.Hour),
 		z.WithTotalPeers(2),
-		z.WithPaxosID(paxosID))
+		z.WithPaxosID(paxosID),
+		z.WithDisableMPC())
 
 	defer proposer.Stop()
 
@@ -564,7 +572,8 @@ func Test_GP_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 		z.WithPaxosProposerRetry(time.Hour),
 		z.WithTotalPeers(2),
 		z.WithPaxosID(paxosID),
-		z.WithAckTimeout(0))
+		z.WithAckTimeout(0),
+		z.WithDisableMPC())
 
 	defer proposer.Stop()
 
@@ -656,7 +665,8 @@ func Test_GP_Paxos_Proposer_Prepare_Propose_Wrong_Type(t *testing.T) {
 		z.WithPaxosProposerRetry(time.Hour),
 		z.WithTotalPeers(2),
 		z.WithPaxosID(paxosID),
-		z.WithAckTimeout(0))
+		z.WithAckTimeout(0),
+		z.WithDisableMPC())
 
 	defer proposer.Stop()
 
@@ -729,7 +739,7 @@ func Test_GP_TLC_Move_Step_Not_Enough(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Threshold = 2
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2), z.WithDisableMPC())
 	defer node1.Stop()
 
 	socketX, err := transp.CreateSocket("127.0.0.1:0")
@@ -809,7 +819,7 @@ func Test_GP_TLC_Move_Step_OK(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Threshold = 2
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2), z.WithDisableMPC())
 	defer node1.Stop()
 
 	socketX, err := transp.CreateSocket("127.0.0.1:0")
@@ -904,10 +914,10 @@ func Test_GP_TLC_Move_Step_OK(t *testing.T) {
 func Test_GP_MPC_Paxos_Simple_Consensus(t *testing.T) {
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1), z.WithDisableMPC())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(2))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(2), z.WithDisableMPC())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -1171,10 +1181,12 @@ func Test_GP_MPC_Paxos_No_Consensus(t *testing.T) {
 		z.WithTotalPeers(3),
 		z.WithPaxosID(1),
 		z.WithPaxosThreshold(threshold),
-		z.WithPaxosProposerRetry(time.Second*4))
+		z.WithPaxosProposerRetry(time.Second*4),
+		z.WithDisableMPC())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3), z.WithPaxosID(2))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3),
+		z.WithPaxosID(2), z.WithDisableMPC())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -1245,13 +1257,15 @@ func Test_GP_MPC_Paxos_Eventual_Consensus(t *testing.T) {
 		z.WithTotalPeers(3),
 		z.WithPaxosID(1),
 		z.WithPaxosProposerRetry(time.Second*2),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node1.Stop()
 
 	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithTotalPeers(3),
 		z.WithPaxosID(2),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node2.Stop()
 
 	// Note: we set the heartbeat and antientropy so that node3 will annonce
@@ -1260,7 +1274,8 @@ func Test_GP_MPC_Paxos_Eventual_Consensus(t *testing.T) {
 		z.WithTotalPeers(3),
 		z.WithPaxosID(3),
 		z.WithHeartbeat(time.Hour),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node3.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -1324,7 +1339,10 @@ func Test_GP_MPC_Paxos_Consensus_Stress_Test(t *testing.T) {
 	nodes := make([]z.TestNode, numNodes)
 
 	for i := range nodes {
-		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(uint(numNodes)), z.WithPaxosID(uint(i+1)))
+		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+			z.WithTotalPeers(uint(numNodes)),
+			z.WithPaxosID(uint(i+1)),
+			z.WithDisableMPC())
 		defer node.Stop()
 
 		nodes[i] = node

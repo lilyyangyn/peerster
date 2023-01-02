@@ -6,7 +6,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/rs/xid"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
@@ -20,8 +22,10 @@ type MPCModule struct {
 	conf *peer.Configuration
 
 	valueDB *ValueDB
-	mpc     map[string]*MPC
-	*paxos.PaxosInstance
+
+	*sync.RWMutex
+	mpcstore map[string]*MPC
+	paxos    *paxos.PaxosInstance
 }
 
 func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *MPCModule {
@@ -29,7 +33,8 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 		MessageModule: messageModule,
 		conf:          conf,
 		valueDB:       NewValueDB(),
-		mpc:           map[string]*MPC{},
+		RWMutex:       &sync.RWMutex{},
+		mpcstore:      map[string]*MPC{},
 	}
 	instance, err := paxosModule.CreateNewPaxos(
 		types.PaxosTypeMPC,
@@ -40,7 +45,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 	if err != nil {
 		panic(err)
 	}
-	m.PaxosInstance = instance
+	m.paxos = instance
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
@@ -67,31 +72,42 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 		return 0, nil
 	}
 
+	// // generate random prime, seed is set in advance when the node starts
+	// // err: msg too long for RSA key size
+	// prime, err := generateRandomPrime(1024)
+	// if err != nil {
+	// 	return -1, err
+	// }
 	prime := "1000000009"
-
-	err := m.initMPCConcensus(budget, expression, prime)
+	uniqID := xid.New().String()
+	err := m.initMPCConcensus(uniqID, budget, expression, prime)
 	if err != nil {
 		return -1, err
 	}
 
-	// TODO add channel wait mpc result
+	// channel wait mpc result
+	m.RLock()
+	resultChan := m.mpcstore[uniqID].resultChan
+	m.RUnlock()
 
-	return 0, nil
+	result := <-resultChan
+
+	return result.result, result.err
 }
 
-func (m *MPCModule) InitMPC(uniqID string, prime string) error {
-	// TODO add lock
+func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
+	expression string, resultChan chan MPCResult) error {
 	m.Lock()
 	defer m.Unlock()
 
 	mpcPrime, _ := new(big.Int).SetString(prime, 10)
-	m.mpc[uniqID] = NewMPC(uniqID, *mpcPrime)
+	m.mpcstore[uniqID] = NewMPC(uniqID, *mpcPrime, initiator, expression, resultChan)
 
 	// Use public key as participants
 	pubKeyStore := m.GetPubkeyStore()
 	if int(m.conf.TotalPeers) > len(pubKeyStore) {
-		panic(xerrors.Errorf("%s: not received everyone's public key, require %d, have %d",
-			m.conf.Socket.GetAddress(), m.conf.TotalPeers, len(pubKeyStore)))
+		return xerrors.Errorf("%s: not received everyone's public key, require %d, have %d",
+			m.conf.Socket.GetAddress(), m.conf.TotalPeers, len(pubKeyStore))
 	}
 	participants := make([]string, 0, len(pubKeyStore))
 	for key := range pubKeyStore {
@@ -104,8 +120,8 @@ func (m *MPCModule) InitMPC(uniqID string, prime string) error {
 		peerID, _ := strconv.Atoi(peerIDstr)
 		peersMap[participant] = peerID
 	}
-	m.mpc[uniqID].addPeers(peersMap)
-	m.mpc[uniqID].addParticipants(participants)
+	m.mpcstore[uniqID].addPeers(peersMap)
+	m.mpcstore[uniqID].addParticipants(participants)
 	return nil
 }
 
@@ -116,9 +132,11 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 		return -1, err
 	}
 
-	// Init MPC function.
-	err = m.InitMPC(uniqID, prime)
-	if err != nil {
+	// get MPC
+	m.RLock()
+	mpc, ok := m.mpcstore[uniqID]
+	m.RUnlock()
+	if !ok {
 		return -1, err
 	}
 
@@ -138,19 +156,19 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 			continue
 		}
 		// Add to temp for secret share
-		m.mpc[uniqID].addValue(key, *big.NewInt(int64(value)))
+		mpc.addValue(key, *big.NewInt(int64(value)))
 
 		// SSS the value
 		log.Printf("%s: I own value %s, sharing to participants: %s",
-			m.conf.Socket.GetAddress(), key, m.mpc[uniqID].getParticipants())
-		err = m.shareSecret(key, m.mpc[uniqID])
+			m.conf.Socket.GetAddress(), key, mpc.getParticipants())
+		err = m.shareSecret(key, mpc)
 		if err != nil {
 			log.Printf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
 			return -1, err
 		}
 	}
 
-	ans, err := m.computeResult(postfix, m.mpc[uniqID])
+	ans, err := m.computeResult(postfix, mpc)
 	if err != nil {
 		log.Printf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
 		return -1, err

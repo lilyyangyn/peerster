@@ -77,6 +77,8 @@ func NewRandomPolynomial(secret int, degree int) *polynomial {
 	return &p
 }
 
+// --------------------------------------------------------
+
 type Stack []string
 
 // IsEmpty: check if stack is empty
@@ -122,24 +124,4 @@ func prec(s string) int {
 	} else {
 		return -1
 	}
-}
-
-type MPCPropose struct {
-	proposer     string
-	budget       uint
-	participants []string
-	postfix      []string
-	// dataholder   func()
-}
-
-type MPCResult struct {
-	propose MPCPropose
-	Result  int
-}
-
-// TODO: add blockchain header.
-type Block struct {
-	// Header
-	balance map[string]int
-	result  MPCResult
 }

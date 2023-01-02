@@ -10,13 +10,15 @@ import (
 	"go.dedis.ch/cs438/types"
 )
 
-func setup_n_peers(n int, t *testing.T) []z.TestNode {
+func setup_n_peers(n int, t *testing.T, opt ...z.Option) []z.TestNode {
 	nodes := make([]z.TestNode, n)
 
 	transp := channel.NewTransport()
 
 	for i := 0; i < n; i++ {
-		nodes[i] = z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+			z.WithTotalPeers(uint(n)), z.WithPaxosID(uint(i+1)))
+		nodes[i] = node
 	}
 
 	pubkeys := make([]types.Pubkey, n)
@@ -49,6 +51,15 @@ func Test_GP_SHAMIR_SECRET_SHARE_SEND(t *testing.T) {
 
 	// nodeA set asset and send sss
 	prime := "1000000009"
+	uniqID := "test"
+	expression := "a"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
 	valueA := 5
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)
@@ -133,9 +144,16 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)
 
-	// TODO now structure is all node will need to run compute Expression.
-	// will change to only one node run expression
+	// all node will run compute Expression simultaneously.
 	prime := "1000000009"
+	uniqID := "test"
+	expression := "a"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
 
 	ans := make([]int, 3)
 	go func() {
@@ -187,9 +205,18 @@ func Test_GP_ComputeExpression_Add(t *testing.T) {
 	err = nodeB.SetValueDBAsset("b", valueB)
 	require.NoError(t, err)
 
-	// TODO now structure is all node will need to run compute Expression.
+	// all node will need to run compute Expression simultaneously.
 	// will change to only one node run expression
 	prime := "1000000009"
+	uniqID := "test"
+	expression := "a+b"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
 	ans := make([]int, 3)
 	go func() {
 		ansA, err := nodeA.ComputeExpression("test", "a+b", prime)
@@ -239,9 +266,17 @@ func Test_GP_ComputeExpression_Mult(t *testing.T) {
 	err = nodeB.SetValueDBAsset("b", valueB)
 	require.NoError(t, err)
 
-	// TODO now structure is all node will need to run compute Expression.
-	// will change to only one node run expression
+	// all node will need to run compute Expression simultaneously.
 	prime := "1000000009"
+	uniqID := "test"
+	expression := "a*b"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
 	ans := make([]int, 3)
 	go func() {
 		ansA, err := nodeA.ComputeExpression("test", "a*b", prime)
@@ -329,6 +364,43 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 	}
 }
 
-func Test_GP_ComputeExpression_Complete(t *testing.T) {
+func Test_GP_ComputeExpression_Consensus_Add(t *testing.T) {
+	nodes := setup_n_peers(3, t)
+	nodeA := nodes[0]
+	nodeB := nodes[1]
+	nodeC := nodes[2]
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
 
+	// nodeA set asset
+	valueA := 5
+	err := nodeA.SetValueDBAsset("a", valueA)
+	require.NoError(t, err)
+
+	valueB := 3
+	err = nodeB.SetValueDBAsset("b", valueB)
+	require.NoError(t, err)
+
+	// call Calculate on nodeA. The MPC starts automatically
+	mpcDone := make(chan struct{})
+	var recvValue int
+	go func() {
+		ans, err := nodeA.Calculate("a+b", 10)
+		recvValue = ans
+		require.NoError(t, err)
+
+		close(mpcDone)
+	}()
+
+	timeout := time.After(time.Second * 2)
+
+	select {
+	case <-mpcDone:
+	case <-timeout:
+		t.Error(t, "a result must have been computed")
+	}
+
+	// check equal to the expected ans
+	require.Equal(t, valueA+valueB, recvValue)
 }
