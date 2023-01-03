@@ -26,10 +26,20 @@ func NewBlockchain() *Blockchain {
 }
 
 // InitGenesisBlock inits a new blockchain with the given config
-func (bc *Blockchain) InitGenesisBlock(config *ChainConfig) (Block, error) {
+func (bc *Blockchain) InitGenesisBlock(config *ChainConfig, initialGain map[string]float64) (Block, error) {
+	worldState := storage.NewBasicKV()
+	for participant, _ := range config.Participants {
+		account := NewAccount(*NewAddressFromHex(participant))
+		account.balance = initialGain[participant]
+	}
+	worldState.Put(STATE_CONFIG_KEY, *config)
+
 	// genesis block must be a block with a config txn
-	bb := NewBlockBuilder(BlkTypeConfig)
-	bb.SetPrevHash(DUMMY_PREVHASH).SetHeight(0).SetState(storage.NewBasicKV()).AddConfig(config)
+	bb := NewBlockBuilder(BlkTypeConfig, config.MaxTxnsPerBlk)
+	bb.SetPrevHash(DUMMY_PREVHASH).
+		SetHeight(0).
+		SetMiner(ZeroAddress.Hex).
+		SetState(storage.NewBasicKV())
 	block := bb.Build()
 
 	bc.Lock()
@@ -38,6 +48,17 @@ func (bc *Blockchain) InitGenesisBlock(config *ChainConfig) (Block, error) {
 	bc.latestBlock = block
 
 	return *block, nil
+}
+
+// GetBlockStore returns a copy of the whole chain
+func (bc *Blockchain) GetBlockStore() map[string]Block {
+	store := make(map[string]Block)
+	bc.RLock()
+	defer bc.RUnlock()
+	for key, block := range bc.blocksStore {
+		store[key] = *block
+	}
+	return store
 }
 
 // GetLatestBlock returns the latest block

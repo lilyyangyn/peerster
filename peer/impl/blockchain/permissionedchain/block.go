@@ -10,6 +10,34 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// BlockHeader
+
+// BlockHeader is the header of block in the blockchain
+type BlockHeader struct {
+	PrevHash string
+	Height   uint
+	Type     BlkType
+	Miner    string
+
+	StateHash      string
+	TransationHash string
+}
+
+// Hash computes the block hash based on data in block header
+func (bh *BlockHeader) Hash() string {
+	h := sha256.New()
+	h.Write([]byte(bh.PrevHash))
+	h.Write([]byte(strconv.Itoa(int(bh.Height))))
+	h.Write([]byte(bh.Type))
+	h.Write([]byte(bh.Miner))
+
+	h.Write([]byte(bh.StateHash))
+	h.Write([]byte(bh.TransationHash))
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// -----------------------------------------------------------------------------
 // Block
 
 // Block represents the basic building block of a blockc hain
@@ -37,34 +65,6 @@ func (b *Block) GetConfig() ChainConfig {
 	return *getConfigFromWorldState(b.States)
 }
 
-// -----------------------------------------------------------------------------
-// BlockHeader
-
-// BlockHeader is the header of block in the blockchain
-type BlockHeader struct {
-	PrevHash string
-	Height   uint
-	Type     BlkType
-	Miner    string
-
-	StateHash      []byte
-	TransationHash []byte
-}
-
-// Hash computes the block hash based on data in block header
-func (bh *BlockHeader) Hash() string {
-	h := sha256.New()
-	h.Write([]byte(bh.PrevHash))
-	h.Write([]byte(strconv.Itoa(int(bh.Height))))
-	h.Write([]byte(bh.Type))
-	h.Write([]byte(bh.Miner))
-
-	h.Write(bh.StateHash)
-	h.Write(bh.TransationHash)
-
-	return hex.EncodeToString(h.Sum(nil))
-}
-
 // HasTxn checks whether the txn is included in the block
 func (b *Block) HasTxn(txnID string) bool {
 	for _, signedTxn := range b.Transactions {
@@ -73,6 +73,41 @@ func (b *Block) HasTxn(txnID string) bool {
 		}
 	}
 	return false
+}
+
+// Verify verifies if a block is valid
+func (b *Block) Verify(worldState storage.KVStore) error {
+	config := getConfigFromWorldState(worldState)
+
+	// check miner
+	if _, ok := config.Participants[b.Miner]; !ok {
+		return fmt.Errorf("miner %s is not a participant of the permissined chain", b.Miner)
+	}
+
+	// check hash
+	h := sha256.New()
+	for _, txn := range b.Transactions {
+		h.Write(txn.Hash())
+	}
+	if b.TransationHash != hex.EncodeToString(h.Sum(nil)) {
+		return fmt.Errorf("block %s has inconsistent transaction hash", b.Hash())
+	}
+	if b.StateHash != hex.EncodeToString(b.States.Hash()) {
+		return fmt.Errorf("block %s has inconsistent state hash", b.Hash())
+	}
+
+	// check state
+	for _, txn := range b.Transactions {
+		err := txn.Verify(worldState, config)
+		if err != nil {
+			return fmt.Errorf("block %s has invalid transaction", b.Hash())
+		}
+	}
+	if hex.EncodeToString(worldState.Hash()) != b.StateHash {
+		return fmt.Errorf("block %s has different execution result from expected", b.Hash())
+	}
+
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -85,11 +120,13 @@ type BlockBuilder struct {
 	miner        string
 	states       storage.KVStore
 	transactions []SignedTransaction
+	maxTxnCount  int
 }
 
-func NewBlockBuilder(blockType BlkType) *BlockBuilder {
+func NewBlockBuilder(blockType BlkType, maxTxnCount int) *BlockBuilder {
 	return &BlockBuilder{
 		blockType:    blockType,
+		maxTxnCount:  maxTxnCount,
 		transactions: make([]SignedTransaction, 0),
 	}
 }
@@ -97,6 +134,9 @@ func NewBlockBuilder(blockType BlkType) *BlockBuilder {
 func (bb *BlockBuilder) AddTxn(txn *SignedTransaction) error {
 	if bb.blockType == BlkTypeConfig {
 		return fmt.Errorf("unable to append txn to a config block: %T", txn.Txn)
+	}
+	if len(bb.transactions) >= bb.maxTxnCount {
+		return fmt.Errorf("reached maximal number of txns. unable to append more")
 	}
 
 	bb.transactions = append(bb.transactions, *txn)
@@ -122,7 +162,7 @@ func (bb *BlockBuilder) SetHeight(height uint) *BlockBuilder {
 	return bb
 }
 
-func (bb *BlockBuilder) SetMinder(miner string) *BlockBuilder {
+func (bb *BlockBuilder) SetMiner(miner string) *BlockBuilder {
 	bb.miner = miner
 	return bb
 }
@@ -137,13 +177,15 @@ func (bb *BlockBuilder) Build() *Block {
 	for _, txn := range bb.transactions {
 		h.Write(txn.Hash())
 	}
+	txnHash := h.Sum(nil)
 
 	header := BlockHeader{
 		PrevHash:       bb.prevHash,
 		Height:         bb.height,
+		Type:           bb.blockType,
 		Miner:          bb.miner,
-		StateHash:      []byte(bb.states.Hash()),
-		TransationHash: h.Sum(nil),
+		StateHash:      hex.EncodeToString(bb.states.Hash()),
+		TransationHash: hex.EncodeToString(txnHash),
 	}
 
 	return &Block{

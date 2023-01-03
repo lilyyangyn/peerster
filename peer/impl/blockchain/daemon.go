@@ -39,7 +39,7 @@ func (m *BlockchainModule) createBlock(ctx context.Context,
 
 	worldState := prevBlock.GetWorldState()
 	config := prevBlock.GetConfig()
-	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn)
+	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn, config.MaxTxnsPerBlk)
 	blkBuilder.SetPrevHash(prevBlock.Hash()).SetHeight(prevBlock.Height + 1)
 	txnCount := 0
 out:
@@ -51,7 +51,7 @@ out:
 			break out
 		default:
 			signedTxn := m.txnPool.Pull()
-			err := signedTxn.Verify(worldState)
+			err := signedTxn.Verify(worldState, &config)
 			if err != nil {
 				continue
 			}

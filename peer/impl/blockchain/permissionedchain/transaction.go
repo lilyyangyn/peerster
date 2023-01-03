@@ -74,7 +74,7 @@ func (txn *Transaction) Hash() string {
 }
 
 // Exec executes the transaction based on the input worldState
-func (txn *Transaction) Exec(worldState storage.KVStore) error {
+func (txn *Transaction) Exec(worldState storage.KVStore, config *ChainConfig) error {
 	// check nonce
 	account := getAccountFromWorldState(worldState, txn.From)
 	if account.nonce != txn.Nonce {
@@ -87,7 +87,7 @@ func (txn *Transaction) Exec(worldState storage.KVStore) error {
 	if !ok {
 		return fmt.Errorf("invalid transaction type: %s", txn.Type)
 	}
-	err := handler(worldState, txn)
+	err := handler(worldState, config, txn)
 	if err != nil {
 		return err
 	}
@@ -136,9 +136,15 @@ func (signedTxn *SignedTransaction) Hash() []byte {
 }
 
 // Verify verify the signature and then execute to see whether the result is consistent with worldState
-func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
-	// verify signature
+func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *ChainConfig) error {
 	txn := signedTxn.Txn
+
+	// verify origin is inside the chain
+	if _, ok := config.Participants[txn.From]; !ok {
+		return fmt.Errorf("address %s is not a participant of the permissined chain", txn.From)
+	}
+
+	// verify signature
 	digestHash := txn.HashBytes()
 	publicKey, err := crypto.Ecrecover(digestHash, signedTxn.Signature)
 	if err != nil {
@@ -148,6 +154,7 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
 	if addr.Hex != txn.From {
 		return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
 	}
+
 	// verify sig input needs to be in [R || S] format
 	sigValid := crypto.VerifySignature(publicKey, digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
 	if !sigValid {
@@ -155,7 +162,7 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
 	}
 
 	// execute txn
-	err = txn.Exec(worldState)
+	err = txn.Exec(worldState, config)
 
 	return err
 }
@@ -173,20 +180,20 @@ func NewTransactionPreMPC(initiator *Account, data MPCRecord) *Transaction {
 	)
 }
 
-func execPreMPC(worldState storage.KVStore, txn *Transaction) error {
+func execPreMPC(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
 	record := txn.Data.(MPCRecord)
 	if record.Budget != txn.Value || record.Initiator != txn.From {
 		return fmt.Errorf("Transaction data inconsistent")
 	}
 
 	// lock balance to avoid double spending
-	config := getConfigFromWorldState(worldState)
 	err := lockBalance(worldState, txn.From, record.Budget*float64(len(config.Participants)))
 	if err != nil {
 		return err
 	}
 	// add MPC record to worldState
-	err = worldState.Put(mpcKeyFromUniqID(record.UniqID), MPCEndorsement{
+	// use txnHash has uniqID
+	err = worldState.Put(mpcKeyFromUniqID(txn.Hash()), MPCEndorsement{
 		Peers:     config.Participants,
 		Endorsers: map[string]struct{}{},
 		Budget:    record.Budget,
@@ -212,7 +219,7 @@ func NewTransactionPostMPC(from *Account, data MPCRecord) *Transaction {
 	)
 }
 
-func execPostMPC(worldState storage.KVStore, txn *Transaction) error {
+func execPostMPC(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
 	record := txn.Data.(MPCRecord)
 	initiator := getAccountFromWorldState(worldState, record.Initiator)
 
@@ -245,7 +252,7 @@ type MPCEndorsement struct {
 	Locked    bool
 }
 
-var txnHandlerStore = map[TxnType]func(storage.KVStore, *Transaction) error{
+var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
 	TxnTypePreMPC:  execPreMPC,
 	TxnTypePostMPC: execPostMPC,
 }
@@ -257,7 +264,7 @@ func mpcKeyFromUniqID(uniqID string) string {
 func getAccountFromWorldState(worldState storage.KVStore, key string) *Account {
 	object, ok := worldState.Get(key)
 	if !ok {
-		return NewAccount(Address{Hex: key})
+		return NewAccount(*NewAddressFromHex(key))
 	}
 	account := object.(Account)
 	return &account
@@ -272,13 +279,13 @@ func getConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	return &config
 }
 
-func getMPCEndorsementFromWorldState(worldState storage.KVStore, key string) *MPCEndorsement {
+func getMPCEndorsementFromWorldState(worldState storage.KVStore, key string) (*MPCEndorsement, error) {
 	object, ok := worldState.Get(key)
 	if !ok {
-		panic(fmt.Errorf("MPC endorsement not exists"))
+		return nil, fmt.Errorf("MPC endorsement not exists")
 	}
 	endorsement := object.(MPCEndorsement)
-	return &endorsement
+	return &endorsement, nil
 }
 
 func updateNonce(worldState storage.KVStore, accountID string) error {
@@ -308,7 +315,7 @@ func lockBalance(worldState storage.KVStore, accountID string, amount float64) e
 	return nil
 }
 
-func getAward(worldState storage.KVStore, from *Account, to string, amount float64) {
+func claimAward(worldState storage.KVStore, from *Account, to string, amount float64) {
 	account := from
 	if from.addr.Hex != to {
 		account = getAccountFromWorldState(worldState, to)
@@ -330,9 +337,15 @@ func getAward(worldState storage.KVStore, from *Account, to string, amount float
 }
 
 func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Account, accountID string) error {
-	endorsement := getMPCEndorsementFromWorldState(worldState, key)
+	endorsement, err := getMPCEndorsementFromWorldState(worldState, key)
+	if err != nil {
+		return fmt.Errorf("%s endorses a non-existing MPC %s", accountID, key)
+	}
 	if _, ok := endorsement.Peers[accountID]; !ok {
-		return fmt.Errorf("no-participant sending endorsement. Potentially an attack")
+		return fmt.Errorf("%s does not participant in MPC %s. Potentially an attack", accountID, key)
+	}
+	if _, ok := endorsement.Endorsers[accountID]; ok {
+		return fmt.Errorf("%s has already endorsed in MPC %s. Potentially a double-claim", accountID, key)
 	}
 
 	endorsement.Endorsers[accountID] = struct{}{}
@@ -343,14 +356,14 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Acc
 				panic(err)
 			}
 		}
-		getAward(worldState, initiator, accountID, endorsement.Budget)
+		claimAward(worldState, initiator, accountID, endorsement.Budget)
 		return nil
 	}
 
 	threshold := float64(len(endorsement.Peers)) * AwardUnlockThreshold
 	if float64(len(endorsement.Endorsers)) > threshold {
 		for endorser, _ := range endorsement.Endorsers {
-			getAward(worldState, initiator, endorser, endorsement.Budget)
+			claimAward(worldState, initiator, endorser, endorsement.Budget)
 		}
 		endorsement.Locked = false
 		if len(endorsement.Endorsers) == len(endorsement.Peers) {

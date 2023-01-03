@@ -24,6 +24,10 @@ func NewAddress(pubkey []byte) *Address {
 	return &Address{Hex: hex.EncodeToString(hash)}
 }
 
+func NewAddressFromHex(pubkeyhex string) *Address {
+	return &Address{Hex: pubkeyhex}
+}
+
 // -----------------------------------------------------------------------------
 // Account
 
