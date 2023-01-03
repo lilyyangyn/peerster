@@ -1,6 +1,8 @@
 package peer
 
-import permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
+import (
+	permissioned "go.dedis.ch/cs438/permissionedchain"
+)
 
 type PermissionedChain interface {
 	// InitBlockchain inits a new blockchain

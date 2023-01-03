@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"go.dedis.ch/cs438/peer"
-	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
 	"go.dedis.ch/cs438/peer/impl/message"
+	permissioned "go.dedis.ch/cs438/permissionedchain"
 	"go.dedis.ch/cs438/types"
 )
 

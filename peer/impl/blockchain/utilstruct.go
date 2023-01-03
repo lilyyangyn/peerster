@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissionedchain"
 )
 
 type TxnPool struct {

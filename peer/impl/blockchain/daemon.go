@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissionedchain"
 )
 
 // -----------------------------------------------------------------------------

@@ -9,11 +9,11 @@ import (
 
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/blockchain"
-	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/mpc"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	permissioned "go.dedis.ch/cs438/permissionedchain"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
