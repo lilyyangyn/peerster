@@ -26,11 +26,14 @@ func NewBlockchain() *Blockchain {
 }
 
 // InitGenesisBlock inits a new blockchain with the given config
-func (bc *Blockchain) InitGenesisBlock(config *ChainConfig, initialGain map[string]float64) (Block, error) {
+func (bc *Blockchain) InitGenesisBlock(config *ChainConfig,
+	initialGain map[string]float64) (Block, error) {
 	worldState := storage.NewBasicKV()
 	for participant, _ := range config.Participants {
 		account := NewAccount(*NewAddressFromHex(participant))
-		account.balance = initialGain[participant]
+		if amount, ok := initialGain[participant]; ok {
+			account.balance = amount
+		}
 	}
 	worldState.Put(STATE_CONFIG_KEY, *config)
 
@@ -44,6 +47,10 @@ func (bc *Blockchain) InitGenesisBlock(config *ChainConfig, initialGain map[stri
 
 	bc.Lock()
 	defer bc.Unlock()
+
+	if len(bc.blocksStore) > 0 {
+		panic("unable to init an already existing chain")
+	}
 	bc.blocksStore[block.Hash()] = block
 	bc.latestBlock = block
 
@@ -55,6 +62,7 @@ func (bc *Blockchain) GetBlockStore() map[string]Block {
 	store := make(map[string]Block)
 	bc.RLock()
 	defer bc.RUnlock()
+
 	for key, block := range bc.blocksStore {
 		store[key] = *block
 	}
@@ -65,6 +73,7 @@ func (bc *Blockchain) GetBlockStore() map[string]Block {
 func (bc *Blockchain) GetLatestBlock() Block {
 	bc.RLock()
 	defer bc.RUnlock()
+
 	return *bc.latestBlock
 }
 
@@ -72,40 +81,76 @@ func (bc *Blockchain) GetLatestBlock() Block {
 func (bc *Blockchain) GetConfig() ChainConfig {
 	bc.RLock()
 	defer bc.RUnlock()
-	return *getConfigFromWorldState(bc.latestBlock.States)
+
+	return *GetConfigFromWorldState(bc.latestBlock.States)
 }
 
-func (bc *Blockchain) ValidateBlock(block *Block) error {
+type BlockHeightCompareResult int
+
+const (
+	BlockCompareMatched BlockHeightCompareResult = iota
+	BlockCompareStale
+	BlockCompareAdvance
+	BlockCompareInvalidHash
+)
+
+// HasTxn checks if the target transaction is in blockchain
+func (bc *Blockchain) HasTxn(txnID string) bool {
+	bc.RLock()
+	defer bc.RUnlock()
+	curBlock := bc.latestBlock
+
+	ok := true
+	for ok {
+		if curBlock.HasTxn(txnID) {
+			return true
+		}
+		curBlock, ok = bc.blocksStore[curBlock.PrevHash]
+	}
+	return false
+}
+
+// CheckBlockHeight checks if a block can be appended to the end of chain
+func (bc *Blockchain) CheckBlockHeight(block *Block) BlockHeightCompareResult {
 	// block can only be the latest height+1
 	bc.RLock()
 	defer bc.RUnlock()
 
-	lastHeight := bc.latestBlock.Height
-	// lastPrevBlck := bc.latestBlocks.PrevHash
-	// if height equal, then it is a fork
-	// if lastHeight == block.Height {
-	// 	if block.PrevHash != lastPrevBlck {
-	// 		return fmt.Errorf("block with invalid prev hash. Expected: %s, Got: %s", lastPrevBlck, block.PrevHash)
-	// 	}
-	// 	bc.latestBlocks = append(bc.latestBlocks, &block)
-	// 	return nil
-	// }
-	// if height != lastHeight, then invalid block, too new or too old
-	if lastHeight+1 != block.Height {
-		return fmt.Errorf("block too new or too old. Expected: %d, Got: %d", lastHeight, block.Height)
-	}
-	if prevhash := bc.latestBlock.Hash(); prevhash != block.PrevHash {
-		return fmt.Errorf("invalid parent hash. Expected: %s, Got: %s", prevhash, block.PrevHash)
-	}
-	return nil
+	return bc.checkBlockHeight(block)
 }
 
 // AppendBlock appends a new block to the blockchain
 func (bc *Blockchain) AppendBlock(block *Block) error {
-	// block can only be the latest height+1
 	bc.Lock()
 	defer bc.Unlock()
 
+	// try append to see if at the correct position
+	status := bc.checkBlockHeight(block)
+	if status == BlockCompareStale || status == BlockCompareAdvance {
+		return fmt.Errorf("block too new or too old. Expected: %d, Got: %d",
+			bc.latestBlock.Height, block.Height)
+	}
+	if status == BlockCompareInvalidHash {
+		return fmt.Errorf("invalid parent hash. Expected: %s, Got: %s",
+			bc.latestBlock.Hash(), block.PrevHash)
+	}
+
+	// verify block
+	err := block.Verify(bc.latestBlock.States.Copy())
+	if err != nil {
+		return err
+	}
+
+	// extends the blockchain
+	bc.blocksStore[block.Hash()] = block
+	bc.latestBlock = block
+
+	return nil
+}
+
+// checkBlockHeight is a helper funcion of TryAppendBlock
+func (bc *Blockchain) checkBlockHeight(block *Block) BlockHeightCompareResult {
+	// block can only be the latest height+1
 	lastHeight := bc.latestBlock.Height
 	// lastPrevBlck := bc.latestBlocks.PrevHash
 	// if height equal, then it is a fork
@@ -117,18 +162,14 @@ func (bc *Blockchain) AppendBlock(block *Block) error {
 	// 	return nil
 	// }
 	// if height != lastHeight, then invalid block, too new or too old
-	if lastHeight+1 != block.Height {
-		return fmt.Errorf("block too new or too old. Expected: %d, Got: %d", lastHeight, block.Height)
+	if lastHeight+1 > block.Height {
+		return BlockCompareStale
 	}
-
-	// extends the blockchain
-	// for _, blk := range bc.latestBlocks {
-	prevhash := bc.latestBlock.Hash()
-	if prevhash == block.PrevHash {
-		bc.latestBlock = block
-		return nil
+	if lastHeight+1 < block.Height {
+		return BlockCompareAdvance
 	}
-	// }
-
-	return fmt.Errorf("invalid parent hash. Expected: %s, Got: %s", prevhash, block.PrevHash)
+	if prevhash := bc.latestBlock.Hash(); prevhash != block.PrevHash {
+		return BlockCompareInvalidHash
+	}
+	return BlockCompareMatched
 }

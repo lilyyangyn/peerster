@@ -2,17 +2,16 @@ package blockchain
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
 )
 
 // -----------------------------------------------------------------------------
 // Miner
 
-func (m *BlockchainModule) Mine(ctx context.Context) {
-	m.txnPool = NewTxnPool(ctx)
+func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
 out:
 	for {
 		select {
@@ -20,25 +19,33 @@ out:
 			return
 		default:
 			latestBlock := m.blockchain.GetLatestBlock()
-			newBlock := m.createBlock(ctx, &latestBlock)
+			config := latestBlock.GetConfig()
+			newBlock := createBlock(ctx, txnPool, &latestBlock, &config)
+			if newBlock == nil {
+				return
+			}
 
 			// validate block
-			if err := m.blockchain.ValidateBlock(newBlock); err != nil {
-				// reprocess txn if fail to validate block
+			if m.blockchain.CheckBlockHeight(newBlock) != permissioned.BlockCompareMatched {
+				// put the transactions back to the pool
 				m.txnPool.PushSeveral(newBlock.Transactions)
 				continue out
 			}
 
-			// TODO: broadcast block
+			// broadcast block
+			err := m.broadcastBCBlkMessage(config.Participants, newBlock)
+			if err != nil {
+				log.Err(err)
+			}
 		}
 	}
 }
 
-func (m *BlockchainModule) createBlock(ctx context.Context,
-	prevBlock *permissioned.Block) *permissioned.Block {
+func createBlock(ctx context.Context, txnPool *TxnPool,
+	prevBlock *permissioned.Block,
+	config *permissioned.ChainConfig) *permissioned.Block {
 
 	worldState := prevBlock.GetWorldState()
-	config := prevBlock.GetConfig()
 	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn, config.MaxTxnsPerBlk)
 	blkBuilder.SetPrevHash(prevBlock.Hash()).SetHeight(prevBlock.Height + 1)
 	txnCount := 0
@@ -50,8 +57,8 @@ out:
 		case <-time.After(time.Duration(config.WaitTimeout)):
 			break out
 		default:
-			signedTxn := m.txnPool.Pull()
-			err := signedTxn.Verify(worldState, &config)
+			signedTxn := txnPool.Pull()
+			err := signedTxn.Verify(worldState, config)
 			if err != nil {
 				continue
 			}
@@ -81,7 +88,12 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 			return
 		case block := <-m.blkChan:
 			// TODO: validate consensus
-			fmt.Println(block)
+			// TODO: catchup
+
+			err := m.blockchain.AppendBlock(block)
+			if err != nil {
+				log.Err(err)
+			}
 		}
 	}
 }

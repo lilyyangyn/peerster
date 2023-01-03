@@ -32,7 +32,7 @@ func (p *TxnPool) Push(txn *permissioned.SignedTransaction) {
 	p.Signal()
 }
 
-func (p *TxnPool) PushSeveral(txns []permissioned.SignedTransaction) {
+func (p *TxnPool) PushSeveral(txns map[string]permissioned.SignedTransaction) {
 	p.Lock()
 	defer p.Unlock()
 

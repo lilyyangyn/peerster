@@ -44,7 +44,7 @@ func (bh *BlockHeader) Hash() string {
 type Block struct {
 	*BlockHeader
 	States       storage.KVStore
-	Transactions []SignedTransaction
+	Transactions map[string]SignedTransaction
 }
 
 // BlkType helps to defer different types of txns & blocks
@@ -62,22 +62,18 @@ func (b *Block) GetWorldState() storage.KVStore {
 
 // GetConfig returns a copy of blockchain's config
 func (b *Block) GetConfig() ChainConfig {
-	return *getConfigFromWorldState(b.States)
+	return *GetConfigFromWorldState(b.States)
 }
 
 // HasTxn checks whether the txn is included in the block
 func (b *Block) HasTxn(txnID string) bool {
-	for _, signedTxn := range b.Transactions {
-		if signedTxn.Txn.ID == txnID {
-			return true
-		}
-	}
-	return false
+	_, ok := b.Transactions[txnID]
+	return ok
 }
 
 // Verify verifies if a block is valid
 func (b *Block) Verify(worldState storage.KVStore) error {
-	config := getConfigFromWorldState(worldState)
+	config := GetConfigFromWorldState(worldState)
 
 	// check miner
 	if _, ok := config.Participants[b.Miner]; !ok {
@@ -119,7 +115,7 @@ type BlockBuilder struct {
 	blockType    BlkType
 	miner        string
 	states       storage.KVStore
-	transactions []SignedTransaction
+	transactions map[string]SignedTransaction
 	maxTxnCount  int
 }
 
@@ -127,7 +123,7 @@ func NewBlockBuilder(blockType BlkType, maxTxnCount int) *BlockBuilder {
 	return &BlockBuilder{
 		blockType:    blockType,
 		maxTxnCount:  maxTxnCount,
-		transactions: make([]SignedTransaction, 0),
+		transactions: make(map[string]SignedTransaction),
 	}
 }
 
@@ -139,7 +135,7 @@ func (bb *BlockBuilder) AddTxn(txn *SignedTransaction) error {
 		return fmt.Errorf("reached maximal number of txns. unable to append more")
 	}
 
-	bb.transactions = append(bb.transactions, *txn)
+	bb.transactions[txn.Txn.ID] = *txn
 	return nil
 }
 

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/blockchain"
+	permissioned "go.dedis.ch/cs438/peer/impl/blockchain/permissionedchain"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/mpc"
@@ -30,6 +32,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.paxos = paxos.NewPaxosModule(&conf, n.message)
 	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
 	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos)
+	n.blockchain = blockchain.NewBlockchainModule(&conf, n.message)
 
 	return &n
 }
@@ -45,6 +48,7 @@ type node struct {
 	paxos       *paxos.PaxosModule
 	datasharing *datashare.DataSharingModule
 	mpc         *mpc.MPCModule
+	blockchain  *blockchain.BlockchainModule
 
 	stopSig context.CancelFunc
 }
@@ -192,4 +196,29 @@ func (n *node) SetValueDBAsset(key string, value int) error {
 // Calculate implements peer.Calculate
 func (n *node) Calculate(expression string, budget float64) (int, error) {
 	return n.mpc.Calculate(expression, budget)
+}
+
+// InitBlockchain implements peer.InitBlockchain
+func (n *node) InitBlockchain(config permissioned.ChainConfig, initialGain map[string]float64) error {
+	return n.blockchain.InitBlockchain(config, initialGain)
+}
+
+// SendTransaction implements peer.SendTransaction
+func (n *node) SendTransaction(txn *permissioned.Transaction) error {
+	return n.blockchain.SendTransaction(txn)
+}
+
+// HasTransaction implements peer.VerifyTransaction
+func (n *node) HasTransaction(txnID string) bool {
+	return n.blockchain.HasTransaction(txnID)
+}
+
+// GenerateKeyPair implements peer.GenerateKeyPair
+func (n *node) GenerateKeyPair(path string) error {
+	return n.blockchain.GenerateKeyPair(path)
+}
+
+// LoadKeyPair implements peer.LoadKeyPair
+func (n *node) LoadKeyPair(path string) error {
+	return n.blockchain.LoadKeyPair(path)
 }

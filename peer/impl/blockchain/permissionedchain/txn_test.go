@@ -12,7 +12,7 @@ func Test_Txn_Sign(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := NewAccount(*NewAddress(&pubkey))
 
 	// create signature
 	txn := NewTransactionPreMPC(account, MPCRecord{
@@ -40,7 +40,7 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 20
 	require.Equal(t, float64(0), account.lockedBalance)
 
@@ -69,12 +69,12 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 
 	// verify worldState
 	require.NotEqual(t, stateCopy.Hash(), worldState.Hash())
-	newAccount := getAccountFromWorldState(worldState, txn.From)
+	newAccount := GetAccountFromWorldState(worldState, txn.From)
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	require.Equal(t, account.balance, newAccount.balance+budget)
 	require.Equal(t, newAccount.lockedBalance, budget)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
-	mpcendorse, err := getMPCEndorsementFromWorldState(worldState, mpcKeyFromUniqID("test"))
+	mpcendorse, err := GetMPCEndorsementFromWorldState(worldState, mpcKeyFromUniqID(txn.ID))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(mpcendorse.Peers))
 	require.Equal(t, 0, len(mpcendorse.Endorsers))
@@ -86,7 +86,7 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 200
 	require.Equal(t, float64(0), account.lockedBalance)
 
@@ -144,10 +144,10 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 }
 
 func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
-	account := *NewAccount(*NewAddress([]byte("account1")))
+	account := *NewAccount(*NewAddressFromHex("account1"))
 
 	// create initiator
-	initiator := *NewAccount(*NewAddress([]byte("initiator")))
+	initiator := *NewAccount(*NewAddressFromHex("initiator"))
 	initiator.nonce = 1
 	initiator.lockedBalance = 200
 
@@ -188,21 +188,21 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 
 	// > verify worldState
 
-	newAccount := getAccountFromWorldState(worldState, txn.From)
+	newAccount := GetAccountFromWorldState(worldState, txn.From)
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	// threshold not reached. No award will be collect
 	require.Equal(t, account.balance, newAccount.balance)
 	require.Equal(t, account.lockedBalance, newAccount.lockedBalance)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
 
-	newInitiator := getAccountFromWorldState(worldState, initiator.addr.Hex)
+	newInitiator := GetAccountFromWorldState(worldState, initiator.addr.Hex)
 	require.Equal(t, initiator.addr.Hex, newInitiator.addr.Hex)
 	require.Equal(t, initiator.balance, newInitiator.balance)
 	// threshold not reached. No award will be sent
 	require.Equal(t, initiator.lockedBalance, newInitiator.lockedBalance)
 	require.Equal(t, initiator.nonce, newInitiator.nonce)
 
-	mpcendorse, err := getMPCEndorsementFromWorldState(worldState, mpcKeyFromUniqID("test"))
+	mpcendorse, err := GetMPCEndorsementFromWorldState(worldState, mpcKeyFromUniqID("test"))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(mpcendorse.Endorsers))
 	_, ok := mpcendorse.Endorsers[account.addr.Hex]
@@ -217,14 +217,14 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 
 	// > verify worldState
 
-	newAccount = getAccountFromWorldState(worldState, account.addr.Hex)
+	newAccount = GetAccountFromWorldState(worldState, account.addr.Hex)
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	// threshold reached. Award must be collected
 	require.Equal(t, account.balance+budget, newAccount.balance)
 	require.Equal(t, account.lockedBalance, newAccount.lockedBalance)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
 
-	newInitiator = getAccountFromWorldState(worldState, txn.From)
+	newInitiator = GetAccountFromWorldState(worldState, txn.From)
 	require.Equal(t, initiator.addr.Hex, newInitiator.addr.Hex)
 	// threshold reached. Award must be collected
 	require.Equal(t, initiator.balance+budget, newInitiator.balance)
@@ -238,11 +238,11 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 }
 
 func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
-	account := *NewAccount(*NewAddress([]byte("account1")))
-	account2 := *NewAccount(*NewAddress([]byte("account2")))
+	account := *NewAccount(*NewAddressFromHex("account1"))
+	account2 := *NewAccount(*NewAddressFromHex("account2"))
 
 	// create initiator
-	initiator := *NewAccount(*NewAddress([]byte("initiator")))
+	initiator := *NewAccount(*NewAddressFromHex("initiator"))
 	initiator.nonce = 1
 	initiator.lockedBalance = 200
 
@@ -301,7 +301,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	require.NoError(t, err)
 	// second claim should fail
 	stateCopy = worldState.Copy()
-	newAccount := *getAccountFromWorldState(worldState, account.addr.Hex)
+	newAccount := *GetAccountFromWorldState(worldState, account.addr.Hex)
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
 	txn = NewTransactionPostMPC(&newAccount, record)

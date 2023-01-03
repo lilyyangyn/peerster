@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"go.dedis.ch/cs438/storage"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,6 +17,8 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
+	storage.Copyable
+
 	ID           string
 	Participants map[string]struct{}
 
@@ -68,4 +71,20 @@ func (c *ChainConfig) Hash() string {
 	h.Write([]byte(fmt.Sprintf("%d", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// Copy implements Copyable.Copy
+func (c *ChainConfig) Copy() storage.Copyable {
+	participants := make(map[string]struct{})
+	for key, val := range c.Participants {
+		participants[key] = val
+	}
+	config := ChainConfig{
+		ID:            c.ID,
+		Participants:  participants,
+		MaxTxnsPerBlk: c.MaxTxnsPerBlk,
+		WaitTimeout:   c.WaitTimeout,
+		JoinThreshold: c.JoinThreshold,
+	}
+	return &config
 }

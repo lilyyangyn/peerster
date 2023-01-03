@@ -3,6 +3,7 @@ package permissioned
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -12,9 +13,14 @@ import (
 
 func Test_Block_Build(t *testing.T) {
 	transactionNum := 10
-	transactions := make([]SignedTransaction, transactionNum)
+	transactions := make(map[string]SignedTransaction)
 	for i := 0; i < transactionNum; i++ {
-		transactions[i] = SignedTransaction{}
+		signedTxn := SignedTransaction{
+			Txn: Transaction{
+				ID: fmt.Sprintf("%d", i),
+			},
+		}
+		transactions[signedTxn.Txn.ID] = signedTxn
 	}
 
 	prevHash := "fffffff"
@@ -59,7 +65,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 15
 
 	// create worldstate
@@ -111,7 +117,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 15
 
 	// create worldstate
@@ -145,7 +151,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 
 	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
 	bb.SetPrevHash("").SetHeight(0).
-		SetMiner(NewAddress([]byte("fake")).Hex).
+		SetMiner(NewAddressFromHex("fake").Hex).
 		SetState(worldState)
 
 	err = bb.AddTxn(txn1)
@@ -164,7 +170,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 15
 
 	// create worldstate
@@ -218,7 +224,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 15
 
 	// create worldstate
@@ -271,7 +277,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	pubkey := privKey.PublicKey
-	account := *NewAccount(*NewAddress(crypto.FromECDSAPub(&pubkey)))
+	account := *NewAccount(*NewAddress(&pubkey))
 	account.balance = 15
 
 	// create worldstate

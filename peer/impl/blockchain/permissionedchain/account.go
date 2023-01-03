@@ -1,8 +1,9 @@
 package permissioned
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"crypto/ecdsa"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // -----------------------------------------------------------------------------
@@ -14,14 +15,10 @@ type Address struct {
 	Hex string
 }
 
-func NewAddress(pubkey []byte) *Address {
-	h := sha256.New()
-	h.Write(pubkey)
-	hash := h.Sum(nil)
+func NewAddress(pubkey *ecdsa.PublicKey) *Address {
+	addressBytes := crypto.PubkeyToAddress(*pubkey).Hex()
 
-	// TODO: Whether we need to truncate to a fixed size?
-
-	return &Address{Hex: hex.EncodeToString(hash)}
+	return &Address{Hex: addressBytes}
 }
 
 func NewAddressFromHex(pubkeyhex string) *Address {
@@ -48,12 +45,9 @@ func NewAccount(addr Address) *Account {
 	}
 }
 
-// func (ac *Account) GetAddress() Address {
-// 	ac.RLock()
-// 	defer ac.RUnlock()
-
-// 	return ac.addr
-// }
+func (ac *Account) GetAddress() string {
+	return ac.addr.Hex
+}
 
 // func (ac *Account) GetAvailableBalance() float64 {
 // 	ac.RLock()
