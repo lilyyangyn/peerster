@@ -246,10 +246,26 @@ type MPCRecord struct {
 }
 
 type MPCEndorsement struct {
+	storage.Copyable
+	// TODO: not copy peers. Use Config ID
 	Peers     map[string]struct{}
 	Endorsers map[string]struct{}
 	Budget    float64
 	Locked    bool
+}
+
+func (e MPCEndorsement) Copy() storage.Copyable {
+	endorsers := map[string]struct{}{}
+	for endorser := range e.Endorsers {
+		endorsers[endorser] = struct{}{}
+	}
+	endorsement := MPCEndorsement{
+		Peers:     e.Peers,
+		Endorsers: endorsers,
+		Budget:    e.Budget,
+		Locked:    e.Locked,
+	}
+	return endorsement
 }
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
@@ -338,6 +354,7 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 
 func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Account, accountID string) error {
 	endorsement, err := GetMPCEndorsementFromWorldState(worldState, key)
+	fmt.Println(endorsement)
 	if err != nil {
 		return fmt.Errorf("%s endorses a non-existing MPC %s", accountID, key)
 	}

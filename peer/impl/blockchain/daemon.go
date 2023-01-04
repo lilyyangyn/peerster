@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	permissioned "go.dedis.ch/cs438/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 )
 
 // -----------------------------------------------------------------------------
@@ -45,8 +45,8 @@ func createBlock(ctx context.Context, txnPool *TxnPool,
 	prevBlock *permissioned.Block,
 	config *permissioned.ChainConfig) *permissioned.Block {
 
-	worldState := prevBlock.GetWorldState()
-	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn, config.MaxTxnsPerBlk)
+	worldState := prevBlock.GetWorldStateCopy()
+	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn)
 	blkBuilder.SetPrevHash(prevBlock.Hash()).SetHeight(prevBlock.Height + 1)
 	txnCount := 0
 out:
@@ -62,7 +62,10 @@ out:
 			if err != nil {
 				continue
 			}
-			blkBuilder.AddTxn(signedTxn)
+			err = blkBuilder.AddTxn(signedTxn)
+			if err != nil {
+				break out
+			}
 			txnCount++
 
 			if txnCount == config.MaxTxnsPerBlk {

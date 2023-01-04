@@ -1,7 +1,7 @@
 package peer
 
 import (
-	permissioned "go.dedis.ch/cs438/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 )
 
 type PermissionedChain interface {

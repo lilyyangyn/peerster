@@ -1,7 +1,7 @@
 package types
 
 import (
-	permissioned "go.dedis.ch/cs438/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/transport"
 )
 

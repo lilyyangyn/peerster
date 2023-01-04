@@ -44,7 +44,7 @@ func (bh *BlockHeader) Hash() string {
 type Block struct {
 	*BlockHeader
 	States       storage.KVStore
-	Transactions map[string]SignedTransaction
+	Transactions []SignedTransaction
 }
 
 // BlkType helps to defer different types of txns & blocks
@@ -55,8 +55,8 @@ const (
 	BlkTypeTxn    BlkType = "blk-txn"
 )
 
-// GetWorldState returns a copy of block's world state
-func (b *Block) GetWorldState() storage.KVStore {
+// GetWorldStateCopy returns a copy of block's world state
+func (b *Block) GetWorldStateCopy() storage.KVStore {
 	return b.States.Copy()
 }
 
@@ -67,8 +67,12 @@ func (b *Block) GetConfig() ChainConfig {
 
 // HasTxn checks whether the txn is included in the block
 func (b *Block) HasTxn(txnID string) bool {
-	_, ok := b.Transactions[txnID]
-	return ok
+	for _, txn := range b.Transactions {
+		if txn.Txn.ID == txnID {
+			return true
+		}
+	}
+	return false
 }
 
 // Verify verifies if a block is valid
@@ -96,7 +100,7 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 	for _, txn := range b.Transactions {
 		err := txn.Verify(worldState, config)
 		if err != nil {
-			return fmt.Errorf("block %s has invalid transaction", b.Hash())
+			return fmt.Errorf("block %s has invalid transaction: %t", b.Hash(), err)
 		}
 	}
 	if hex.EncodeToString(worldState.Hash()) != b.StateHash {
@@ -115,15 +119,13 @@ type BlockBuilder struct {
 	blockType    BlkType
 	miner        string
 	states       storage.KVStore
-	transactions map[string]SignedTransaction
-	maxTxnCount  int
+	transactions []SignedTransaction
 }
 
-func NewBlockBuilder(blockType BlkType, maxTxnCount int) *BlockBuilder {
+func NewBlockBuilder(blockType BlkType) *BlockBuilder {
 	return &BlockBuilder{
 		blockType:    blockType,
-		maxTxnCount:  maxTxnCount,
-		transactions: make(map[string]SignedTransaction),
+		transactions: make([]SignedTransaction, 0),
 	}
 }
 
@@ -131,11 +133,8 @@ func (bb *BlockBuilder) AddTxn(txn *SignedTransaction) error {
 	if bb.blockType == BlkTypeConfig {
 		return fmt.Errorf("unable to append txn to a config block: %T", txn.Txn)
 	}
-	if len(bb.transactions) >= bb.maxTxnCount {
-		return fmt.Errorf("reached maximal number of txns. unable to append more")
-	}
 
-	bb.transactions[txn.Txn.ID] = *txn
+	bb.transactions = append(bb.transactions, *txn)
 	return nil
 }
 

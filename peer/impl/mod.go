@@ -13,7 +13,7 @@ import (
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/mpc"
 	"go.dedis.ch/cs438/peer/impl/paxos"
-	permissioned "go.dedis.ch/cs438/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )

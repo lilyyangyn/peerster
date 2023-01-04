@@ -13,14 +13,14 @@ import (
 
 func Test_Block_Build(t *testing.T) {
 	transactionNum := 10
-	transactions := make(map[string]SignedTransaction)
+	transactions := make([]SignedTransaction, transactionNum)
 	for i := 0; i < transactionNum; i++ {
 		signedTxn := SignedTransaction{
 			Txn: Transaction{
 				ID: fmt.Sprintf("%d", i),
 			},
 		}
-		transactions[signedTxn.Txn.ID] = signedTxn
+		transactions[i] = signedTxn
 	}
 
 	prevHash := "fffffff"
@@ -43,7 +43,7 @@ func Test_Block_Build(t *testing.T) {
 	}
 	expectedBlock.TransationHash = hex.EncodeToString(h.Sum(nil))
 
-	bb := NewBlockBuilder(BlkTypeTxn, 10)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash(prevHash).SetHeight(height).SetMiner(miner).SetState(storage.NewBasicKV())
 	for _, txn := range transactions {
 		err := bb.AddTxn(&txn)
@@ -97,7 +97,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	err = txn2.Verify(worldState, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash("").SetHeight(0).SetMiner(account.addr.Hex).
 		SetState(worldState)
 
@@ -149,7 +149,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	err = txn2.Verify(worldState, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash("").SetHeight(0).
 		SetMiner(NewAddressFromHex("fake").Hex).
 		SetState(worldState)
@@ -202,7 +202,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	err = txn2.Verify(worldState, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash("").SetHeight(0).
 		SetMiner(account.addr.Hex).
 		SetState(worldState)
@@ -256,7 +256,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	err = txn2.Verify(worldState, &config)
 	require.Error(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash("").SetHeight(0).
 		SetMiner(account.addr.Hex).
 		SetState(worldState)
@@ -309,7 +309,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	err = txn2.Verify(worldState, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeTxn)
 	bb.SetPrevHash("").SetHeight(0).
 		SetMiner(account.addr.Hex).
 		SetState(worldState)

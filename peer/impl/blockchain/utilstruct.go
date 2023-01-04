@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	permissioned "go.dedis.ch/cs438/permissionedchain"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 )
 
 type TxnPool struct {
@@ -32,7 +32,7 @@ func (p *TxnPool) Push(txn *permissioned.SignedTransaction) {
 	p.Signal()
 }
 
-func (p *TxnPool) PushSeveral(txns map[string]permissioned.SignedTransaction) {
+func (p *TxnPool) PushSeveral(txns []permissioned.SignedTransaction) {
 	p.Lock()
 	defer p.Unlock()
 

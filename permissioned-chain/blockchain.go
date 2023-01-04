@@ -30,19 +30,20 @@ func (bc *Blockchain) InitGenesisBlock(config *ChainConfig,
 	initialGain map[string]float64) (Block, error) {
 	worldState := storage.NewBasicKV()
 	for participant, _ := range config.Participants {
-		account := NewAccount(*NewAddressFromHex(participant))
+		account := *NewAccount(*NewAddressFromHex(participant))
 		if amount, ok := initialGain[participant]; ok {
 			account.balance = amount
 		}
+		worldState.Put(participant, account)
 	}
 	worldState.Put(STATE_CONFIG_KEY, *config)
 
 	// genesis block must be a block with a config txn
-	bb := NewBlockBuilder(BlkTypeConfig, config.MaxTxnsPerBlk)
+	bb := NewBlockBuilder(BlkTypeConfig)
 	bb.SetPrevHash(DUMMY_PREVHASH).
 		SetHeight(0).
 		SetMiner(ZeroAddress.Hex).
-		SetState(storage.NewBasicKV())
+		SetState(worldState)
 	block := bb.Build()
 
 	bc.Lock()

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sort"
 
 	"go.dedis.ch/cs438/storage"
 	"gopkg.in/yaml.v3"
@@ -25,12 +26,12 @@ type ChainConfig struct {
 	MaxTxnsPerBlk int
 	WaitTimeout   int
 
-	JoinThreshold int
+	JoinThreshold float64
 }
 
 // NewChainConfig creates a new config and computes its ID
 func NewChainConfig(participant map[string]struct{},
-	maxTxnsPerBlk int, waitTimeout int, threshold int) *ChainConfig {
+	maxTxnsPerBlk int, waitTimeout int, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
 
@@ -65,10 +66,18 @@ func ChainConfigFromYAML(path string) (*ChainConfig, error) {
 func (c *ChainConfig) Hash() string {
 	h := sha256.New()
 
-	for participant, _ := range c.Participants {
+	keys := make([]string, 0, len(c.Participants))
+	for k := range c.Participants {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, participant := range keys {
 		h.Write([]byte(participant))
 	}
-	h.Write([]byte(fmt.Sprintf("%d", c.JoinThreshold)))
+	h.Write([]byte(fmt.Sprintf("%d", c.MaxTxnsPerBlk)))
+	h.Write([]byte(fmt.Sprintf("%d", c.WaitTimeout)))
+	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
 }
