@@ -14,6 +14,8 @@ import (
 // Miner
 
 func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
+	// wait until the blockchain's genesis block is set
+	<-m.bcReadyChan
 out:
 	for {
 		select {
@@ -24,7 +26,7 @@ out:
 			config := latestBlock.GetConfig()
 			newBlock := createBlock(ctx, txnPool, m.account.GetAddress(), &latestBlock, &config)
 			if newBlock == nil {
-				return
+				continue
 			}
 
 			// validate block
@@ -70,6 +72,11 @@ out:
 			fmt.Println("-----------------------")
 			break out
 		case signedTxn := <-txnPool.Pull():
+			// coinbase trasaction can only be created by miner
+			if signedTxn.Txn.Type == permissioned.TxnTypeCoinbase {
+				continue
+			}
+
 			err := signedTxn.Verify(worldState, config)
 			if err != nil {
 				continue

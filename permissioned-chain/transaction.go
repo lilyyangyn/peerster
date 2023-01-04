@@ -17,9 +17,10 @@ import (
 type TxnType string
 
 const (
-	TxnTypeConfig  TxnType = "txn-config"
-	TxnTypePreMPC  TxnType = "txn-prempc"
-	TxnTypePostMPC TxnType = "txn-postmpc"
+	TxnTypeCoinbase TxnType = "txn-coinbase"
+	TxnTypeConfig   TxnType = "txn-config"
+	TxnTypePreMPC   TxnType = "txn-prempc"
+	TxnTypePostMPC  TxnType = "txn-postmpc"
 )
 
 // Transaction represents the transaction that happens inside this chain
@@ -106,6 +107,11 @@ type SignedTransaction struct {
 
 // Sign creates a signature for the trasaction using the given private key
 func (txn *Transaction) Sign(privateKey *ecdsa.PrivateKey) (*SignedTransaction, error) {
+	// no signature for coinbase txn
+	if txn.Type == TxnTypeCoinbase {
+		return &SignedTransaction{Txn: *txn}, nil
+	}
+
 	signature, err := crypto.Sign(txn.HashBytes(), privateKey)
 	if err != nil {
 		return nil, err
@@ -145,26 +151,47 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 	}
 
 	// verify signature
-	digestHash := txn.HashBytes()
-	publicKey, err := crypto.SigToPub(digestHash, signedTxn.Signature)
-	if err != nil {
-		return err
-	}
-	addr := NewAddress(publicKey)
-	if addr.Hex != txn.From {
-		return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
-	}
-
-	// verify sig input needs to be in [R || S] format
-	sigValid := crypto.VerifySignature(crypto.FromECDSAPub(publicKey), digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
-	if !sigValid {
-		return fmt.Errorf("transaction %s has invalid signature from %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+	if txn.Type != TxnTypeCoinbase {
+		digestHash := txn.HashBytes()
+		publicKey, err := crypto.SigToPub(digestHash, signedTxn.Signature)
+		if err != nil {
+			return err
+		}
+		addr := NewAddress(publicKey)
+		if addr.Hex != txn.From {
+			return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+		}
+		// verify sig input needs to be in [R || S] format
+		sigValid := crypto.VerifySignature(crypto.FromECDSAPub(publicKey), digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
+		if !sigValid {
+			return fmt.Errorf("transaction %s has invalid signature from %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+		}
 	}
 
 	// execute txn
-	err = txn.Exec(worldState, config)
+	err := txn.Exec(worldState, config)
 
 	return err
+}
+
+// -----------------------------------------------------------------------------
+// Transaction Polymophism - Coinbase
+
+func NewTransactionCoinbase(initiator *Account, to Address, value float64) *Transaction {
+	return NewTransaction(
+		initiator,
+		&to,
+		TxnTypeCoinbase,
+		value,
+		nil,
+	)
+}
+
+func execCoinbase(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+	account := GetAccountFromWorldState(worldState, txn.To)
+	account.balance += txn.Value
+	worldState.Put(account.addr.Hex, account)
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -269,8 +296,9 @@ func (e MPCEndorsement) Copy() storage.Copyable {
 }
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
-	TxnTypePreMPC:  execPreMPC,
-	TxnTypePostMPC: execPostMPC,
+	TxnTypeCoinbase: execCoinbase,
+	TxnTypePreMPC:   execPreMPC,
+	TxnTypePostMPC:  execPostMPC,
 }
 
 func mpcKeyFromUniqID(uniqID string) string {

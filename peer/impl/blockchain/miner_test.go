@@ -33,7 +33,8 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool := NewTxnPool(ctx)
+	pool := NewTxnPool()
+	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
 			Initiator:  account.GetAddress(),
@@ -88,7 +89,8 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool := NewTxnPool(ctx)
+	pool := NewTxnPool()
+	pool.SetCtx(ctx)
 
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
@@ -152,7 +154,8 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool := NewTxnPool(ctx)
+	pool := NewTxnPool()
+	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
 			Initiator:  account.GetAddress(),
@@ -217,7 +220,8 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	// init txnPool
 	ctx, cancel := context.WithCancel(context.Background())
 
-	pool := NewTxnPool(ctx)
+	pool := NewTxnPool()
+	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
 			Initiator:  account.GetAddress(),

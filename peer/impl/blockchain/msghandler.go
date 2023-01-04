@@ -46,6 +46,16 @@ func (m *BlockchainModule) ProcessBCBlkMsg(msg types.Message, pkt transport.Pack
 		return fmt.Errorf("wrong type: %T", msg)
 	}
 
+	// if is genesis block. Directly set
+	if blkMsg.Blk.Height == 0 {
+		err := m.blockchain.SetGenesisBlock(&blkMsg.Blk)
+		if err == nil {
+			close(m.bcReadyChan)
+		}
+		return err
+	}
+
+	// Otherwise,append the block
 	m.blkChan <- &blkMsg.Blk
 
 	return nil

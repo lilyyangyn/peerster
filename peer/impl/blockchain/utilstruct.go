@@ -16,15 +16,22 @@ type TxnPool struct {
 	queue   []*permissioned.SignedTransaction
 }
 
-func NewTxnPool(ctx context.Context) *TxnPool {
+func NewTxnPool() *TxnPool {
 	lock := sync.Mutex{}
 	return &TxnPool{
 		Mutex: &lock,
-		ctx:   ctx,
+		ctx:   context.Background(),
 		channel: make(chan *permissioned.SignedTransaction,
 			POOL_CHAN_BUFFER_SIZE),
 		queue: make([]*permissioned.SignedTransaction, 0),
 	}
+}
+
+func (p *TxnPool) SetCtx(ctx context.Context) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.ctx = ctx
 }
 
 func (p *TxnPool) Push(txn *permissioned.SignedTransaction) {

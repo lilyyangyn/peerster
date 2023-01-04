@@ -28,34 +28,52 @@ func NewBlockchain() *Blockchain {
 // InitGenesisBlock inits a new blockchain with the given config
 func (bc *Blockchain) InitGenesisBlock(config *ChainConfig,
 	initialGain map[string]float64) (Block, error) {
+	bb := NewBlockBuilder(BlkTypeConfig)
+
 	worldState := storage.NewBasicKV()
+	worldState.Put(ZeroAddress.Hex, *NewAccount(ZeroAddress))
+	zeroAccount := *NewAccount(ZeroAddress)
 	for participant, _ := range config.Participants {
 		account := *NewAccount(*NewAddressFromHex(participant))
 		if amount, ok := initialGain[participant]; ok {
 			account.balance = amount
+			txn := SignedTransaction{
+				Txn: *NewTransactionCoinbase(&zeroAccount, account.addr, amount),
+			}
+			zeroAccount.nonce++
+
+			bb.AddTxn(&txn)
 		}
 		worldState.Put(participant, account)
 	}
 	worldState.Put(STATE_CONFIG_KEY, *config)
 
 	// genesis block must be a block with a config txn
-	bb := NewBlockBuilder(BlkTypeConfig)
 	bb.SetPrevHash(DUMMY_PREVHASH).
 		SetHeight(0).
 		SetMiner(ZeroAddress.Hex).
 		SetState(worldState)
 	block := bb.Build()
 
+	return *block, bc.SetGenesisBlock(block)
+}
+
+// SetGenesisBlock sets genesis block for the blockchain
+func (bc *Blockchain) SetGenesisBlock(block *Block) error {
+	if block.PrevHash != DUMMY_PREVHASH || block.Height != 0 {
+		return fmt.Errorf("genesis block needs to be prevHash=%s and height=0", DUMMY_PREVHASH)
+	}
+
 	bc.Lock()
 	defer bc.Unlock()
 
 	if len(bc.blocksStore) > 0 {
-		panic("unable to init an already existing chain")
+		return fmt.Errorf("unable to init an already existing chain")
 	}
+
 	bc.blocksStore[block.Hash()] = block
 	bc.latestBlock = block
-
-	return *block, nil
+	return nil
 }
 
 // GetBlockStore returns a copy of the whole chain
@@ -93,6 +111,7 @@ const (
 	BlockCompareStale
 	BlockCompareAdvance
 	BlockCompareInvalidHash
+	BlockCompareNotInitialize
 )
 
 // HasTxn checks if the target transaction is in blockchain
@@ -125,11 +144,15 @@ func (bc *Blockchain) AppendBlock(block *Block) error {
 	bc.Lock()
 	defer bc.Unlock()
 
+	if bc.latestBlock == nil {
+		return fmt.Errorf("need to set genesis block first")
+	}
+
 	// try append to see if at the correct position
 	status := bc.checkBlockHeight(block)
 	if status == BlockCompareStale || status == BlockCompareAdvance {
 		return fmt.Errorf("block too new or too old. Expected: %d, Got: %d",
-			bc.latestBlock.Height, block.Height)
+			bc.latestBlock.Height+1, block.Height)
 	}
 	if status == BlockCompareInvalidHash {
 		return fmt.Errorf("invalid parent hash. Expected: %s, Got: %s",
@@ -151,6 +174,10 @@ func (bc *Blockchain) AppendBlock(block *Block) error {
 
 // checkBlockHeight is a helper funcion of TryAppendBlock
 func (bc *Blockchain) checkBlockHeight(block *Block) BlockHeightCompareResult {
+	if bc.latestBlock == nil {
+		return BlockCompareNotInitialize
+	}
+
 	// block can only be the latest height+1
 	lastHeight := bc.latestBlock.Height
 	// lastPrevBlck := bc.latestBlocks.PrevHash

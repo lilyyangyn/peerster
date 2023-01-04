@@ -19,15 +19,20 @@ type BlockchainModule struct {
 	privKey *ecdsa.PrivateKey
 
 	blockchain *permissioned.Blockchain
+	txnPool    *TxnPool
 
-	txnPool *TxnPool
-	blkChan chan *permissioned.Block
+	blkChan     chan *permissioned.Block
+	bcReadyChan chan struct{}
 }
 
 func NewBlockchainModule(conf *peer.Configuration, messageModule *message.MessageModule) *BlockchainModule {
 	m := BlockchainModule{
 		MessageModule: messageModule,
 		conf:          conf,
+
+		txnPool:     NewTxnPool(),
+		blkChan:     make(chan *permissioned.Block, 5),
+		bcReadyChan: make(chan struct{}),
 	}
 
 	// message registery
@@ -40,6 +45,7 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 
 // MiningDaemon starts a new minor daemon
 func (m *BlockchainModule) MiningDaemon(ctx context.Context) error {
+	m.txnPool.SetCtx(ctx)
 	go m.Mine(ctx, m.txnPool)
 	go m.VerifyBlock(ctx)
 	return nil
@@ -52,6 +58,7 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	if err != nil {
 		return err
 	}
+	close(m.bcReadyChan)
 
 	// broadcast the genesis block
 	err = m.broadcastBCBlkMessage(config.Participants, &blk)

@@ -295,3 +295,34 @@ func Test_BC_Has_Txn(t *testing.T) {
 	ok = bc.HasTxn(txn4.ID)
 	require.False(t, ok)
 }
+
+func Test_BC_Append_Genesis(t *testing.T) {
+	privKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	pubkey := privKey.PublicKey
+	account := *NewAccount(*NewAddress(&pubkey))
+
+	// create blockchain
+	config := *NewChainConfig(
+		map[string]struct{}{account.addr.Hex: {}},
+		10, "2h", 10,
+	)
+	initialGain := map[string]float64{
+		account.addr.Hex: 1000,
+	}
+	bc := NewBlockchain()
+	block0, err := bc.InitGenesisBlock(&config, initialGain)
+	require.NoError(t, err)
+
+	// cannot init twice
+	_, err = bc.InitGenesisBlock(&config, initialGain)
+	require.Error(t, err)
+
+	// append the genesis block to a new blockchain
+	newBC := NewBlockchain()
+	err = newBC.SetGenesisBlock(&block0)
+	require.NoError(t, err)
+
+	require.Equal(t, bc.GetLatestBlock().Hash(),
+		newBC.GetLatestBlock().Hash())
+}
