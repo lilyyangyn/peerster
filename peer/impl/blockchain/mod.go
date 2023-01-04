@@ -20,7 +20,8 @@ type BlockchainModule struct {
 	privKey *ecdsa.PrivateKey
 
 	*permissioned.Blockchain
-	txnPool *TxnPool
+	txnPool       *TxnPool
+	watchRegistry *WatchRegistry
 
 	blkChan     chan *permissioned.Block
 	bcReadyChan chan struct{}
@@ -31,10 +32,11 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 		MessageModule: messageModule,
 		conf:          conf,
 
-		Blockchain:  permissioned.NewBlockchain(),
-		txnPool:     NewTxnPool(),
-		blkChan:     make(chan *permissioned.Block, 5),
-		bcReadyChan: make(chan struct{}),
+		Blockchain:    permissioned.NewBlockchain(),
+		txnPool:       NewTxnPool(),
+		watchRegistry: NewWatchRegistry(),
+		blkChan:       make(chan *permissioned.Block, 5),
+		bcReadyChan:   make(chan struct{}),
 	}
 
 	// message registery
@@ -122,6 +124,33 @@ func (m *BlockchainModule) LoadKeyPair(path string) error {
 	}
 
 	return m.SetKeyPair(*privkey)
+}
+
+// SendPreMPCTransaction generates and sends a preMPC transaction
+func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64) error {
+	record := permissioned.MPCRecord{
+		Initiator:  m.account.GetAddress().Hex,
+		Budget:     budget,
+		Expression: expression,
+	}
+	signedTxn, err := permissioned.NewTransactionPreMPC(m.account, record).Sign(m.privKey)
+	if err != nil {
+		return err
+	}
+	return m.SendTransaction(signedTxn)
+}
+
+// SendPostMPCTransaction generates and sends a postMPC transaction
+func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) error {
+	record := permissioned.MPCRecord{
+		UniqID: id,
+		Result: result,
+	}
+	signedTxn, err := permissioned.NewTransactionPostMPC(m.account, record).Sign(m.privKey)
+	if err != nil {
+		return err
+	}
+	return m.SendTransaction(signedTxn)
 }
 
 // -----------------------------------------------------------------------------

@@ -122,6 +122,14 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 			if err != nil {
 				log.Err(err).Send()
 			}
+			go func() {
+				for _, signedTxn := range block.Transactions {
+					err = m.watchRegistry.Tell(&signedTxn.Txn)
+					if err != nil {
+						log.Err(err).Send()
+					}
+				}
+			}()
 		}
 	}
 }
