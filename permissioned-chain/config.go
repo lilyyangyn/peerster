@@ -24,14 +24,14 @@ type ChainConfig struct {
 	Participants map[string]struct{}
 
 	MaxTxnsPerBlk int
-	WaitTimeout   int
+	WaitTimeout   string
 
 	JoinThreshold float64
 }
 
 // NewChainConfig creates a new config and computes its ID
 func NewChainConfig(participant map[string]struct{},
-	maxTxnsPerBlk int, waitTimeout int, threshold float64) *ChainConfig {
+	maxTxnsPerBlk int, waitTimeout string, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
 
@@ -76,7 +76,7 @@ func (c *ChainConfig) Hash() string {
 		h.Write([]byte(participant))
 	}
 	h.Write([]byte(fmt.Sprintf("%d", c.MaxTxnsPerBlk)))
-	h.Write([]byte(fmt.Sprintf("%d", c.WaitTimeout)))
+	h.Write([]byte(fmt.Sprintf("%s", c.WaitTimeout)))
 	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))

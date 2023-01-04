@@ -14,7 +14,7 @@ func Test_BC_Init_Genesis(t *testing.T) {
 			"addr2": {},
 			"addr3": {},
 		},
-		10, 60000, 10,
+		10, "2h", 10,
 	)
 	initialGain := map[string]float64{
 		"addr2": 100,
@@ -51,7 +51,7 @@ func Test_BC_Append_Correct(t *testing.T) {
 	// create blockchain
 	config := *NewChainConfig(
 		map[string]struct{}{account.addr.Hex: {}},
-		10, 60000, 10,
+		10, "2h", 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -98,7 +98,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 	// create blockchain
 	config := *NewChainConfig(
 		map[string]struct{}{account.addr.Hex: {}},
-		10, 60000, 10,
+		10, "2h", 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -163,7 +163,7 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 	// create blockchain
 	config := *NewChainConfig(
 		map[string]struct{}{account.addr.Hex: {}},
-		10, 60000, 10,
+		10, "2h", 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -210,7 +210,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	// create blockchain
 	config := *NewChainConfig(
 		map[string]struct{}{account.addr.Hex: {}},
-		10, 60000, 10,
+		10, "2h", 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,

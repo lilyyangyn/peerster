@@ -22,3 +22,5 @@ type BCBlkMessage struct {
 	Origin string
 	Blk    permissioned.Block
 }
+
+// TODO: add sync message

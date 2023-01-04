@@ -38,16 +38,11 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 // -----------------------------------------------------------------------------
 // Feature Functions
 
-// StartMiner starts a new minor daemon
-func (m *BlockchainModule) StartMiner(ctx context.Context) error {
+// MiningDaemon starts a new minor daemon
+func (m *BlockchainModule) MiningDaemon(ctx context.Context) error {
 	go m.Mine(ctx, m.txnPool)
 	go m.VerifyBlock(ctx)
 	return nil
-}
-
-// StopMiner stops the minor daemon
-func (m *BlockchainModule) StopMiner() {
-	m.txnPool.Finish()
 }
 
 // InitBlockchain inits a new blockchain with the given config

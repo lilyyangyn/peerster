@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -20,7 +22,7 @@ out:
 		default:
 			latestBlock := m.blockchain.GetLatestBlock()
 			config := latestBlock.GetConfig()
-			newBlock := createBlock(ctx, txnPool, &latestBlock, &config)
+			newBlock := createBlock(ctx, txnPool, m.account.GetAddress(), &latestBlock, &config)
 			if newBlock == nil {
 				return
 			}
@@ -42,22 +44,32 @@ out:
 }
 
 func createBlock(ctx context.Context, txnPool *TxnPool,
-	prevBlock *permissioned.Block,
+	miner string, prevBlock *permissioned.Block,
 	config *permissioned.ChainConfig) *permissioned.Block {
 
 	worldState := prevBlock.GetWorldStateCopy()
 	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn)
-	blkBuilder.SetPrevHash(prevBlock.Hash()).SetHeight(prevBlock.Height + 1)
+	blkBuilder.SetPrevHash(prevBlock.Hash()).
+		SetHeight(prevBlock.Height + 1).
+		SetMiner(miner)
 	txnCount := 0
+
+	duration, err := time.ParseDuration(config.WaitTimeout)
+	if err != nil {
+		log.Warn().Msgf(`Dangerous: unrecognize max block timeout. 
+			Miner's max mining period can be infinitive`)
+		duration = math.MaxInt64
+	}
+
 out:
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(time.Duration(config.WaitTimeout)):
+		case <-time.After(duration):
+			fmt.Println("-----------------------")
 			break out
-		default:
-			signedTxn := txnPool.Pull()
+		case signedTxn := <-txnPool.Pull():
 			err := signedTxn.Verify(worldState, config)
 			if err != nil {
 				continue
