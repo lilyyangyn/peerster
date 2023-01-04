@@ -18,10 +18,30 @@ type TxnType string
 
 const (
 	TxnTypeCoinbase TxnType = "txn-coinbase"
-	TxnTypeConfig   TxnType = "txn-config"
 	TxnTypePreMPC   TxnType = "txn-prempc"
 	TxnTypePostMPC  TxnType = "txn-postmpc"
+
+	TxnTypeInitConfig TxnType = "txn-initconfig"
 )
+
+var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
+	TxnTypeCoinbase: execCoinbase,
+	TxnTypePreMPC:   execPreMPC,
+	TxnTypePostMPC:  execPostMPC,
+
+	TxnTypeInitConfig: execInitConfig,
+}
+
+var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error){
+	TxnTypeCoinbase: unmarshalCoinbase,
+	TxnTypePreMPC:   unmarshalPreMPC,
+	TxnTypePostMPC:  unmarshalPostMPC,
+
+	TxnTypeInitConfig: unmarshalInitConfig,
+}
+
+// -----------------------------------------------------------------------------
+// Transaction
 
 // Transaction represents the transaction that happens inside this chain
 type Transaction struct {
@@ -60,11 +80,16 @@ func (txn *Transaction) HashBytes() []byte {
 	h.Write([]byte(txn.Type))
 	h.Write([]byte(fmt.Sprintf("%f", txn.Value)))
 
-	bytes, err := json.Marshal(txn.Data)
-	if err != nil {
-		panic(err)
+	switch hh := txn.Data.(type) {
+	case storage.Hashable:
+		h.Write([]byte(hh.Hash()))
+	default:
+		bytes, err := json.Marshal(txn.Data)
+		if err != nil {
+			panic(err)
+		}
+		h.Write(bytes)
 	}
-	h.Write(bytes)
 
 	return h.Sum(nil)
 }
@@ -74,13 +99,46 @@ func (txn *Transaction) Hash() string {
 	return hex.EncodeToString(txn.HashBytes())
 }
 
+// String returns a description string for the transaction
+func (txn *Transaction) String() string {
+	return fmt.Sprintf("{%s: from=%s, id=%s}", txn.Type, txn.Hash(), txn.ID)
+}
+
+// Unmarshal helps to unmarshal the data part
+func (txn *Transaction) Unmarshal() error {
+	if txn.Data == nil {
+		return nil
+	}
+
+	dict, ok := txn.Data.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid data type")
+	}
+	jsonbody, err := json.Marshal(dict)
+	if err != nil {
+		return err
+	}
+
+	unmarshaler, ok := txnUnmarshalerStore[txn.Type]
+	if !ok {
+		return fmt.Errorf("invalid transaction type: %s", txn.Type)
+	}
+
+	data, err := unmarshaler(jsonbody)
+	if err != nil {
+		return err
+	}
+
+	txn.Data = data
+	return nil
+}
+
 // Exec executes the transaction based on the input worldState
 func (txn *Transaction) Exec(worldState storage.KVStore, config *ChainConfig) error {
 	// check nonce
-	account := GetAccountFromWorldState(worldState, txn.From)
-	if account.nonce != txn.Nonce {
-		return fmt.Errorf("transaction %s has invalid nonce from %s. Expected: %d, Got: %d",
-			txn.ID, txn.From, account.nonce, txn.Nonce)
+	err := checkNonce(worldState, txn)
+	if err != nil {
+		return err
 	}
 
 	// execute handler
@@ -88,7 +146,7 @@ func (txn *Transaction) Exec(worldState storage.KVStore, config *ChainConfig) er
 	if !ok {
 		return fmt.Errorf("invalid transaction type: %s", txn.Type)
 	}
-	err := handler(worldState, config, txn)
+	err = handler(worldState, config, txn)
 	if err != nil {
 		return err
 	}
@@ -107,8 +165,8 @@ type SignedTransaction struct {
 
 // Sign creates a signature for the trasaction using the given private key
 func (txn *Transaction) Sign(privateKey *ecdsa.PrivateKey) (*SignedTransaction, error) {
-	// no signature for coinbase txn
-	if txn.Type == TxnTypeCoinbase {
+	// no signature if no key is provided
+	if privateKey == nil {
 		return &SignedTransaction{Txn: *txn}, nil
 	}
 
@@ -124,21 +182,18 @@ func (txn *Transaction) Sign(privateKey *ecdsa.PrivateKey) (*SignedTransaction, 
 func (signedTxn *SignedTransaction) Hash() []byte {
 	h := sha256.New()
 
-	h.Write([]byte(fmt.Sprintf("%d", signedTxn.Txn.Nonce)))
-	h.Write([]byte(signedTxn.Txn.From))
-	h.Write([]byte(signedTxn.Txn.To))
-	h.Write([]byte(signedTxn.Txn.Type))
-	h.Write([]byte(fmt.Sprintf("%f", signedTxn.Txn.Value)))
-
-	bytes, err := json.Marshal(signedTxn.Txn.Data)
-	if err != nil {
-		panic(err)
-	}
-	h.Write(bytes)
-
+	h.Write(signedTxn.Txn.HashBytes())
+	h.Write([]byte("||"))
 	h.Write(signedTxn.Signature)
 
 	return h.Sum(nil)
+}
+
+// String returns a description string for the transaction
+func (signedTxn *SignedTransaction) String() string {
+	txn := signedTxn.Txn
+	return fmt.Sprintf("{%s(signed): from=%s, id=%s, sig=%s}",
+		txn.Type, txn.From, txn.Hash(), hex.EncodeToString(signedTxn.Signature))
 }
 
 // Verify verify the signature and then execute to see whether the result is consistent with worldState
@@ -146,12 +201,12 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 	txn := signedTxn.Txn
 
 	// verify origin is inside the chain
-	if _, ok := config.Participants[txn.From]; !ok {
+	if !CheckPariticipation(worldState, config, txn.From) {
 		return fmt.Errorf("address %s is not a participant of the permissined chain", txn.From)
 	}
 
 	// verify signature
-	if txn.Type != TxnTypeCoinbase {
+	if txn.Type != TxnTypeCoinbase && txn.Type != TxnTypeInitConfig {
 		digestHash := txn.HashBytes()
 		publicKey, err := crypto.SigToPub(digestHash, signedTxn.Signature)
 		if err != nil {
@@ -177,9 +232,9 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 // -----------------------------------------------------------------------------
 // Transaction Polymophism - Coinbase
 
-func NewTransactionCoinbase(initiator *Account, to Address, value float64) *Transaction {
+func NewTransactionCoinbase(to Address, value float64) *Transaction {
 	return NewTransaction(
-		initiator,
+		NewAccount(ZeroAddress),
 		&to,
 		TxnTypeCoinbase,
 		value,
@@ -190,8 +245,12 @@ func NewTransactionCoinbase(initiator *Account, to Address, value float64) *Tran
 func execCoinbase(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
 	account := GetAccountFromWorldState(worldState, txn.To)
 	account.balance += txn.Value
-	worldState.Put(account.addr.Hex, account)
+	worldState.Put(account.addr.Hex, *account)
 	return nil
+}
+
+func unmarshalCoinbase(data json.RawMessage) (interface{}, error) {
+	return nil, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -233,6 +292,13 @@ func execPreMPC(worldState storage.KVStore, config *ChainConfig, txn *Transactio
 	return nil
 }
 
+func unmarshalPreMPC(data json.RawMessage) (interface{}, error) {
+	var p MPCRecord
+	err := json.Unmarshal(data, &p)
+
+	return p, err
+}
+
 // -----------------------------------------------------------------------------
 // Transaction Polymophism - PostMPC
 
@@ -259,6 +325,13 @@ func execPostMPC(worldState storage.KVStore, config *ChainConfig, txn *Transacti
 	return nil
 }
 
+func unmarshalPostMPC(data json.RawMessage) (interface{}, error) {
+	var p MPCRecord
+	err := json.Unmarshal(data, &p)
+
+	return p, err
+}
+
 // -----------------------------------------------------------------------------
 // Utilities
 
@@ -273,7 +346,8 @@ type MPCRecord struct {
 }
 
 type MPCEndorsement struct {
-	storage.Copyable
+	storage.Hashable
+
 	// TODO: not copy peers. Use Config ID
 	Peers     map[string]struct{}
 	Endorsers map[string]struct{}
@@ -295,14 +369,21 @@ func (e MPCEndorsement) Copy() storage.Copyable {
 	return endorsement
 }
 
-var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
-	TxnTypeCoinbase: execCoinbase,
-	TxnTypePreMPC:   execPreMPC,
-	TxnTypePostMPC:  execPostMPC,
-}
-
 func mpcKeyFromUniqID(uniqID string) string {
 	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
+}
+
+func CheckPariticipation(worldState storage.KVStore, config *ChainConfig, addrID string) bool {
+	if addrID == ZeroAddress.Hex {
+		return true
+	}
+	if config == nil {
+		return false
+	}
+	if _, ok := config.Participants[addrID]; ok {
+		return true
+	}
+	return false
 }
 
 func GetAccountFromWorldState(worldState storage.KVStore, key string) *Account {
@@ -317,7 +398,8 @@ func GetAccountFromWorldState(worldState storage.KVStore, key string) *Account {
 func GetConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	object, ok := worldState.Get(STATE_CONFIG_KEY)
 	if !ok {
-		panic(fmt.Errorf("config not exists"))
+		// panic(fmt.Errorf("config not exists"))
+		return nil
 	}
 	config := object.(ChainConfig)
 	return &config
@@ -332,7 +414,26 @@ func GetMPCEndorsementFromWorldState(worldState storage.KVStore, key string) (*M
 	return &endorsement, nil
 }
 
+func checkNonce(worldState storage.KVStore, txn *Transaction) error {
+	// Do nothing to zeroaddress
+	if txn.From == ZeroAddress.Hex {
+		return nil
+	}
+
+	account := GetAccountFromWorldState(worldState, txn.From)
+	if account.nonce != txn.Nonce {
+		return fmt.Errorf("transaction %s has invalid nonce from %s. Expected: %d, Got: %d",
+			txn.ID, txn.From, account.nonce, txn.Nonce)
+	}
+	return nil
+}
+
 func updateNonce(worldState storage.KVStore, accountID string) error {
+	// Do nothing to zeroaddress
+	if accountID == ZeroAddress.Hex {
+		return nil
+	}
+
 	account := GetAccountFromWorldState(worldState, accountID)
 	account.nonce++
 
@@ -407,7 +508,7 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Acc
 
 	threshold := float64(len(endorsement.Peers)) * AwardUnlockThreshold
 	if float64(len(endorsement.Endorsers)) > threshold {
-		for endorser, _ := range endorsement.Endorsers {
+		for endorser := range endorsement.Endorsers {
 			claimAward(worldState, initiator, endorser, endorsement.Budget)
 		}
 		endorsement.Locked = false

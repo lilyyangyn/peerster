@@ -16,7 +16,6 @@ import (
 type BlockHeader struct {
 	PrevHash string
 	Height   uint
-	Type     BlkType
 	Miner    string
 
 	StateHash      string
@@ -28,7 +27,6 @@ func (bh *BlockHeader) Hash() string {
 	h := sha256.New()
 	h.Write([]byte(bh.PrevHash))
 	h.Write([]byte(strconv.Itoa(int(bh.Height))))
-	h.Write([]byte(bh.Type))
 	h.Write([]byte(bh.Miner))
 
 	h.Write([]byte(bh.StateHash))
@@ -47,14 +45,6 @@ type Block struct {
 	Transactions []SignedTransaction
 }
 
-// BlkType helps to defer different types of txns & blocks
-type BlkType string
-
-const (
-	BlkTypeConfig BlkType = "blk-config"
-	BlkTypeTxn    BlkType = "blk-txn"
-)
-
 // GetWorldStateCopy returns a copy of block's world state
 func (b *Block) GetWorldStateCopy() storage.KVStore {
 	return b.States.Copy()
@@ -65,14 +55,14 @@ func (b *Block) GetConfig() ChainConfig {
 	return *GetConfigFromWorldState(b.States)
 }
 
-// HasTxn checks whether the txn is included in the block
-func (b *Block) HasTxn(txnID string) bool {
+// GetTxn checks whether the txn is included in the block
+func (b *Block) GetTxn(txnID string) *SignedTransaction {
 	for _, txn := range b.Transactions {
 		if txn.Txn.ID == txnID {
-			return true
+			return &txn
 		}
 	}
-	return false
+	return nil
 }
 
 // Verify verifies if a block is valid
@@ -80,8 +70,14 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 	config := GetConfigFromWorldState(worldState)
 
 	// check miner
-	if _, ok := config.Participants[b.Miner]; !ok {
+	if !CheckPariticipation(worldState, config, b.Miner) {
 		return fmt.Errorf("miner %s is not a participant of the permissined chain", b.Miner)
+	}
+
+	// check # transaction not exceeds the limit (except for genesis)
+	if b.Height > 0 && len(b.Transactions) > config.MaxTxnsPerBlk {
+		return fmt.Errorf("too many transactions in block %s. Max: %d. Got: %d",
+			b.Hash(), config.MaxTxnsPerBlk, len(b.Transactions))
 	}
 
 	// check hash
@@ -89,11 +85,9 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 	for _, txn := range b.Transactions {
 		h.Write(txn.Hash())
 	}
-	if b.TransationHash != hex.EncodeToString(h.Sum(nil)) {
+	hash := hex.EncodeToString(h.Sum(nil))
+	if b.TransationHash != hash {
 		return fmt.Errorf("block %s has inconsistent transaction hash", b.Hash())
-	}
-	if b.StateHash != hex.EncodeToString(b.States.Hash()) {
-		return fmt.Errorf("block %s has inconsistent state hash", b.Hash())
 	}
 
 	// check state
@@ -106,8 +100,19 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 	if hex.EncodeToString(worldState.Hash()) != b.StateHash {
 		return fmt.Errorf("block %s has different execution result from expected", b.Hash())
 	}
+	// set state
+	b.States = worldState
 
 	return nil
+}
+
+// DescribeTransactions return a string to describe txn info
+func (b *Block) DescribeTransactions() string {
+	description := ""
+	for _, txn := range b.Transactions {
+		description += txn.String() + " "
+	}
+	return fmt.Sprintf("%d Txns: [%s]", len(b.Transactions), description)
 }
 
 // -----------------------------------------------------------------------------
@@ -116,34 +121,19 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 type BlockBuilder struct {
 	prevHash     string
 	height       uint
-	blockType    BlkType
 	miner        string
 	states       storage.KVStore
 	transactions []SignedTransaction
 }
 
-func NewBlockBuilder(blockType BlkType) *BlockBuilder {
+func NewBlockBuilder() *BlockBuilder {
 	return &BlockBuilder{
-		blockType:    blockType,
 		transactions: make([]SignedTransaction, 0),
 	}
 }
 
 func (bb *BlockBuilder) AddTxn(txn *SignedTransaction) error {
-	if bb.blockType == BlkTypeConfig {
-		return fmt.Errorf("unable to append txn to a config block: %T", txn.Txn)
-	}
-
 	bb.transactions = append(bb.transactions, *txn)
-	return nil
-}
-
-func (bb *BlockBuilder) AddConfig(config *ChainConfig) error {
-	if bb.blockType != BlkTypeConfig {
-		return fmt.Errorf("unable to add configuration to a txn block: %T", config)
-	}
-
-	bb.states.Put(STATE_CONFIG_KEY, *config)
 	return nil
 }
 
@@ -177,7 +167,6 @@ func (bb *BlockBuilder) Build() *Block {
 	header := BlockHeader{
 		PrevHash:       bb.prevHash,
 		Height:         bb.height,
-		Type:           bb.blockType,
 		Miner:          bb.miner,
 		StateHash:      hex.EncodeToString(bb.states.Hash()),
 		TransationHash: hex.EncodeToString(txnHash),

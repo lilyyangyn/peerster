@@ -7,7 +7,7 @@ import "fmt"
 
 // NewEmpty implements types.Message.
 func (m BCPrivateMessage) NewEmpty() Message {
-	return &BCTxnMessag{}
+	return &BCPrivateMessage{}
 }
 
 // Name implements types.Message.
@@ -66,7 +66,7 @@ func (m BCBlkMessage) Name() string {
 // String implements types.Message.
 func (m BCBlkMessage) String() string {
 	return fmt.Sprintf("{blockchainBlk %s - %s (h=%d)}",
-		m.Origin, m.Blk.Hash(), m.Blk.Height)
+		m.Origin, m.BlkHeader.Hash(), m.BlkHeader.Height)
 }
 
 // HTML implements types.Message.

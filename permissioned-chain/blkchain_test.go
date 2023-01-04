@@ -25,6 +25,8 @@ func Test_BC_Init_Genesis(t *testing.T) {
 	bc := NewBlockchain()
 	block, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block)
+	require.NoError(t, err)
 
 	latestBlock := bc.GetLatestBlock()
 	require.Equal(t, block.Hash(), latestBlock.Hash())
@@ -59,6 +61,8 @@ func Test_BC_Append_Correct(t *testing.T) {
 	bc := NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
+	require.NoError(t, err)
 	latestBlock := bc.GetLatestBlock()
 	require.Equal(t, block0.Hash(), latestBlock.Hash())
 
@@ -73,7 +77,7 @@ func Test_BC_Append_Correct(t *testing.T) {
 	err = txn1.Verify(worldstate, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn)
+	bb := NewBlockBuilder()
 	bb.SetPrevHash(block0.Hash()).SetHeight(block0.Height + 1).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -106,6 +110,8 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 	bc := NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
+	require.NoError(t, err)
 	latestBlock := bc.GetLatestBlock()
 	require.Equal(t, block0.Hash(), latestBlock.Hash())
 
@@ -122,7 +128,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	// > block too stale
 
-	bb := NewBlockBuilder(BlkTypeTxn)
+	bb := NewBlockBuilder()
 	bb.SetPrevHash(block0.Hash()).SetHeight(block0.Height).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -133,7 +139,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	// > block too advance
 
-	bb = NewBlockBuilder(BlkTypeTxn)
+	bb = NewBlockBuilder()
 	bb.SetPrevHash(block0.Hash()).SetHeight(block0.Height + 2).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -144,7 +150,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	// > mismatch prevhash
 
-	bb = NewBlockBuilder(BlkTypeTxn)
+	bb = NewBlockBuilder()
 	bb.SetPrevHash(DUMMY_PREVHASH).SetHeight(block0.Height + 1).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -171,6 +177,8 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 	bc := NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
+	require.NoError(t, err)
 	latestBlock := bc.GetLatestBlock()
 	require.Equal(t, block0.Hash(), latestBlock.Hash())
 
@@ -185,7 +193,7 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 	err = txn1.Verify(worldstate, &config)
 	require.Error(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn)
+	bb := NewBlockBuilder()
 	bb.SetPrevHash(block0.Hash()).SetHeight(block0.Height + 1).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -218,6 +226,8 @@ func Test_BC_Has_Txn(t *testing.T) {
 	bc := NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
+	require.NoError(t, err)
 
 	// first block has txn1 and txn2
 	worldstate := block0.GetWorldStateCopy()
@@ -241,7 +251,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	err = txn2.Verify(worldstate, &config)
 	require.NoError(t, err)
 
-	bb := NewBlockBuilder(BlkTypeTxn)
+	bb := NewBlockBuilder()
 	bb.SetPrevHash(block0.Hash()).SetHeight(block0.Height + 1).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn1)
@@ -265,7 +275,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	err = txn3.Verify(worldstate, &config)
 	require.NoError(t, err)
 
-	bb = NewBlockBuilder(BlkTypeTxn)
+	bb = NewBlockBuilder()
 	bb.SetPrevHash(block1.Hash()).SetHeight(block1.Height + 1).
 		SetMiner(account.addr.Hex).SetState(worldstate)
 	bb.AddTxn(txn3)
@@ -276,12 +286,12 @@ func Test_BC_Has_Txn(t *testing.T) {
 
 	// > txn1, txn2, txn3 should be in blockchain
 
-	ok := bc.HasTxn(txn1.Txn.ID)
-	require.True(t, ok)
-	ok = bc.HasTxn(txn2.Txn.ID)
-	require.True(t, ok)
-	ok = bc.HasTxn(txn3.Txn.ID)
-	require.True(t, ok)
+	ok := bc.GetTxn(txn1.Txn.ID)
+	require.NotNil(t, ok)
+	ok = bc.GetTxn(txn2.Txn.ID)
+	require.NotNil(t, ok)
+	ok = bc.GetTxn(txn3.Txn.ID)
+	require.NotNil(t, ok)
 
 	// > txn4 should not be in blockchain
 
@@ -292,8 +302,8 @@ func Test_BC_Has_Txn(t *testing.T) {
 		Expression: "b",
 		Result:     10,
 	})
-	ok = bc.HasTxn(txn4.ID)
-	require.False(t, ok)
+	ok = bc.GetTxn(txn4.ID)
+	require.Nil(t, ok)
 }
 
 func Test_BC_Append_Genesis(t *testing.T) {
@@ -313,9 +323,11 @@ func Test_BC_Append_Genesis(t *testing.T) {
 	bc := NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
 	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
+	require.NoError(t, err)
 
 	// cannot init twice
-	_, err = bc.InitGenesisBlock(&config, initialGain)
+	err = bc.SetGenesisBlock(&block0)
 	require.Error(t, err)
 
 	// append the genesis block to a new blockchain

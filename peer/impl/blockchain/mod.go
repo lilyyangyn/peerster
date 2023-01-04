@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"go.dedis.ch/cs438/peer"
@@ -18,8 +19,8 @@ type BlockchainModule struct {
 	account *permissioned.Account
 	privKey *ecdsa.PrivateKey
 
-	blockchain *permissioned.Blockchain
-	txnPool    *TxnPool
+	*permissioned.Blockchain
+	txnPool *TxnPool
 
 	blkChan     chan *permissioned.Block
 	bcReadyChan chan struct{}
@@ -30,12 +31,16 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 		MessageModule: messageModule,
 		conf:          conf,
 
+		Blockchain:  permissioned.NewBlockchain(),
 		txnPool:     NewTxnPool(),
 		blkChan:     make(chan *permissioned.Block, 5),
 		bcReadyChan: make(chan struct{}),
 	}
 
 	// message registery
+	m.conf.MessageRegistry.RegisterMessageCallback(types.BCPrivateMessage{}, m.ProcessBCPrivateMsg)
+	m.conf.MessageRegistry.RegisterMessageCallback(types.BCBlkMessage{}, m.ProcessBCBlkMsg)
+	m.conf.MessageRegistry.RegisterMessageCallback(types.BCTxnMessag{}, m.ProcessBCTxnMsg)
 
 	return &m
 }
@@ -58,7 +63,6 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	if err != nil {
 		return err
 	}
-	close(m.bcReadyChan)
 
 	// broadcast the genesis block
 	err = m.broadcastBCBlkMessage(config.Participants, &blk)
@@ -69,31 +73,45 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 }
 
 // SendTransaction signs and sends a transaction
-func (m *BlockchainModule) SendTransaction(txn *permissioned.Transaction) error {
-	// sign txn
-	signedTxn, err := txn.Sign(m.privKey)
-	if err != nil {
-		return err
-	}
+func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransaction) error {
+	// TODO: check from?
+	// TODO: wallet sevice
 
 	// get config and send private message
-	config := m.blockchain.GetConfig()
+	config := m.GetConfig()
 	return m.broadcastBCTxnMessage(config.Participants, signedTxn)
 }
 
-// HasTransaction checks if the transaction is in the blockchain
-func (m *BlockchainModule) HasTransaction(txnID string) bool {
-	return m.blockchain.HasTxn(txnID)
+// GetAddress helps users to know the adress of the node
+func (m *BlockchainModule) GetAddress() (permissioned.Address, error) {
+	if m.account == nil {
+		return permissioned.Address{},
+			fmt.Errorf("node %s does not have an address yet",
+				m.conf.Socket.GetAddress())
+	}
+	return m.account.GetAddress(), nil
 }
 
 // GenerateKeyPair generates an ECDSA key pair and write it in the file
 func (m *BlockchainModule) GenerateKeyPair(path string) error {
-	privKey, err := crypto.GenerateKey()
+	privkey, err := crypto.GenerateKey()
 	if err != nil {
 		return err
 	}
-	m.privKey = privKey
-	return crypto.SaveECDSA(path, privKey)
+	err = m.SetKeyPair(*privkey)
+	if err != nil {
+		return err
+	}
+	return crypto.SaveECDSA(path, privkey)
+}
+
+// SetKeyPair sets an ECDSA key pair to the node
+func (m *BlockchainModule) SetKeyPair(privkey ecdsa.PrivateKey) error {
+	m.privKey = &privkey
+	address := permissioned.NewAddress(&privkey.PublicKey)
+	m.account = permissioned.NewAccount(*address)
+
+	return nil
 }
 
 // LoadKeyPair loads an ECDSA key pair from file
@@ -103,8 +121,7 @@ func (m *BlockchainModule) LoadKeyPair(path string) error {
 		return err
 	}
 
-	m.privKey = privkey
-	return nil
+	return m.SetKeyPair(*privkey)
 }
 
 // -----------------------------------------------------------------------------
@@ -139,11 +156,13 @@ func (m *BlockchainModule) broadcastBCTxnMessage(participants map[string]struct{
 // broadcastBCBlkMessage broadcast a BCBlkMessage in private msg
 func (m *BlockchainModule) broadcastBCBlkMessage(participants map[string]struct{},
 	block *permissioned.Block) error {
-	txnMsg := types.BCBlkMessage{
-		Origin: m.conf.Socket.GetAddress(),
-		Blk:    *block,
+
+	blkMsg := types.BCBlkMessage{
+		Origin:    m.conf.Socket.GetAddress(),
+		BlkHeader: *block.BlockHeader,
+		Txns:      block.Transactions,
 	}
-	txnMsgMarshal, err := m.CreateMsg(txnMsg)
+	blkMsgMarshal, err := m.CreateMsg(blkMsg)
 	if err != nil {
 		return err
 	}
@@ -151,7 +170,7 @@ func (m *BlockchainModule) broadcastBCBlkMessage(participants map[string]struct{
 	// wrap in private msg
 	privMsg := types.BCPrivateMessage{
 		Recipients: participants,
-		Msg:        &txnMsgMarshal,
+		Msg:        &blkMsgMarshal,
 	}
 	privMsgMarshal, err := m.CreateMsg(privMsg)
 	if err != nil {

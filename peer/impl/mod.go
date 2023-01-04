@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"io"
 	"math/rand"
 	"regexp"
@@ -73,6 +74,11 @@ func (n *node) Start() error {
 	}
 
 	err = n.message.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+	if err != nil {
+		return err
+	}
+
+	err = n.blockchain.MiningDaemon(ctx)
 	if err != nil {
 		return err
 	}
@@ -203,22 +209,47 @@ func (n *node) InitBlockchain(config permissioned.ChainConfig, initialGain map[s
 	return n.blockchain.InitBlockchain(config, initialGain)
 }
 
-// SendTransaction implements peer.SendTransaction
-func (n *node) SendTransaction(txn *permissioned.Transaction) error {
+// BCSendTransaction implements peer.BCSendTransaction
+func (n *node) BCSendTransaction(txn *permissioned.SignedTransaction) error {
 	return n.blockchain.SendTransaction(txn)
 }
 
-// HasTransaction implements peer.VerifyTransaction
-func (n *node) HasTransaction(txnID string) bool {
-	return n.blockchain.HasTransaction(txnID)
+// BCHasTransaction implements peer.BCHasTransaction
+func (n *node) BCHasTransaction(txnID string) bool {
+	return n.blockchain.GetTxn(txnID) != nil
 }
 
-// GenerateKeyPair implements peer.GenerateKeyPair
-func (n *node) GenerateKeyPair(path string) error {
+// BCGetTransaction implements peer.BCGetTransaction
+func (n *node) BCGetTransaction(txnID string) *permissioned.SignedTransaction {
+	return n.blockchain.GetTxn(txnID)
+}
+
+// BCGetLatestBlock implements peer.BCGetLatestBlock
+func (n *node) BCGetLatestBlock() *permissioned.Block {
+	return n.blockchain.GetLatestBlock()
+}
+
+// BCGetBlock implements peer.BCGetBlock
+func (n *node) BCGetBlock(blockID string) *permissioned.Block {
+	return n.blockchain.GetBlock(blockID)
+}
+
+// BCGetAddress implements peer.BCGetAddress
+func (n *node) BCGetAddress() (permissioned.Address, error) {
+	return n.blockchain.GetAddress()
+}
+
+// BCGenerateKeyPair implements peer.BCGenerateKeyPair
+func (n *node) BCGenerateKeyPair(path string) error {
 	return n.blockchain.GenerateKeyPair(path)
 }
 
-// LoadKeyPair implements peer.LoadKeyPair
-func (n *node) LoadKeyPair(path string) error {
+// BCSetKeyPair implements peer.BCSetKeyPair
+func (n *node) BCSetKeyPair(privkey ecdsa.PrivateKey) error {
+	return n.blockchain.SetKeyPair(privkey)
+}
+
+// BCLoadKeyPair implements peer.BCLoadKeyPair
+func (n *node) BCLoadKeyPair(path string) error {
 	return n.blockchain.LoadKeyPair(path)
 }

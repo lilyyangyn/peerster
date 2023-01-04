@@ -15,6 +15,7 @@ type Peer interface {
 	Messaging
 	DataSharing
 	MPC
+	PermissionedChain
 }
 
 // Factory is the type of function we are using to create new instances of

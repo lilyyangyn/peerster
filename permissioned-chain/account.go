@@ -45,8 +45,8 @@ func NewAccount(addr Address) *Account {
 	}
 }
 
-func (ac *Account) GetAddress() string {
-	return ac.addr.Hex
+func (ac *Account) GetAddress() Address {
+	return ac.addr
 }
 
 // func (ac *Account) GetAvailableBalance() float64 {

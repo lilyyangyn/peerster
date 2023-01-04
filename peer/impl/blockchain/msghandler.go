@@ -3,6 +3,7 @@ package blockchain
 import (
 	"fmt"
 
+	"go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
@@ -14,7 +15,7 @@ func (m *BlockchainModule) ProcessBCPrivateMsg(msg types.Message, pkt transport.
 		return fmt.Errorf("wrong type: %T", msg)
 	}
 
-	_, ok = privMsg.Recipients[m.account.GetAddress()]
+	_, ok = privMsg.Recipients[m.account.GetAddress().Hex]
 	if ok {
 		// process the message if in the recipients list
 		newPkt := transport.Packet{
@@ -34,7 +35,17 @@ func (m *BlockchainModule) ProcessBCTxnMsg(msg types.Message, pkt transport.Pack
 		return fmt.Errorf("wrong type: %T", msg)
 	}
 
-	m.txnPool.Push(&txnMsg.Txn)
+	if txnMsg.Txn.Txn.From == permissioned.ZeroAddress.Hex {
+		return fmt.Errorf("cannot receive transaction created by zeroAddress")
+	}
+
+	err := txnMsg.Txn.Txn.Unmarshal()
+	if err != nil {
+		return err
+	}
+	txn := txnMsg.Txn
+
+	m.txnPool.Push(&txn)
 
 	return nil
 }
@@ -46,17 +57,32 @@ func (m *BlockchainModule) ProcessBCBlkMsg(msg types.Message, pkt transport.Pack
 		return fmt.Errorf("wrong type: %T", msg)
 	}
 
+	// rebuild the block
+	txns := make([]permissioned.SignedTransaction, 0, len(blkMsg.Txns))
+	for _, txn := range blkMsg.Txns {
+		err := txn.Txn.Unmarshal()
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		txns = append(txns, txn)
+	}
+	block := permissioned.Block{
+		BlockHeader:  &blkMsg.BlkHeader,
+		Transactions: txns,
+	}
+
 	// if is genesis block. Directly set
-	if blkMsg.Blk.Height == 0 {
-		err := m.blockchain.SetGenesisBlock(&blkMsg.Blk)
+	if blkMsg.BlkHeader.Height == 0 {
+		err := m.SetGenesisBlock(&block)
 		if err == nil {
 			close(m.bcReadyChan)
 		}
-		return err
+		return nil
 	}
 
 	// Otherwise,append the block
-	m.blkChan <- &blkMsg.Blk
+	m.blkChan <- &block
 
 	return nil
 }

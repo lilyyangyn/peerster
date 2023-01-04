@@ -3,6 +3,7 @@ package permissioned
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -18,6 +19,7 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
+	storage.Hashable
 	storage.Copyable
 
 	ID           string
@@ -63,7 +65,7 @@ func ChainConfigFromYAML(path string) (*ChainConfig, error) {
 }
 
 // Hash computes the hash of the config
-func (c *ChainConfig) Hash() string {
+func (c ChainConfig) Hash() string {
 	h := sha256.New()
 
 	keys := make([]string, 0, len(c.Participants))
@@ -76,14 +78,14 @@ func (c *ChainConfig) Hash() string {
 		h.Write([]byte(participant))
 	}
 	h.Write([]byte(fmt.Sprintf("%d", c.MaxTxnsPerBlk)))
-	h.Write([]byte(fmt.Sprintf("%s", c.WaitTimeout)))
+	h.Write([]byte(c.WaitTimeout))
 	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Copy implements Copyable.Copy
-func (c *ChainConfig) Copy() storage.Copyable {
+func (c ChainConfig) Copy() storage.Copyable {
 	participants := make(map[string]struct{})
 	for key, val := range c.Participants {
 		participants[key] = val
@@ -95,5 +97,35 @@ func (c *ChainConfig) Copy() storage.Copyable {
 		WaitTimeout:   c.WaitTimeout,
 		JoinThreshold: c.JoinThreshold,
 	}
-	return &config
+	return config
+}
+
+// -----------------------------------------------------------------------------
+// Transaction Polymophism - InitConfig
+
+func NewTransactionInitConfig(config *ChainConfig) *Transaction {
+	return NewTransaction(
+		NewAccount(ZeroAddress),
+		&ZeroAddress,
+		TxnTypeInitConfig,
+		0,
+		config.Copy().(ChainConfig),
+	)
+}
+
+func execInitConfig(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+	if _, ok := worldState.Get(STATE_CONFIG_KEY); ok {
+		return fmt.Errorf("fail to init chain config, Config already exists")
+	}
+
+	newConfig := txn.Data.(ChainConfig)
+	worldState.Put(STATE_CONFIG_KEY, newConfig)
+	return nil
+}
+
+func unmarshalInitConfig(data json.RawMessage) (interface{}, error) {
+	var c ChainConfig
+	err := json.Unmarshal(data, &c)
+
+	return c, err
 }

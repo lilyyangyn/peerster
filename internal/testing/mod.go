@@ -655,6 +655,7 @@ func GetPrivate(t *testing.T, msg *transport.Message) types.PrivateMessage {
 	return privateMessage
 }
 
+// GetEncrypt returns the encrypted message associated to the transport.Message.
 func GetEncrypt(t *testing.T, msg *transport.Message) types.EncryptedMessage {
 	require.Equal(t, "encrypt", msg.Type)
 
@@ -689,6 +690,42 @@ func GetInterpolation(t *testing.T, msg *transport.Message) types.MPCInterpolati
 	require.NoError(t, err)
 
 	return interpolationMessage
+}
+
+// GetBCPrivate returns the BCPrivate message associated to the transport.Message.
+func GetBCPrivate(t *testing.T, msg *transport.Message) types.BCPrivateMessage {
+	require.Equal(t, "blockchainPrivate", msg.Type)
+
+	var bcprivMessage types.BCPrivateMessage
+
+	err := json.Unmarshal(msg.Payload, &bcprivMessage)
+	require.NoError(t, err)
+
+	return bcprivMessage
+}
+
+// GetBCTxn returns the BCTxn message associated to the transport.Message.
+func GetBCTxn(t *testing.T, msg *transport.Message) types.BCTxnMessag {
+	require.Equal(t, "blockchainTxn", msg.Type)
+
+	var bctxnMessage types.BCTxnMessag
+
+	err := json.Unmarshal(msg.Payload, &bctxnMessage)
+	require.NoError(t, err)
+
+	return bctxnMessage
+}
+
+// GetBCBlk returns the BCBlk message associated to the transport.Message.
+func GetBCBlk(t *testing.T, msg *transport.Message) types.BCBlkMessage {
+	require.Equal(t, "blockchainBlk", msg.Type)
+
+	var bcblkMessage types.BCBlkMessage
+
+	err := json.Unmarshal(msg.Payload, &bcblkMessage)
+	require.NoError(t, err)
+
+	return bcblkMessage
 }
 
 // DisplayBlokchainBlocks writes a string representation of all blocks store in

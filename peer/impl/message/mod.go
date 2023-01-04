@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
@@ -158,6 +159,7 @@ func (m *MessageModule) MessagingDaemon(ctx context.Context) error {
 				err = m.processPkt(pkt)
 				if err != nil {
 					// return
+					log.Err(err).Send()
 					continue
 				}
 			}

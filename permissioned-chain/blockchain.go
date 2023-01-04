@@ -28,25 +28,33 @@ func NewBlockchain() *Blockchain {
 // InitGenesisBlock inits a new blockchain with the given config
 func (bc *Blockchain) InitGenesisBlock(config *ChainConfig,
 	initialGain map[string]float64) (Block, error) {
-	bb := NewBlockBuilder(BlkTypeConfig)
+	bb := NewBlockBuilder()
 
 	worldState := storage.NewBasicKV()
-	worldState.Put(ZeroAddress.Hex, *NewAccount(ZeroAddress))
+	// add config
+	signedTxn, err := NewTransactionInitConfig(config).Sign(nil)
+	if err != nil {
+		return Block{}, err
+	}
+	bb.AddTxn(signedTxn)
+	worldState.Put(STATE_CONFIG_KEY, *config)
+
+	// init accounts
 	zeroAccount := *NewAccount(ZeroAddress)
-	for participant, _ := range config.Participants {
-		account := *NewAccount(*NewAddressFromHex(participant))
+	for participant := range config.Participants {
 		if amount, ok := initialGain[participant]; ok {
+			account := *NewAccount(*NewAddressFromHex(participant))
 			account.balance = amount
-			txn := SignedTransaction{
-				Txn: *NewTransactionCoinbase(&zeroAccount, account.addr, amount),
+			signedTxn, err := NewTransactionCoinbase(account.addr, amount).Sign(nil)
+			if err != nil {
+				return Block{}, err
 			}
 			zeroAccount.nonce++
 
-			bb.AddTxn(&txn)
+			bb.AddTxn(signedTxn)
+			worldState.Put(participant, account)
 		}
-		worldState.Put(participant, account)
 	}
-	worldState.Put(STATE_CONFIG_KEY, *config)
 
 	// genesis block must be a block with a config txn
 	bb.SetPrevHash(DUMMY_PREVHASH).
@@ -55,7 +63,7 @@ func (bc *Blockchain) InitGenesisBlock(config *ChainConfig,
 		SetState(worldState)
 	block := bb.Build()
 
-	return *block, bc.SetGenesisBlock(block)
+	return *block, nil
 }
 
 // SetGenesisBlock sets genesis block for the blockchain
@@ -68,7 +76,12 @@ func (bc *Blockchain) SetGenesisBlock(block *Block) error {
 	defer bc.Unlock()
 
 	if len(bc.blocksStore) > 0 {
-		return fmt.Errorf("unable to init an already existing chain")
+		return fmt.Errorf("chain already initialized")
+	}
+
+	err := block.Verify(storage.NewBasicKV())
+	if err != nil {
+		return err
 	}
 
 	bc.blocksStore[block.Hash()] = block
@@ -76,24 +89,20 @@ func (bc *Blockchain) SetGenesisBlock(block *Block) error {
 	return nil
 }
 
-// GetBlockStore returns a copy of the whole chain
-func (bc *Blockchain) GetBlockStore() map[string]Block {
-	store := make(map[string]Block)
+// GetBlock returns a copy of the whole chain
+func (bc *Blockchain) GetBlock(blockID string) *Block {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	for key, block := range bc.blocksStore {
-		store[key] = *block
-	}
-	return store
+	return bc.blocksStore[blockID]
 }
 
 // GetLatestBlock returns the latest block
-func (bc *Blockchain) GetLatestBlock() Block {
+func (bc *Blockchain) GetLatestBlock() *Block {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	return *bc.latestBlock
+	return bc.latestBlock
 }
 
 // GetConfig returns the latest config
@@ -114,20 +123,24 @@ const (
 	BlockCompareNotInitialize
 )
 
-// HasTxn checks if the target transaction is in blockchain
-func (bc *Blockchain) HasTxn(txnID string) bool {
+// GetTxn checks if the target transaction is in blockchain
+func (bc *Blockchain) GetTxn(txnID string) *SignedTransaction {
 	bc.RLock()
 	defer bc.RUnlock()
+
 	curBlock := bc.latestBlock
+	if curBlock == nil {
+		return nil
+	}
 
 	ok := true
 	for ok {
-		if curBlock.HasTxn(txnID) {
-			return true
+		if txn := curBlock.GetTxn(txnID); txn != nil {
+			return txn
 		}
 		curBlock, ok = bc.blocksStore[curBlock.PrevHash]
 	}
-	return false
+	return nil
 }
 
 // CheckBlockHeight checks if a block can be appended to the end of chain

@@ -19,8 +19,9 @@ type BCTxnMessag struct {
 }
 
 type BCBlkMessage struct {
-	Origin string
-	Blk    permissioned.Block
+	Origin    string
+	BlkHeader permissioned.BlockHeader
+	Txns      []permissioned.SignedTransaction
 }
 
 // TODO: add sync message

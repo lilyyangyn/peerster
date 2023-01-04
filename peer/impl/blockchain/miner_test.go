@@ -19,14 +19,16 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress(): {}},
+		map[string]struct{}{account.GetAddress().Hex: {}},
 		1, "2h", 10,
 	)
 	initialGain := map[string]float64{
-		account.GetAddress(): 1000,
+		account.GetAddress().Hex: 1000,
 	}
 	bc := permissioned.NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
+	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
 	require.NoError(t, err)
 
 	// init txnPool
@@ -37,7 +39,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
-			Initiator:  account.GetAddress(),
+			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
 		}).Sign(privKey)
@@ -47,7 +49,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
 	go func() {
-		blk := createBlock(ctx, pool, account.GetAddress(),
+		blk := createBlock(ctx, pool, account.GetAddress().Hex,
 			&block0, &config)
 		block = blk
 
@@ -75,14 +77,16 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress(): {}},
+		map[string]struct{}{account.GetAddress().Hex: {}},
 		1, "2h", 10,
 	)
 	initialGain := map[string]float64{
-		account.GetAddress(): 1000,
+		account.GetAddress().Hex: 1000,
 	}
 	bc := permissioned.NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
+	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
 	require.NoError(t, err)
 
 	// init txnPool
@@ -95,7 +99,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
 	go func() {
-		blk := createBlock(ctx, pool, account.GetAddress(),
+		blk := createBlock(ctx, pool, account.GetAddress().Hex,
 			&block0, &config)
 		block = blk
 
@@ -112,7 +116,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
-			Initiator:  account.GetAddress(),
+			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
 		}).Sign(privKey)
@@ -140,14 +144,16 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress(): {}},
+		map[string]struct{}{account.GetAddress().Hex: {}},
 		2, "2s", 10,
 	)
 	initialGain := map[string]float64{
-		account.GetAddress(): 1000,
+		account.GetAddress().Hex: 1000,
 	}
 	bc := permissioned.NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
+	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
 	require.NoError(t, err)
 
 	// init txnPool
@@ -158,7 +164,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
-			Initiator:  account.GetAddress(),
+			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
 		}).Sign(privKey)
@@ -168,7 +174,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
 	go func() {
-		blk := createBlock(ctx, pool, account.GetAddress(),
+		blk := createBlock(ctx, pool, account.GetAddress().Hex,
 			&block0, &config)
 		block = blk
 
@@ -183,7 +189,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	case <-timeout:
 	}
 
-	timeout = time.After(time.Second * 1)
+	timeout = time.After(time.Second * 2)
 
 	select {
 	case <-blkDone:
@@ -207,14 +213,16 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress(): {}},
+		map[string]struct{}{account.GetAddress().Hex: {}},
 		2, "2h", 10,
 	)
 	initialGain := map[string]float64{
-		account.GetAddress(): 1000,
+		account.GetAddress().Hex: 1000,
 	}
 	bc := permissioned.NewBlockchain()
 	block0, err := bc.InitGenesisBlock(&config, initialGain)
+	require.NoError(t, err)
+	err = bc.SetGenesisBlock(&block0)
 	require.NoError(t, err)
 
 	// init txnPool
@@ -224,7 +232,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCRecord{
-			Initiator:  account.GetAddress(),
+			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
 		}).Sign(privKey)
@@ -234,7 +242,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
 	go func() {
-		blk := createBlock(ctx, pool, account.GetAddress(),
+		blk := createBlock(ctx, pool, account.GetAddress().Hex,
 			&block0, &config)
 		block = blk
 

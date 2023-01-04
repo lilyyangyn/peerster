@@ -16,21 +16,24 @@ import (
 func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
 	// wait until the blockchain's genesis block is set
 	<-m.bcReadyChan
+	log.Info().Msgf("Start mining")
 out:
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			latestBlock := m.blockchain.GetLatestBlock()
+			latestBlock := m.GetLatestBlock()
 			config := latestBlock.GetConfig()
-			newBlock := createBlock(ctx, txnPool, m.account.GetAddress(), &latestBlock, &config)
+			newBlock := createBlock(ctx, txnPool,
+				m.account.GetAddress().Hex, latestBlock, &config)
 			if newBlock == nil {
 				continue
 			}
 
 			// validate block
-			if m.blockchain.CheckBlockHeight(newBlock) != permissioned.BlockCompareMatched {
+			if m.CheckBlockHeight(newBlock) != permissioned.BlockCompareMatched {
+				log.Error().Msgf("mined block has an invalid block height %d", newBlock.Height)
 				// put the transactions back to the pool
 				m.txnPool.PushSeveral(newBlock.Transactions)
 				continue out
@@ -39,7 +42,7 @@ out:
 			// broadcast block
 			err := m.broadcastBCBlkMessage(config.Participants, newBlock)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Send()
 			}
 		}
 	}
@@ -50,7 +53,7 @@ func createBlock(ctx context.Context, txnPool *TxnPool,
 	config *permissioned.ChainConfig) *permissioned.Block {
 
 	worldState := prevBlock.GetWorldStateCopy()
-	blkBuilder := permissioned.NewBlockBuilder(permissioned.BlkTypeTxn)
+	blkBuilder := permissioned.NewBlockBuilder()
 	blkBuilder.SetPrevHash(prevBlock.Hash()).
 		SetHeight(prevBlock.Height + 1).
 		SetMiner(miner)
@@ -79,6 +82,7 @@ out:
 
 			err := signedTxn.Verify(worldState, config)
 			if err != nil {
+				log.Err(err).Send()
 				continue
 			}
 			err = blkBuilder.AddTxn(signedTxn)
@@ -103,6 +107,8 @@ out:
 // Accepter
 
 func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
+	log.Info().Msgf("Start verifying")
+
 	m.blkChan = make(chan *permissioned.Block, 10)
 	for {
 		select {
@@ -112,9 +118,9 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 			// TODO: validate consensus
 			// TODO: catchup
 
-			err := m.blockchain.AppendBlock(block)
+			err := m.AppendBlock(block)
 			if err != nil {
-				log.Err(err)
+				log.Err(err).Send()
 			}
 		}
 	}
