@@ -483,7 +483,6 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 
 func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Account, accountID string) error {
 	endorsement, err := GetMPCEndorsementFromWorldState(worldState, key)
-	fmt.Println(endorsement)
 	if err != nil {
 		return fmt.Errorf("%s endorses a non-existing MPC %s", accountID, key)
 	}

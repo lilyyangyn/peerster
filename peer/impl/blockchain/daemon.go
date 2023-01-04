@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -22,8 +21,15 @@ out:
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case prevHeight := <-m.minerChan:
 			latestBlock := m.GetLatestBlock()
+			if prevHeight != latestBlock.Height {
+				log.Error().Msgf("miner mining on incoorect height. Expected: %d. Got: %d",
+					prevHeight, latestBlock.Height)
+				continue
+			}
+
+			log.Info().Msgf("Mining on height=%d...", prevHeight+1)
 			config := latestBlock.GetConfig()
 			newBlock := createBlock(ctx, txnPool,
 				m.account.GetAddress().Hex, latestBlock, &config)
@@ -38,6 +44,8 @@ out:
 				m.txnPool.PushSeveral(newBlock.Transactions)
 				continue out
 			}
+			log.Info().Msgf("Mined block %s on height=%d. Broadcasting...",
+				newBlock.Hash(), newBlock.Height)
 
 			// broadcast block
 			err := m.broadcastBCBlkMessage(config.Participants, newBlock)
@@ -72,7 +80,6 @@ out:
 		case <-ctx.Done():
 			return nil
 		case <-time.After(duration):
-			fmt.Println("-----------------------")
 			break out
 		case signedTxn := <-txnPool.Pull():
 			// coinbase trasaction can only be created by miner
@@ -115,13 +122,28 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case block := <-m.blkChan:
-			// TODO: validate consensus
+			log.Info().Msgf("Verifying block %s on height=%d...",
+				block.Hash(), block.Height)
+
+			// validate consensus
+			expectedMiner := m.cr.getLatestMiner()
+			if expectedMiner != block.Miner {
+				log.Error().Msgf("invalid miner. Expected: %s. Got: %s",
+					expectedMiner, block.Miner)
+				continue
+			}
+
 			// TODO: catchup
 
+			// append the block
 			err := m.AppendBlock(block)
 			if err != nil {
 				log.Err(err).Send()
+				continue
 			}
+			log.Info().Msgf("Append Block %s successfully",
+				block.Hash(), block.Height)
+			// notify outside for the received transactions
 			go func() {
 				for _, signedTxn := range block.Transactions {
 					err = m.watchRegistry.Tell(&signedTxn.Txn)
@@ -130,6 +152,9 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 					}
 				}
 			}()
+
+			// select next miner
+			m.selectNextMiner(block)
 		}
 	}
 }

@@ -49,12 +49,9 @@ func (ac *Account) GetAddress() Address {
 	return ac.addr
 }
 
-// func (ac *Account) GetAvailableBalance() float64 {
-// 	ac.RLock()
-// 	defer ac.RUnlock()
-
-// 	return ac.balance - ac.lockedBalance
-// }
+func (ac *Account) GetBalance() float64 {
+	return ac.balance
+}
 
 // func (ac *Account) GetNonce() uint {
 // 	ac.RLock()

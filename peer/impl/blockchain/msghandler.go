@@ -62,7 +62,6 @@ func (m *BlockchainModule) ProcessBCBlkMsg(msg types.Message, pkt transport.Pack
 	for _, txn := range blkMsg.Txns {
 		err := txn.Txn.Unmarshal()
 		if err != nil {
-			fmt.Println(err)
 			return err
 		}
 		txns = append(txns, txn)
@@ -77,6 +76,7 @@ func (m *BlockchainModule) ProcessBCBlkMsg(msg types.Message, pkt transport.Pack
 		err := m.SetGenesisBlock(&block)
 		if err == nil {
 			close(m.bcReadyChan)
+			m.selectNextMiner(&block)
 		}
 		return nil
 	}

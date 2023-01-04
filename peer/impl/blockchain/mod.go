@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	permissioned "go.dedis.ch/cs438/permissioned-chain"
@@ -22,9 +23,11 @@ type BlockchainModule struct {
 	*permissioned.Blockchain
 	txnPool       *TxnPool
 	watchRegistry *WatchRegistry
+	cr            *CreditRecords
 
 	blkChan     chan *permissioned.Block
 	bcReadyChan chan struct{}
+	minerChan   chan uint
 }
 
 func NewBlockchainModule(conf *peer.Configuration, messageModule *message.MessageModule) *BlockchainModule {
@@ -35,8 +38,10 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 		Blockchain:    permissioned.NewBlockchain(),
 		txnPool:       NewTxnPool(),
 		watchRegistry: NewWatchRegistry(),
+		cr:            NewCreditRecords(),
 		blkChan:       make(chan *permissioned.Block, 5),
 		bcReadyChan:   make(chan struct{}),
+		minerChan:     make(chan uint, 5),
 	}
 
 	// message registery
@@ -155,6 +160,19 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) err
 
 // -----------------------------------------------------------------------------
 // Private Helpfer Functions
+
+// selectNextMiner selects the next Miner
+// it notifies the minning daemon if the miner is us
+func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
+	// select next miner
+	nextMiner := m.cr.advanceAndSelect(block.States)
+	log.Info().Msgf("Next miner on height %d is %s",
+		block.Height+1, nextMiner)
+	// notify miner to start if the next miner is myself
+	if nextMiner == m.account.GetAddress().Hex {
+		m.minerChan <- block.Height
+	}
+}
 
 // broadcastBCTxnMessage broadcast a BCTxnMessage in private msg
 func (m *BlockchainModule) broadcastBCTxnMessage(participants map[string]struct{},
