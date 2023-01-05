@@ -13,14 +13,14 @@ func (m *MPCModule) PreMPCTxnCallback(config *permissioned.ChainConfig, txn *per
 			permissioned.TxnTypePreMPC, txn.Type)
 	}
 
-	record := txn.Data.(permissioned.MPCPropose)
-	err := m.InitMPC(txn.ID, record.Prime, record.Initiator, record.Expression)
+	propose := txn.Data.(permissioned.MPCPropose)
+	err := m.initMPCWithBC(txn.ID, config, &propose)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		val, err := m.ComputeExpression(txn.ID, record.Expression, record.Prime)
+		val, err := m.ComputeExpression(txn.ID, propose.Expression, propose.Prime)
 		err = m.mpcCenter.Inform(txn.ID, MPCResult{result: val, err: err})
 		if err != nil {
 			log.Err(err).Send()

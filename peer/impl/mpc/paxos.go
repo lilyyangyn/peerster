@@ -81,7 +81,7 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 
 	// init MPC instance and start MPC
 	log.Info().Msgf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
-	err = m.InitMPC(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression)
+	err = m.InitMPCWithPaxos(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression)
 	if err != nil {
 		return err
 	}

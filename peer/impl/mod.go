@@ -186,7 +186,7 @@ func (n *node) GetPubkeyStore() peer.PubkeyStore {
 // InitMPC implements peer.InitMPC
 func (n *node) InitMPC(uniqID string, prime string, initiator string,
 	expression string) error {
-	return n.mpc.InitMPC(uniqID, prime, initiator, expression)
+	return n.mpc.InitMPCWithPaxos(uniqID, prime, initiator, expression)
 }
 
 // GetPubkeyStore implements peer.ComputeExpression

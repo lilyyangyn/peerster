@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/big"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"go.dedis.ch/cs438/peer/impl/blockchain"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
 )
@@ -119,7 +121,7 @@ func (m *MPCModule) CalculateMPC(expression string, budget float64) (int, error)
 	return result.result, result.err
 }
 
-func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
+func (m *MPCModule) InitMPCWithPaxos(uniqID string, prime string, initiator string,
 	expression string) error {
 	mpcPrime, _ := new(big.Int).SetString(prime, 10)
 	mpc := NewMPC(uniqID, *mpcPrime, initiator, expression)
@@ -134,6 +136,7 @@ func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
 	for key := range pubKeyStore {
 		participants = append(participants, key)
 	}
+
 	// add MPC peer, use port as the mpc id.
 	peersMap := map[string]int{}
 	for _, participant := range participants {
@@ -199,7 +202,34 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 	return int(ans.Uint64()), nil
 }
 
-/** Private Helpfer Functions **/
+// -----------------------------------------------------------------------------
+// Private Helpfer Functions
+
+func (m *MPCModule) initMPCWithBC(uniqID string, config *permissioned.ChainConfig,
+	propose *permissioned.MPCPropose) error {
+	mpcPrime, _ := new(big.Int).SetString(propose.Prime, 10)
+	mpc := NewMPC(uniqID, *mpcPrime, propose.Initiator, propose.Expression)
+
+	// Use chain participants as MPC participants
+	participants := make([]string, 0, len(config.Participants))
+	for peer := range config.Participants {
+		participants = append(participants, peer)
+	}
+	sort.Strings(participants)
+
+	// add MPC peer, use position as the mpc id.
+	peersMap := map[string]int{}
+	for idx, participant := range participants {
+		peersMap[participant] = idx
+	}
+	mpc.addPeers(peersMap)
+	mpc.addParticipants(participants)
+
+	m.mpcCenter.RegisterMPC(mpc.id, mpc)
+
+	return nil
+}
+
 func infixToPostfix(infix string) ([]string, error) {
 	// '+', "-", is not used as a unary operation (i.e., "+1", "-(2 + 3)"", "-1", "3-(-2)" are invalid).
 	infix = strings.ReplaceAll(infix, " ", "")
