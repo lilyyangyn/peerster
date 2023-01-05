@@ -147,6 +147,7 @@ func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float
 
 // SendPostMPCTransaction generates and sends a postMPC transaction
 func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) error {
+	// TODO: update account nonce?
 	record := permissioned.MPCRecord{
 		UniqID: id,
 		Result: result,
@@ -165,7 +166,7 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) err
 // it notifies the minning daemon if the miner is us
 func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
 	// select next miner
-	nextMiner := m.cr.advanceAndSelect(block.States)
+	nextMiner := m.cr.advanceAndSelect(block)
 	log.Info().Msgf("Next miner on height %d is %s",
 		block.Height+1, nextMiner)
 	// notify miner to start if the next miner is myself

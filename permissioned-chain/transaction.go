@@ -447,7 +447,8 @@ func updateNonce(worldState storage.KVStore, accountID string) error {
 func lockBalance(worldState storage.KVStore, accountID string, amount float64) error {
 	account := GetAccountFromWorldState(worldState, accountID)
 	if account.balance < amount {
-		return fmt.Errorf("Initiator(%s) balance not enough", accountID)
+		return fmt.Errorf("Initiator(%s) balance not enough. Remain balance: %f",
+			accountID, account.balance)
 	}
 
 	// lock balance

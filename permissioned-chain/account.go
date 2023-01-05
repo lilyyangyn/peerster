@@ -53,9 +53,6 @@ func (ac *Account) GetBalance() float64 {
 	return ac.balance
 }
 
-// func (ac *Account) GetNonce() uint {
-// 	ac.RLock()
-// 	defer ac.RUnlock()
-
-// 	return ac.nonce
-// }
+func (ac *Account) IncreaseNonce() {
+	ac.nonce++
+}
