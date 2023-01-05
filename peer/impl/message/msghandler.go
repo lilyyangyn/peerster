@@ -15,7 +15,7 @@ func (m *MessageModule) ProcessChatMessage(msg types.Message, pkt transport.Pack
 		return xerrors.Errorf("wrong type: %T", msg)
 	}
 
-	log.Info().Msgf("%s received a chat message from: %s. Msg: %s",
+	log.Printf("%s received a chat message from: %s. Msg: %s",
 		m.conf.Socket.GetAddress(),
 		pkt.Header.Source,
 		chatMsg.Message)

@@ -130,13 +130,13 @@ func Test_HW3_Integration_Multiple_Consensus(t *testing.T) {
 		store := node.GetStorage().GetBlockchainStore()
 		require.Equal(t, numMessages*totalNodes+1, store.Len())
 
-		lastHashes[string(store.Get(storage.LastBlockKey))] = struct{}{}
+		lastHashes[string(store.Get(storage.TagLastBlockKey))] = struct{}{}
 
-		z.ValidateBlockchain(t, store)
+		z.ValidateBlockchain(t, store, storage.TagLastBlockKey)
 
 		require.Equal(t, numMessages*totalNodes, node.GetStorage().GetNamingStore().Len())
 
-		z.DisplayLastBlockchainBlock(t, os.Stdout, node.GetStorage().GetBlockchainStore())
+		z.DisplayLastBlockchainBlock(t, os.Stdout, node.GetStorage().GetBlockchainStore(), storage.MPCLastBlockKey)
 	}
 
 	// > all peers must have the same last hash

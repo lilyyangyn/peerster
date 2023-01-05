@@ -2,6 +2,7 @@ package unit
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 	"os"
 	"sync"
@@ -16,41 +17,13 @@ import (
 	"go.dedis.ch/cs438/types"
 )
 
-// 3-1
-//
-// If the TotalPeers is set to <= 1 then there must be no paxos messages
-// exchanged.
-func Test_HW3_Tag_Alone(t *testing.T) {
-	transp := channel.NewTransport()
-
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
-	defer node1.Stop()
-
-	err := node1.Tag("a", "b")
-	require.NoError(t, err)
-
-	// > no messages have been sent
-
-	ins := node1.GetIns()
-	require.Len(t, ins, 0)
-
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(0), z.WithPaxosID(1))
-	defer node2.Stop()
-
-	// > no messages have been sent
-
-	ins = node2.GetIns()
-	require.Len(t, ins, 0)
-}
-
-// 3-2
-//
 // Check that a peer does nothing if it receives a prepare message with a wrong
 // step.
-func Test_HW3_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -61,7 +34,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 	// sending a prepare with a wrong step
 
 	prepare := types.PaxosPrepareMessage{
-		Type:   types.PaxosTypeTag,
+		Type:   types.PaxosTypeMPC,
 		Step:   99, // wrong step
 		ID:     1,
 		Source: proposer.GetAddress(),
@@ -86,17 +59,15 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_Step(t *testing.T) {
 
 	require.Len(t, acceptor.GetOuts(), 0)
 	require.Equal(t, 0, acceptor.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 0, acceptor.GetStorage().GetNamingStore().Len())
 }
 
-// 3-3
-//
 // Check that a peer does nothing if it receives a prepare message with a wrong
 // ID.
-func Test_HW3_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -107,7 +78,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 	// sending a prepare with an ID too low
 
 	prepare := types.PaxosPrepareMessage{
-		Type:   types.PaxosTypeTag,
+		Type:   types.PaxosTypeMPC,
 		Step:   0,
 		ID:     0, // ID too low
 		Source: proposer.GetAddress(),
@@ -132,17 +103,15 @@ func Test_HW3_Paxos_Acceptor_Prepare_Wrong_ID(t *testing.T) {
 
 	require.Len(t, acceptor.GetOuts(), 0)
 	require.Equal(t, 0, acceptor.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 0, acceptor.GetStorage().GetNamingStore().Len())
 }
 
-// 3-4
-//
 // Check that a peer sends back a promise if it receives a valid prepare
 // message.
-func Test_HW3_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -153,7 +122,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 	// sending a prepare with a high ID, must then be taken into account
 
 	prepare := types.PaxosPrepareMessage{
-		Type:   types.PaxosTypeTag,
+		Type:   types.PaxosTypeMPC,
 		Step:   0,
 		ID:     99,
 		Source: proposer.GetAddress(),
@@ -197,17 +166,15 @@ func Test_HW3_Paxos_Acceptor_Prepare_Correct(t *testing.T) {
 	// > no block added
 
 	require.Equal(t, 0, acceptor.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 0, acceptor.GetStorage().GetNamingStore().Len())
 }
 
-// 3-5
-//
 // Check that a peer does nothing if it receives a propose message with a wrong
 // step.
-func Test_HW3_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -217,15 +184,17 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 
 	// sending a propose with a wrong step
 
-	proposeVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	proposeVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Expression: expression,
+		Budget:     budget,
 	})
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
-		Type:  types.PaxosTypeTag,
+		Type:  types.PaxosTypeMPC,
 		Step:  99, // wrong step
 		ID:    1,
 		Value: *proposeVal,
@@ -250,17 +219,15 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_Step(t *testing.T) {
 
 	require.Len(t, acceptor.GetOuts(), 0)
 	require.Equal(t, 0, acceptor.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 0, acceptor.GetStorage().GetNamingStore().Len())
 }
 
-// 3-6
-//
 // Check that a peer does nothing if it receives a propose message with a wrong
 // ID.
-func Test_HW3_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -270,15 +237,17 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 
 	// sending a propose with a wrong ID
 
-	proposeVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	proposeVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Expression: expression,
+		Budget:     budget,
 	})
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		// ID too high: 0 is expected since MaxID of a proposer starts at 0 and
 		// the proposer hasn't received any prepare, so its MaxID = 0.
@@ -305,17 +274,15 @@ func Test_HW3_Paxos_Acceptor_Propose_Wrong_ID(t *testing.T) {
 
 	require.Len(t, acceptor.GetOuts(), 0)
 	require.Equal(t, 0, acceptor.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 0, acceptor.GetStorage().GetNamingStore().Len())
 }
 
-// 3-7
-//
 // Check that if an acceptor already promised, but receives a higher ID, then it
 // must return the valid promised id and promised value.
-func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -324,7 +291,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	acceptor.AddPeer(proposer.GetAddress())
 
 	prepare := types.PaxosPrepareMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		ID:   5,
 	}
@@ -346,15 +313,17 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 
 	// sending a propose, will make the proposer set its MaxID
 
-	proposeVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	proposeVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Expression: expression,
+		Budget:     budget,
 	})
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
-		Type:  types.PaxosTypeTag,
+		Type:  types.PaxosTypeMPC,
 		Step:  0,
 		ID:    5,
 		Value: *proposeVal,
@@ -379,7 +348,7 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	// return the promise ID and promise value.
 
 	prepare = types.PaxosPrepareMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		ID:   9, // higher ID
 	}
@@ -432,10 +401,10 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 
 		value, err := types.ParsePaxosValueContent(promise.AcceptedValue)
 		require.NoError(t, err)
-		tagvalue, ok := value.(*types.PaxosTagValue)
+		MPCvalue, ok := value.(*types.PaxosMPCValue)
 		require.True(t, ok)
-		require.Equal(t, "a", tagvalue.Filename)
-		require.Equal(t, "b", tagvalue.Metahash)
+		require.Equal(t, expression, MPCvalue.Expression)
+		require.Equal(t, budget, MPCvalue.Budget)
 
 		found = true
 		break
@@ -444,14 +413,13 @@ func Test_HW3_Paxos_Acceptor_Prepare_Already_Promised(t *testing.T) {
 	require.True(t, found)
 }
 
-// 3-8
-//
 // Check that a peer broadcast an accept if it receives a propose message with a
 // correct ID and correct Step.
-func Test_HW3_Paxos_Acceptor_Propose_Correct(t *testing.T) {
+func Test_GP_Paxos_Acceptor_Propose_Correct(t *testing.T) {
 	transp := channel.NewTransport()
 
-	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1), z.WithPaxosID(1))
+	acceptor := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(1),
+		z.WithPaxosID(1), z.WithDisableMPC())
 	defer acceptor.Stop()
 
 	proposer, err := transp.CreateSocket("127.0.0.1:0")
@@ -459,15 +427,17 @@ func Test_HW3_Paxos_Acceptor_Propose_Correct(t *testing.T) {
 
 	acceptor.AddPeer(proposer.GetAddress())
 
-	proposeVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	proposeVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Expression: expression,
+		Budget:     budget,
 	})
 	require.NoError(t, err)
 
 	propose := types.PaxosProposeMessage{
-		Type:  types.PaxosTypeTag,
+		Type:  types.PaxosTypeMPC,
 		Step:  0,
 		ID:    0,
 		Value: *proposeVal,
@@ -504,18 +474,16 @@ func Test_HW3_Paxos_Acceptor_Propose_Correct(t *testing.T) {
 
 	value, err := types.ParsePaxosValueContent(&accept.Value)
 	require.NoError(t, err)
-	tagvalue, ok := value.(*types.PaxosTagValue)
+	MPCvalue, ok := value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, MPCvalue.Expression)
+	require.Equal(t, budget, MPCvalue.Budget)
 	require.Equal(t, "xxx", accept.Value.UniqID)
 }
 
-// 3-9
-//
 // Check that a peer does nothing if it receives a promise with a wrong step.
-func Test_HW3_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
+func Test_GP_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	transp := channel.NewTransport()
 
 	paxosID := uint(9)
@@ -524,7 +492,8 @@ func Test_HW3_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	proposer := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithPaxosProposerRetry(time.Hour),
 		z.WithTotalPeers(2),
-		z.WithPaxosID(paxosID))
+		z.WithPaxosID(paxosID),
+		z.WithDisableMPC())
 
 	defer proposer.Stop()
 
@@ -536,7 +505,7 @@ func Test_HW3_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	// making proposer propose
 
 	go func() {
-		err := proposer.Tag("name", "metahash")
+		_, err := proposer.Calculate("a.v1+b.v1+c.v1", 10)
 		require.NoError(t, err)
 	}()
 
@@ -563,7 +532,7 @@ func Test_HW3_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	// sending back a promise with a wrong step
 
 	promise := types.PaxosPromiseMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 99,
 		ID:   paxosID,
 	}
@@ -592,10 +561,8 @@ func Test_HW3_Paxos_Proposer_Prepare_Promise_Wrong_Step(t *testing.T) {
 	require.Equal(t, 0, proposer.GetStorage().GetNamingStore().Len())
 }
 
-// 3-10
-//
 // Check that a peer broadcast a propose when it gets enough promises.
-func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
+func Test_GP_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 	transp := channel.NewTransport()
 
 	paxosID := uint(9)
@@ -605,7 +572,8 @@ func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 		z.WithPaxosProposerRetry(time.Hour),
 		z.WithTotalPeers(2),
 		z.WithPaxosID(paxosID),
-		z.WithAckTimeout(0))
+		z.WithAckTimeout(0),
+		z.WithDisableMPC())
 
 	defer proposer.Stop()
 
@@ -617,7 +585,7 @@ func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 	// making proposer propose
 
 	go func() {
-		err := proposer.Tag("name", "metahash")
+		_, err := proposer.Calculate("a.v1+b.v1+c.v1", 10)
 		require.NoError(t, err)
 	}()
 
@@ -638,7 +606,7 @@ func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 	// sending back a correct promise
 
 	promise := types.PaxosPromiseMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		ID:   paxosID,
 	}
@@ -677,21 +645,101 @@ func Test_HW3_Paxos_Proposer_Prepare_Propose_Correct(t *testing.T) {
 
 	value, err := types.ParsePaxosValueContent(&proposes[0].Value)
 	require.NoError(t, err)
-	tagvalue, ok := value.(*types.PaxosTagValue)
+	mpcvalue, ok := value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "name", tagvalue.Filename)
-	require.Equal(t, "metahash", tagvalue.Metahash)
+	require.Equal(t, "a.v1+b.v1+c.v1", mpcvalue.Expression)
+	require.Equal(t, float64(10), mpcvalue.Budget)
 }
 
-// 3-11
-//
+// Check that a peer can differentiate paxos message from different paxos instance
+// i.e. it will do nothing if the promise messages are from a Tag paxos even the number
+// of promises it received reaches the threshold
+func Test_GP_Paxos_Proposer_Prepare_Propose_Wrong_Type(t *testing.T) {
+	transp := channel.NewTransport()
+
+	paxosID := uint(9)
+
+	// TWO nodes needed for a consensus. Setting a special paxos ID.
+	proposer := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+		z.WithPaxosProposerRetry(time.Hour),
+		z.WithTotalPeers(2),
+		z.WithPaxosID(paxosID),
+		z.WithAckTimeout(0),
+		z.WithDisableMPC())
+
+	defer proposer.Stop()
+
+	acceptor, err := transp.CreateSocket("127.0.0.1:0")
+	require.NoError(t, err)
+
+	proposer.AddPeer(acceptor.GetAddress())
+
+	// making proposer propose
+
+	go func() {
+		_, err := proposer.Calculate("a.v1+b.v1+c.v1", 10)
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(time.Second)
+
+	// > proposer has broadcasted the paxos propose and sent to itself a
+	// promise.
+
+	n1outs := proposer.GetOuts()
+	require.Len(t, n1outs, 2)
+
+	// > the socket must receive a paxos prepare
+
+	packet, err := acceptor.Recv(time.Second * 3)
+	require.NoError(t, err)
+
+	rumor := z.GetRumor(t, packet.Msg)
+	require.Len(t, rumor.Rumors, 1)
+
+	prepare := z.GetPaxosPrepare(t, rumor.Rumors[0].Msg)
+	require.Equal(t, paxosID, prepare.ID)
+	require.Equal(t, uint(0), prepare.Step)
+
+	// sending back a correct promise
+
+	promise := types.PaxosPromiseMessage{
+		Type: types.PaxosTypeTag,
+		Step: 0,
+		ID:   paxosID,
+	}
+
+	transpMsg, err := proposer.GetRegistry().MarshalMessage(&promise)
+	require.NoError(t, err)
+
+	header := transport.NewHeader(acceptor.GetAddress(), acceptor.GetAddress(), proposer.GetAddr(), 0)
+
+	packet = transport.Packet{
+		Header: &header,
+		Msg:    &transpMsg,
+	}
+
+	err = acceptor.Send(proposer.GetAddr(), packet, 0)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 3)
+
+	// > proposer must have ignored the message
+
+	n1outs = proposer.GetOuts()
+
+	require.Len(t, n1outs, 2)
+	require.Equal(t, 0, proposer.GetStorage().GetBlockchainStore().Len())
+	require.Equal(t, 0, proposer.GetStorage().GetNamingStore().Len())
+}
+
 // If a peer doesn't receives enough TLC message it must not add a new block.
-func Test_HW3_TLC_Move_Step_Not_Enough(t *testing.T) {
+func Test_GP_TLC_Move_Step_Not_Enough(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Threshold = 2
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2), z.WithDisableMPC())
 	defer node1.Stop()
 
 	socketX, err := transp.CreateSocket("127.0.0.1:0")
@@ -705,15 +753,17 @@ func Test_HW3_TLC_Move_Step_Not_Enough(t *testing.T) {
 	blockHash := "9efc06df7e54b580ebb0e7d7e52cdf05773cf5165c2a2d1a52cdc9ab6fd442e0"
 	previousHash := [32]byte{}
 
-	tlcVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	tlcVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Budget:     budget,
+		Expression: expression,
 	})
 	require.NoError(t, err)
 
 	tlc := types.TLCMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		Block: types.BlockchainBlock{
 			Index:    0,
@@ -763,15 +813,13 @@ func Test_HW3_TLC_Move_Step_Not_Enough(t *testing.T) {
 	require.Equal(t, 0, store.Len())
 }
 
-// 3-12
-//
 // If a peer receives enough TLC message it must then add a new block, and
 // broadcast a TLC message (if not already done).
-func Test_HW3_TLC_Move_Step_OK(t *testing.T) {
+func Test_GP_TLC_Move_Step_OK(t *testing.T) {
 	transp := channel.NewTransport()
 
 	// Threshold = 2
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(2), z.WithDisableMPC())
 	defer node1.Stop()
 
 	socketX, err := transp.CreateSocket("127.0.0.1:0")
@@ -785,15 +833,17 @@ func Test_HW3_TLC_Move_Step_OK(t *testing.T) {
 	blockHash := "9efc06df7e54b580ebb0e7d7e52cdf05773cf5165c2a2d1a52cdc9ab6fd442e0"
 	previousHash := [32]byte{}
 
-	tlcVal, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
+	budget := float64(10)
+	expression := "a.v1+b.v1+c.v1"
+	tlcVal, err := types.CreatePaxosValue(types.PaxosMPCValue{
+		UniqID:     "xxx",
+		Budget:     budget,
+		Expression: expression,
 	})
 	require.NoError(t, err)
 
 	tlc := types.TLCMessage{
-		Type: types.PaxosTypeTag,
+		Type: types.PaxosTypeMPC,
 		Step: 0,
 		Block: types.BlockchainBlock{
 			Index:    0,
@@ -839,176 +889,9 @@ func Test_HW3_TLC_Move_Step_OK(t *testing.T) {
 
 	// > node1 must have the block hash in the LasBlockKey store
 
-	require.Equal(t, z.MustDecode(blockHash), store.Get(storage.TagLastBlockKey))
-
-	// > node1 must have the name in its name store
-
-	require.Equal(t, 1, node1.GetStorage().GetNamingStore().Len())
-	require.Equal(t, []byte("b"), node1.GetStorage().GetNamingStore().Get("a"))
+	require.Equal(t, z.MustDecode(blockHash), store.Get(storage.MPCLastBlockKey))
 }
 
-// 3-13
-//
-// If a peer receives TLC message for an upcoming round (step) it must keep it
-// and be able to catchup once the current step is done.
-func Test_HW3_TLC_Move_Step_Catchup(t *testing.T) {
-	transp := channel.NewTransport()
-
-	// Threshold = 1
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAckTimeout(0), z.WithTotalPeers(1))
-	defer node1.Stop()
-
-	socketX, err := transp.CreateSocket("127.0.0.1:0")
-	require.NoError(t, err)
-
-	node1.AddPeer(socketX.GetAddress())
-
-	// computed by hand
-	blockHash0 := "9efc06df7e54b580ebb0e7d7e52cdf05773cf5165c2a2d1a52cdc9ab6fd442e0"
-	previousHash0 := [32]byte{}
-
-	tlcVal0, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "xxx",
-		Filename: "a",
-		Metahash: "b",
-	})
-	require.NoError(t, err)
-
-	tlc0 := types.TLCMessage{
-		Type: types.PaxosTypeTag,
-		Step: 0,
-		Block: types.BlockchainBlock{
-			Index:    0,
-			Hash:     z.MustDecode(blockHash0),
-			Value:    *tlcVal0,
-			PrevHash: previousHash0[:],
-		},
-	}
-
-	// computed by hand
-	blockHash1 := "85a4ef7563349ee08c1ce7b669b1cff5afad5f8f47e6c1be307498e981efbfab"
-
-	tlcVal1, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "yyy",
-		Filename: "e",
-		Metahash: "f",
-	})
-	require.NoError(t, err)
-
-	tlc1 := types.TLCMessage{
-		Type: types.PaxosTypeTag,
-		Step: 1,
-		Block: types.BlockchainBlock{
-			Index:    1,
-			Hash:     z.MustDecode(blockHash1),
-			Value:    *tlcVal1,
-			PrevHash: z.MustDecode(blockHash0),
-		},
-	}
-
-	// computed by hand
-	blockHash2 := "4db12a08ff475592180e74b569fd936afef15eeb682bfcc203cb8eb03b8a52f5"
-
-	tlcVal2, err := types.CreatePaxosValue(types.PaxosTagValue{
-		UniqID:   "zzz",
-		Filename: "g",
-		Metahash: "h",
-	})
-	require.NoError(t, err)
-
-	tlc2 := types.TLCMessage{
-		Type: types.PaxosTypeTag,
-		Step: 2,
-		Block: types.BlockchainBlock{
-			Index:    2,
-			Hash:     z.MustDecode(blockHash2),
-			Value:    *tlcVal2,
-			PrevHash: z.MustDecode(blockHash1),
-		},
-	}
-
-	// send for step 2
-
-	transpMsg, err := node1.GetRegistry().MarshalMessage(&tlc2)
-	require.NoError(t, err)
-
-	header := transport.NewHeader(socketX.GetAddress(), socketX.GetAddress(), node1.GetAddr(), 0)
-
-	packet := transport.Packet{
-		Header: &header,
-		Msg:    &transpMsg,
-	}
-
-	err = socketX.Send(node1.GetAddr(), packet, 0)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second * 1)
-
-	// Send for step 1
-
-	transpMsg, err = node1.GetRegistry().MarshalMessage(&tlc1)
-	require.NoError(t, err)
-
-	header = transport.NewHeader(socketX.GetAddress(), socketX.GetAddress(), node1.GetAddr(), 0)
-
-	packet = transport.Packet{
-		Header: &header,
-		Msg:    &transpMsg,
-	}
-
-	err = socketX.Send(node1.GetAddr(), packet, 0)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second * 1)
-
-	// > at this stage no blocks are added
-
-	store := node1.GetStorage().GetBlockchainStore()
-	require.Equal(t, 0, store.Len())
-
-	// adding the expected TLC message. Peer must then add block 0, 1, and 2.
-
-	transpMsg, err = node1.GetRegistry().MarshalMessage(&tlc0)
-	require.NoError(t, err)
-
-	header = transport.NewHeader(socketX.GetAddress(), socketX.GetAddress(), node1.GetAddr(), 0)
-
-	packet = transport.Packet{
-		Header: &header,
-		Msg:    &transpMsg,
-	}
-
-	err = socketX.Send(node1.GetAddr(), packet, 0)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second * 1)
-
-	// > node1 must have 3 blocks in its block store
-
-	// 3 blocks + the last block key
-	require.Equal(t, 4, store.Len())
-	blockBuf := store.Get(blockHash2)
-
-	var block types.BlockchainBlock
-	err = block.Unmarshal(blockBuf)
-	require.NoError(t, err)
-
-	require.Equal(t, tlc2.Block, block)
-
-	// > node1 must have the block hash in the LasBlockKey store
-
-	require.Equal(t, z.MustDecode(blockHash2), store.Get(storage.TagLastBlockKey))
-
-	// > node1 must have 3 names in its name store
-
-	require.Equal(t, 3, node1.GetStorage().GetNamingStore().Len())
-	require.Equal(t, []byte("b"), node1.GetStorage().GetNamingStore().Get("a"))
-	require.Equal(t, []byte("f"), node1.GetStorage().GetNamingStore().Get("e"))
-	require.Equal(t, []byte("h"), node1.GetStorage().GetNamingStore().Get("g"))
-}
-
-// 3-14
-//
 // Given the following topology:
 //
 //	A -> B
@@ -1028,18 +911,20 @@ func Test_HW3_TLC_Move_Step_Catchup(t *testing.T) {
 //
 //	A -> B: TLC (broadcast)
 //	B -> A: TLC (broadcast)
-func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
+func Test_GP_MPC_Paxos_Simple_Consensus(t *testing.T) {
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1))
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(1), z.WithDisableMPC())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(2))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(2), z.WithPaxosID(2), z.WithDisableMPC())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
 
-	err := node1.Tag("a", "b")
+	expression := "a.v1+b.v1+c.v1"
+	budget := float64(10)
+	_, err := node1.Calculate(expression, budget)
 	require.NoError(t, err)
 
 	time.Sleep(time.Second)
@@ -1107,11 +992,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err := types.ParsePaxosValueContent(&propose.Value)
 	require.NoError(t, err)
-	tagvalue, ok := value.(*types.PaxosTagValue)
+	mpcvalue, ok := value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// >> Rumor(4):PaxosAccept
 
@@ -1129,11 +1014,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&accept.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// >> Rumor(5):TLC
 
@@ -1152,11 +1037,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&tlc.Block.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// > node2 must have sent
 	//
@@ -1204,11 +1089,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&accept.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// >> Rumor(3):TLC
 
@@ -1227,23 +1112,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&tlc.Block.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
-
-	// > node1 name store is updated
-
-	names := node1.GetStorage().GetNamingStore()
-	require.Equal(t, 1, names.Len())
-	require.Equal(t, []byte("b"), names.Get("a"))
-
-	// > node2 name store is updated
-
-	names = node2.GetStorage().GetNamingStore()
-	require.Equal(t, 1, names.Len())
-	require.Equal(t, []byte("b"), names.Get("a"))
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// > node1 blockchain store contains two elements
 
@@ -1251,7 +1124,7 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	require.Equal(t, 2, bstore.Len())
 
-	lastBlockHash := bstore.Get(storage.TagLastBlockKey)
+	lastBlockHash := bstore.Get(storage.MPCLastBlockKey)
 	lastBlock := bstore.Get(hex.EncodeToString(lastBlockHash))
 
 	var block types.BlockchainBlock
@@ -1264,11 +1137,11 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&block.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 
 	// > node2 blockchain store contains two elements
 
@@ -1276,7 +1149,7 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	require.Equal(t, 2, bstore.Len())
 
-	lastBlockHash = bstore.Get(storage.TagLastBlockKey)
+	lastBlockHash = bstore.Get(storage.MPCLastBlockKey)
 	lastBlock = bstore.Get(hex.EncodeToString(lastBlockHash))
 
 	err = block.Unmarshal(lastBlock)
@@ -1287,20 +1160,18 @@ func Test_HW3_Tag_Paxos_Simple_Consensus(t *testing.T) {
 
 	value, err = types.ParsePaxosValueContent(&block.Value)
 	require.NoError(t, err)
-	tagvalue, ok = value.(*types.PaxosTagValue)
+	mpcvalue, ok = value.(*types.PaxosMPCValue)
 	require.True(t, ok)
 
-	require.Equal(t, "a", tagvalue.Filename)
-	require.Equal(t, "b", tagvalue.Metahash)
+	require.Equal(t, expression, mpcvalue.Expression)
+	require.Equal(t, budget, mpcvalue.Budget)
 }
 
-// 3-15
-//
 // If there are 2 nodes but we set the TotalPeers to 3 and the threshold
 // function to N, then there is no chance a consensus is reached. If we wait 6
 // seconds, and the PaxosProposerRetry is set to 4 seconds, then the proposer
 // must have retried once and sent in total 2 paxos prepare.
-func Test_HW3_Tag_Paxos_No_Consensus(t *testing.T) {
+func Test_GP_MPC_Paxos_No_Consensus(t *testing.T) {
 	transp := channel.NewTransport()
 
 	threshold := func(i uint) int { return int(i) }
@@ -1310,30 +1181,32 @@ func Test_HW3_Tag_Paxos_No_Consensus(t *testing.T) {
 		z.WithTotalPeers(3),
 		z.WithPaxosID(1),
 		z.WithPaxosThreshold(threshold),
-		z.WithPaxosProposerRetry(time.Second*4))
+		z.WithPaxosProposerRetry(time.Second*4),
+		z.WithDisableMPC())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3), z.WithPaxosID(2))
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3),
+		z.WithPaxosID(2), z.WithDisableMPC())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
 	node2.AddPeer(node1.GetAddr())
 
-	tagDone := make(chan struct{})
+	MPCDone := make(chan struct{})
 	timeout := time.After(time.Second * 6)
 
 	go func() {
-		err := node1.Tag("a", "b")
+		_, err := node1.Calculate("a.v1+b.v1+c.v1", 10)
 		require.NoError(t, err)
 
-		close(tagDone)
+		close(MPCDone)
 	}()
 
 	var outs []transport.Packet
 
 	select {
-	case <-tagDone:
-		t.Error("tag shouldn't work")
+	case <-MPCDone:
+		t.Error("MPC shouldn't work")
 	case <-timeout:
 		outs = node1.GetOuts()
 	}
@@ -1368,16 +1241,12 @@ func Test_HW3_Tag_Paxos_No_Consensus(t *testing.T) {
 	require.Equal(t, "paxospromise", private.Msg.Type)
 }
 
-// 3-16
-//
 // If there are 2 nodes but we set the TotalPeers to 3 and the threshold
 // function to N, then there is no chance a consensus is reached. We then add a
 // third node and a consensus should eventually be reached and name stores
 // updated.
-func Test_HW3_Tag_Paxos_Eventual_Consensus(t *testing.T) {
+func Test_GP_MPC_Paxos_Eventual_Consensus(t *testing.T) {
 	transp := channel.NewTransport()
-
-	threshold := func(i uint) int { return int(i) }
 
 	// Note: we are setting the antientropy on each peer to make sure all rumors
 	// are spread among peers.
@@ -1387,16 +1256,16 @@ func Test_HW3_Tag_Paxos_Eventual_Consensus(t *testing.T) {
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithTotalPeers(3),
 		z.WithPaxosID(1),
-		z.WithPaxosThreshold(threshold),
 		z.WithPaxosProposerRetry(time.Second*2),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node1.Stop()
 
 	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithTotalPeers(3),
 		z.WithPaxosID(2),
-		z.WithPaxosThreshold(threshold),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node2.Stop()
 
 	// Note: we set the heartbeat and antientropy so that node3 will annonce
@@ -1404,27 +1273,29 @@ func Test_HW3_Tag_Paxos_Eventual_Consensus(t *testing.T) {
 	node3 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
 		z.WithTotalPeers(3),
 		z.WithPaxosID(3),
-		z.WithPaxosThreshold(threshold),
 		z.WithHeartbeat(time.Hour),
-		z.WithAntiEntropy(time.Second))
+		z.WithAntiEntropy(time.Second),
+		z.WithDisableMPC())
 	defer node3.Stop()
 
 	node1.AddPeer(node2.GetAddr())
 	node2.AddPeer(node1.GetAddr())
 
-	tagDone := make(chan struct{})
+	MPCDone := make(chan struct{})
 
+	expression := "a.v1+b.v1+c.v1"
+	budget := float64(10)
 	go func() {
-		err := node1.Tag("a", "b")
+		_, err := node1.Calculate(expression, budget)
 		require.NoError(t, err)
 
-		close(tagDone)
+		close(MPCDone)
 	}()
 
 	time.Sleep(time.Second * 3)
 
 	select {
-	case <-tagDone:
+	case <-MPCDone:
 		t.Error(t, "a consensus can't be reached")
 	default:
 	}
@@ -1436,33 +1307,13 @@ func Test_HW3_Tag_Paxos_Eventual_Consensus(t *testing.T) {
 	timeout := time.After(time.Second * 10)
 
 	select {
-	case <-tagDone:
+	case <-MPCDone:
 	case <-timeout:
 		t.Error(t, "a consensus must have been reached")
 	}
 
 	// wait for rumors to be spread, especially TLC messages.
 	time.Sleep(time.Second * 3)
-
-	// > node1 name store is updated
-
-	names := node1.GetStorage().GetNamingStore()
-	require.Equal(t, 1, names.Len())
-	require.Equal(t, []byte("b"), names.Get("a"))
-
-	// > node2 name store is updated
-
-	names = node2.GetStorage().GetNamingStore()
-	require.Equal(t, 1, names.Len())
-	require.Equal(t, []byte("b"), names.Get("a"))
-
-	// > node3 name store is updated
-
-	names = node3.GetStorage().GetNamingStore()
-	require.Equal(t, 1, names.Len())
-	require.Equal(t, []byte("b"), names.Get("a"))
-
-	time.Sleep(time.Second)
 
 	// > all nodes must have broadcasted 1 TLC message. There could be more sent
 	// if the node replied to a status from a peer that missed the broadcast.
@@ -1477,112 +1328,9 @@ func Test_HW3_Tag_Paxos_Eventual_Consensus(t *testing.T) {
 	require.GreaterOrEqual(t, len(tlcMsgs), 1)
 }
 
-// 3-17
-//
-// If I tag a name already taken, then the function should return an error.
-func Test_HW3_Tag_Paxos_Name_Taken(t *testing.T) {
-	transp := channel.NewTransport()
-
-	// We set TotalPeers to use the consensus
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithAutostart(false), z.WithTotalPeers(2))
-
-	name, metahash := "name", "metahash"
-
-	nameStore := node1.GetStorage().GetNamingStore()
-	nameStore.Set(name, []byte(metahash))
-
-	err := node1.Tag(name, metahash)
-	require.Error(t, err)
-}
-
-// 3-18
-//
-// A node joining late should be able to catchup thanks to the TLC messages. We
-// check that all nodes have the same valid blockchain.
-func Test_HW3_Tag_Paxos_Catchup(t *testing.T) {
-	transp := channel.NewTransport()
-
-	numBlocks := 10
-
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3), z.WithPaxosID(1))
-	defer node1.Stop()
-
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3), z.WithPaxosID(2))
-	defer node2.Stop()
-
-	node1.AddPeer(node2.GetAddr())
-	node2.AddPeer(node1.GetAddr())
-
-	// Setting N blocks
-
-	for i := 0; i < numBlocks; i++ {
-		name := make([]byte, 12)
-		rand.Read(name)
-
-		err := node1.Tag(hex.EncodeToString(name), "metahash")
-		require.NoError(t, err)
-	}
-
-	time.Sleep(time.Second)
-
-	// > at this stage node1 and node2 must have 10 blocks in their blockchain
-	// store and 10 names in their name store.
-
-	require.Equal(t, 10, node1.GetStorage().GetNamingStore().Len())
-	require.Equal(t, 10, node2.GetStorage().GetNamingStore().Len())
-
-	// 11 for the 10 blocks and the last block's hash
-	require.Equal(t, 11, node1.GetStorage().GetBlockchainStore().Len())
-	require.Equal(t, 11, node2.GetStorage().GetBlockchainStore().Len())
-
-	// > let's add the third peer and see if it can catchup.
-
-	node3 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(3), z.WithPaxosID(3))
-	defer node3.Stop()
-
-	node3.AddPeer(node2.GetAddr())
-
-	msg := types.EmptyMessage{}
-
-	transpMsg, err := node3.GetRegistry().MarshalMessage(msg)
-	require.NoError(t, err)
-
-	// > by broadcasting a message node3 will get back an ack with a status,
-	// making it asking for the missing rumors.
-
-	err = node3.Broadcast(transpMsg)
-	require.NoError(t, err)
-
-	time.Sleep(time.Second * 2)
-
-	// > checking the name and blockchain stores
-
-	require.Equal(t, 10, node3.GetStorage().GetNamingStore().Len())
-	require.Equal(t, 11, node3.GetStorage().GetBlockchainStore().Len())
-
-	// > check that all blockchain store have the same last block hash
-
-	blockStore1 := node1.GetStorage().GetBlockchainStore()
-	blockStore2 := node2.GetStorage().GetBlockchainStore()
-	blockStore3 := node3.GetStorage().GetBlockchainStore()
-
-	require.Equal(t, blockStore1.Get(storage.TagLastBlockKey), blockStore2.Get(storage.TagLastBlockKey))
-	require.Equal(t, blockStore1.Get(storage.TagLastBlockKey), blockStore3.Get(storage.TagLastBlockKey))
-
-	// > validate the chain in each store
-
-	z.ValidateBlockchain(t, blockStore1, storage.TagLastBlockKey)
-
-	z.ValidateBlockchain(t, blockStore2, storage.TagLastBlockKey)
-
-	z.ValidateBlockchain(t, blockStore3, storage.TagLastBlockKey)
-}
-
-// 3-19
-//
-// Call the Tag() function on multiple peers concurrently. The state should be
+// Call the Calculate() function on multiple peers concurrently. The state should be
 // consistent for all peers.
-func Test_HW3_Tag_Paxos_Consensus_Stress_Test(t *testing.T) {
+func Test_GP_MPC_Paxos_Consensus_Stress_Test(t *testing.T) {
 	numMessages := 7
 	numNodes := 3
 
@@ -1591,7 +1339,10 @@ func Test_HW3_Tag_Paxos_Consensus_Stress_Test(t *testing.T) {
 	nodes := make([]z.TestNode, numNodes)
 
 	for i := range nodes {
-		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithTotalPeers(uint(numNodes)), z.WithPaxosID(uint(i+1)))
+		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+			z.WithTotalPeers(uint(numNodes)),
+			z.WithPaxosID(uint(i+1)),
+			z.WithDisableMPC())
 		defer node.Stop()
 
 		nodes[i] = node
@@ -1606,7 +1357,8 @@ func Test_HW3_Tag_Paxos_Consensus_Stress_Test(t *testing.T) {
 	wait := sync.WaitGroup{}
 	wait.Add(numNodes)
 
-	for _, node := range nodes {
+	for k, node := range nodes {
+		k := k
 		go func(n z.TestNode) {
 			defer wait.Done()
 
@@ -1614,7 +1366,7 @@ func Test_HW3_Tag_Paxos_Consensus_Stress_Test(t *testing.T) {
 				name := make([]byte, 12)
 				rand.Read(name)
 
-				err := n.Tag(hex.EncodeToString(name), "1")
+				_, err := n.Calculate(fmt.Sprintf("a.v%d+b.v%d+c.v%d", k, i, i), 10)
 				require.NoError(t, err)
 
 				time.Sleep(time.Duration(rand.Int63n(int64(time.Second))))
@@ -1628,84 +1380,17 @@ func Test_HW3_Tag_Paxos_Consensus_Stress_Test(t *testing.T) {
 
 	lastHashes := map[string]struct{}{}
 
-	for i, node := range nodes {
-		t.Logf("node %d", i)
-
+	for _, node := range nodes {
 		store := node.GetStorage().GetBlockchainStore()
 		require.Equal(t, numMessages*numNodes+1, store.Len())
 
-		lastHashes[string(store.Get(storage.TagLastBlockKey))] = struct{}{}
+		lastHashes[string(store.Get(storage.MPCLastBlockKey))] = struct{}{}
 
-		z.ValidateBlockchain(t, store, storage.TagLastBlockKey)
+		z.ValidateBlockchain(t, store, storage.MPCLastBlockKey)
 
-		require.Equal(t, numMessages*numNodes, node.GetStorage().GetNamingStore().Len())
-
-		z.DisplayLastBlockchainBlock(t, os.Stdout, node.GetStorage().GetBlockchainStore(), storage.TagLastBlockKey)
+		z.DisplayLastBlockchainBlock(t, os.Stdout, node.GetStorage().GetBlockchainStore(), storage.MPCLastBlockKey)
 	}
 
 	// > all peers must have the same last hash
 	require.Len(t, lastHashes, 1)
-}
-
-// -----------------------------------------------------------------------------
-// Utility functions
-
-// getRumor returns the transport.Message embedded in the rumor at the provided
-// sequence.
-func getRumor(t *testing.T, pkts []transport.Packet, sequence uint) (*transport.Message, *transport.Header) {
-	for _, pkt := range pkts {
-		if pkt.Msg.Type == "rumor" {
-			rumor := z.GetRumor(t, pkt.Msg)
-
-			// a broadcast only have one rumor
-			if len(rumor.Rumors) == 1 {
-				if rumor.Rumors[0].Sequence == sequence {
-					return rumor.Rumors[0].Msg, pkt.Header
-				}
-			}
-		}
-	}
-	return nil, nil
-}
-
-// getTLCMessagesFromRumors returns the TLC messages from rumor messages. We're
-// expecting the rumor message to contain only one rumor that embeds the TLC
-// message. The rumor originates from the given addr.
-func getTLCMessagesFromRumors(t *testing.T, outs []transport.Packet, addr string) []types.TLCMessage {
-	var result []types.TLCMessage
-
-	for _, msg := range outs {
-		if msg.Msg.Type == "rumor" {
-			rumor := z.GetRumor(t, msg.Msg)
-			if len(rumor.Rumors) == 1 && rumor.Rumors[0].Msg.Type == "tlc" {
-				if rumor.Rumors[0].Origin == addr {
-					tlc := z.GetTLC(t, rumor.Rumors[0].Msg)
-					result = append(result, tlc)
-				}
-			}
-		}
-	}
-
-	return result
-}
-
-// getProposeMessagesFromRumors returns the propose messages from rumor
-// messages. We're expecting the rumor message to contain only one rumor that
-// embeds the propose message. The rumor originates from the given addr.
-func getProposeMessagesFromRumors(t *testing.T, outs []transport.Packet, addr string) []types.PaxosProposeMessage {
-	var result []types.PaxosProposeMessage
-
-	for _, msg := range outs {
-		if msg.Msg.Type == "rumor" {
-			rumor := z.GetRumor(t, msg.Msg)
-			if len(rumor.Rumors) == 1 && rumor.Rumors[0].Msg.Type == "paxospropose" {
-				if rumor.Rumors[0].Origin == addr {
-					propose := z.GetPaxosPropose(t, rumor.Rumors[0].Msg)
-					result = append(result, propose)
-				}
-			}
-		}
-	}
-
-	return result
 }

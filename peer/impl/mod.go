@@ -10,6 +10,8 @@ import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
+	"go.dedis.ch/cs438/peer/impl/mpc"
+	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
@@ -25,7 +27,9 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	}
 
 	n.message = message.NewMessageModule(&conf)
-	n.datasharing = datashare.NewDataSharingModule(&conf, n.message)
+	n.paxos = paxos.NewPaxosModule(&conf, n.message)
+	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
+	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos)
 
 	return &n
 }
@@ -38,7 +42,9 @@ type node struct {
 	conf peer.Configuration
 
 	message     *message.MessageModule
+	paxos       *paxos.PaxosModule
 	datasharing *datashare.DataSharingModule
+	mpc         *mpc.MPCModule
 
 	stopSig context.CancelFunc
 }
@@ -165,4 +171,25 @@ func (n *node) SetPubkeyEntry(origin string, pubkey *types.Pubkey) {
 // GetPubkeyStore implements peer.GetPubkeyStore
 func (n *node) GetPubkeyStore() peer.PubkeyStore {
 	return n.message.GetPubkeyStore()
+}
+
+// InitMPC implements peer.InitMPC
+func (n *node) InitMPC(uniqID string, prime string, initiator string,
+	expression string) error {
+	return n.mpc.InitMPC(uniqID, prime, initiator, expression, nil)
+}
+
+// GetPubkeyStore implements peer.ComputeExpression
+func (n *node) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
+	return n.mpc.ComputeExpression(uniqID, expr, prime)
+}
+
+// GetPubkeyStore implements peer.SetValueDBAsset
+func (n *node) SetValueDBAsset(key string, value int) error {
+	return n.mpc.SetValueDBAsset(key, value)
+}
+
+// Calculate implements peer.Calculate
+func (n *node) Calculate(expression string, budget float64) (int, error) {
+	return n.mpc.Calculate(expression, budget)
 }

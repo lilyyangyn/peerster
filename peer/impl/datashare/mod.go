@@ -13,6 +13,7 @@ import (
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 	"golang.org/x/xerrors"
@@ -26,19 +27,27 @@ type DataSharingModule struct {
 	replyChannels  SafeChannTable
 	messageRecords SafeMsgRecord
 
-	*paxos.PaxosModule
+	*paxos.PaxosInstance
 }
 
-func NewDataSharingModule(conf *peer.Configuration, messageModule *message.MessageModule) *DataSharingModule {
+func NewDataSharingModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *DataSharingModule {
 	m := DataSharingModule{
 		MessageModule:  messageModule,
 		conf:           conf,
 		catalog:        *NewSafeCatalog(),
 		replyChannels:  *NewSafeChannTable(),
 		messageRecords: *NewSafeMsgRecord(),
-
-		PaxosModule: paxos.NewPaxosModule(conf, messageModule),
 	}
+	instance, err := paxosModule.CreateNewPaxos(
+		types.PaxosTypeTag,
+		storage.TagLastBlockKey,
+		m.tagThreshold,
+		m.tagCallback,
+	)
+	if err != nil {
+		panic(err)
+	}
+	m.PaxosInstance = instance
 
 	// message registery
 	m.conf.MessageRegistry.RegisterMessageCallback(types.DataRequestMessage{}, m.ProcessDataRequestMessage)
@@ -117,7 +126,7 @@ func (m *DataSharingModule) Tag(name string, mh string) error {
 		return nil
 	}
 
-	return m.InitTagConensus(name, mh)
+	return m.initTagConcensus(name, mh)
 }
 
 // Resolve implements peer.Resolve

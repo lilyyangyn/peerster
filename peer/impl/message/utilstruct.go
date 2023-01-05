@@ -166,13 +166,13 @@ func (t *PubkeyController) get(peer string) (types.Pubkey, bool) {
 	return pubkey, ok
 }
 func (t *PubkeyController) getAll() peer.PubkeyStore {
-	pubkeyStroe := peer.PubkeyStore{}
+	pubkeyStore := peer.PubkeyStore{}
 	t.RLock()
 	for key, value := range t.table {
-		pubkeyStroe[key] = value
+		pubkeyStore[key] = value
 	}
 	t.RUnlock()
-	return pubkeyStroe
+	return pubkeyStore
 }
 func NewPubkeyController(self string, selfkey *types.Pubkey) *PubkeyController {
 	rt := PubkeyController{&sync.RWMutex{}, peer.PubkeyStore{self: *selfkey}}
