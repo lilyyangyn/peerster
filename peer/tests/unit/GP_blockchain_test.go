@@ -150,7 +150,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 	// > send Tx to node1. A new block need to be mined
 
 	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account1.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -281,7 +281,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	// > send Tx to nodeA. need to succeed
 
 	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account1.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -316,7 +316,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	// > send Tx to nodeA. need to succeed
 
 	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account1.GetAddress().Hex,
 			Budget:     1,
 			Expression: "a",
@@ -401,7 +401,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	// > send Tx to nodeA. need to succeed
 
 	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account1.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -442,7 +442,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	// > send Tx to nodeA. need to succeed
 
 	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account1.GetAddress().Hex,
 			Budget:     1,
 			Expression: "a",

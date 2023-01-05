@@ -133,11 +133,12 @@ func (m *BlockchainModule) LoadKeyPair(path string) error {
 }
 
 // SendPreMPCTransaction generates and sends a preMPC transaction
-func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64) error {
-	record := permissioned.MPCRecord{
+func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64, prime string) error {
+	record := permissioned.MPCPropose{
 		Initiator:  m.account.GetAddress().Hex,
 		Budget:     budget,
 		Expression: expression,
+		Prime:      prime,
 	}
 	signedTxn, err := permissioned.NewTransactionPreMPC(m.account, record).Sign(m.privKey)
 	if err != nil {

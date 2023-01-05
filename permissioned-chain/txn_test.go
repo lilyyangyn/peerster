@@ -15,8 +15,7 @@ func Test_Txn_Sign(t *testing.T) {
 	account := NewAccount(*NewAddress(&pubkey))
 
 	// create signature
-	txn := NewTransactionPreMPC(account, MPCRecord{
-		UniqID:     "test",
+	txn := NewTransactionPreMPC(account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -46,8 +45,7 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 
 	// create signedTxn
 	var budget float64 = 10
-	txn := NewTransactionPreMPC(&account, MPCRecord{
-		UniqID:     "test",
+	txn := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     budget,
 		Expression: "a",
@@ -92,8 +90,7 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 
 	// create signedTxn
 	var budget float64 = 10
-	txn := NewTransactionPreMPC(&account, MPCRecord{
-		UniqID:     "test",
+	txn := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     budget,
 		Expression: "a",
@@ -155,11 +152,8 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	var budget float64 = 10
 	var uniqID = "test"
 	record := MPCRecord{
-		UniqID:     uniqID,
-		Initiator:  initiator.addr.Hex,
-		Budget:     budget,
-		Expression: "a",
-		Result:     5,
+		UniqID: uniqID,
+		Result: 5,
 	}
 
 	// create worldstate
@@ -250,11 +244,8 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	var budget float64 = 10
 	var uniqID = "test"
 	record := MPCRecord{
-		UniqID:     uniqID,
-		Initiator:  initiator.addr.Hex,
-		Budget:     budget,
-		Expression: "a",
-		Result:     5,
+		UniqID: uniqID,
+		Result: 5,
 	}
 
 	// create worldstate

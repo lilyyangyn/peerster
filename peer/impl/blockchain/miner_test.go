@@ -38,7 +38,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	pool := NewTxnPool()
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -115,7 +115,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	}
 
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -163,7 +163,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	pool := NewTxnPool()
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",
@@ -231,7 +231,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	pool := NewTxnPool()
 	pool.SetCtx(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCRecord{
+		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
 			Budget:     10,
 			Expression: "a",

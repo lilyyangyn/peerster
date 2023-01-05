@@ -68,7 +68,7 @@ func Test_BC_Append_Correct(t *testing.T) {
 
 	worldstate := block0.GetWorldStateCopy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -117,7 +117,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	worldstate := block0.GetWorldStateCopy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -184,7 +184,7 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 
 	worldstate := block0.GetWorldStateCopy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     1001,
 		Expression: "a",
@@ -231,7 +231,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 
 	// first block has txn1 and txn2
 	worldstate := block0.GetWorldStateCopy()
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -241,7 +241,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	err = txn1.Verify(worldstate, &config)
 	require.NoError(t, err)
 
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "b",
@@ -264,11 +264,8 @@ func Test_BC_Has_Txn(t *testing.T) {
 	// second block has txn3
 	worldstate = block1.GetWorldStateCopy()
 	txn3, err := NewTransactionPostMPC(&account, MPCRecord{
-		UniqID:     txn1.Txn.ID,
-		Initiator:  account.addr.Hex,
-		Budget:     10,
-		Expression: "b",
-		Result:     10,
+		UniqID: txn1.Txn.ID,
+		Result: 10,
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
@@ -296,11 +293,8 @@ func Test_BC_Has_Txn(t *testing.T) {
 	// > txn4 should not be in blockchain
 
 	txn4 := NewTransactionPostMPC(&account, MPCRecord{
-		UniqID:     txn2.Txn.ID,
-		Initiator:  account.addr.Hex,
-		Budget:     10,
-		Expression: "b",
-		Result:     10,
+		UniqID: txn2.Txn.ID,
+		Result: 10,
 	})
 	ok = bc.GetTxn(txn4.ID)
 	require.Nil(t, ok)

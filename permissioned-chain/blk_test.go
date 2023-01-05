@@ -76,7 +76,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	worldState.Put(account.addr.Hex, account)
 	stateCopy := worldState.Copy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -86,7 +86,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	require.NoError(t, err)
 
 	account.nonce++
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     5,
 		Expression: "b",
@@ -128,7 +128,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	worldState.Put(account.addr.Hex, account)
 	stateCopy := worldState.Copy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -138,7 +138,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	require.NoError(t, err)
 
 	account.nonce++
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     5,
 		Expression: "b",
@@ -181,7 +181,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	worldState.Put(account.addr.Hex, account)
 	stateCopy := worldState.Copy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -191,7 +191,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	require.NoError(t, err)
 
 	account.nonce++
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     5,
 		Expression: "b",
@@ -235,7 +235,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	worldState.Put(account.addr.Hex, account)
 	stateCopy := worldState.Copy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -245,7 +245,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	require.NoError(t, err)
 
 	account.nonce++
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "b",
@@ -288,7 +288,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	worldState.Put(account.addr.Hex, account)
 	stateCopy := worldState.Copy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     10,
 		Expression: "a",
@@ -298,7 +298,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	require.NoError(t, err)
 
 	account.nonce++
-	txn2, err := NewTransactionPreMPC(&account, MPCRecord{
+	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
 		Budget:     5,
 		Expression: "b",

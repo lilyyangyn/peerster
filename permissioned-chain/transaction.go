@@ -254,120 +254,7 @@ func unmarshalCoinbase(data json.RawMessage) (interface{}, error) {
 }
 
 // -----------------------------------------------------------------------------
-// Transaction Polymophism - PreMPC
-
-func NewTransactionPreMPC(initiator *Account, data MPCRecord) *Transaction {
-	return NewTransaction(
-		initiator,
-		&ZeroAddress,
-		TxnTypePreMPC,
-		data.Budget,
-		data,
-	)
-}
-
-func execPreMPC(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
-	record := txn.Data.(MPCRecord)
-	if record.Budget != txn.Value || record.Initiator != txn.From {
-		return fmt.Errorf("Transaction data inconsistent")
-	}
-
-	// lock balance to avoid double spending
-	err := lockBalance(worldState, txn.From, record.Budget*float64(len(config.Participants)))
-	if err != nil {
-		return err
-	}
-	// add MPC record to worldState
-	// use txnHash has uniqID
-	err = worldState.Put(mpcKeyFromUniqID(txn.Hash()), MPCEndorsement{
-		Peers:     config.Participants,
-		Endorsers: map[string]struct{}{},
-		Budget:    record.Budget,
-		Locked:    true,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
-}
-
-func unmarshalPreMPC(data json.RawMessage) (interface{}, error) {
-	var p MPCRecord
-	err := json.Unmarshal(data, &p)
-
-	return p, err
-}
-
-// -----------------------------------------------------------------------------
-// Transaction Polymophism - PostMPC
-
-func NewTransactionPostMPC(from *Account, data MPCRecord) *Transaction {
-	return NewTransaction(
-		from,
-		&ZeroAddress,
-		TxnTypePostMPC,
-		0,
-		data,
-	)
-}
-
-func execPostMPC(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
-	record := txn.Data.(MPCRecord)
-	initiator := GetAccountFromWorldState(worldState, record.Initiator)
-
-	// update endorsement information, collect awawrd if threshold is reached
-	err := updateMPCEndorsement(worldState, mpcKeyFromUniqID(record.UniqID), initiator, txn.From)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func unmarshalPostMPC(data json.RawMessage) (interface{}, error) {
-	var p MPCRecord
-	err := json.Unmarshal(data, &p)
-
-	return p, err
-}
-
-// -----------------------------------------------------------------------------
 // Utilities
-
-var AwardUnlockThreshold = 0.5
-
-type MPCRecord struct {
-	UniqID     string
-	Initiator  string
-	Budget     float64
-	Expression string
-	Result     float64
-}
-
-type MPCEndorsement struct {
-	storage.Hashable
-
-	// TODO: not copy peers. Use Config ID
-	Peers     map[string]struct{}
-	Endorsers map[string]struct{}
-	Budget    float64
-	Locked    bool
-}
-
-func (e MPCEndorsement) Copy() storage.Copyable {
-	endorsers := map[string]struct{}{}
-	for endorser := range e.Endorsers {
-		endorsers[endorser] = struct{}{}
-	}
-	endorsement := MPCEndorsement{
-		Peers:     e.Peers,
-		Endorsers: endorsers,
-		Budget:    e.Budget,
-		Locked:    e.Locked,
-	}
-	return endorsement
-}
 
 func mpcKeyFromUniqID(uniqID string) string {
 	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
@@ -403,15 +290,6 @@ func GetConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	}
 	config := object.(ChainConfig)
 	return &config
-}
-
-func GetMPCEndorsementFromWorldState(worldState storage.KVStore, key string) (*MPCEndorsement, error) {
-	object, ok := worldState.Get(key)
-	if !ok {
-		return nil, fmt.Errorf("MPC endorsement not exists")
-	}
-	endorsement := object.(MPCEndorsement)
-	return &endorsement, nil
 }
 
 func checkNonce(worldState storage.KVStore, txn *Transaction) error {
@@ -461,14 +339,14 @@ func lockBalance(worldState storage.KVStore, accountID string, amount float64) e
 	return nil
 }
 
-func claimAward(worldState storage.KVStore, from *Account, to string, amount float64) {
+func claimAward(worldState storage.KVStore, from *Account, to string, amount float64) error {
 	account := from
 	if from.addr.Hex != to {
 		account = GetAccountFromWorldState(worldState, to)
 	}
 
 	if from.lockedBalance < amount {
-		panic(fmt.Errorf("%s's locked balance not enough", from.addr.Hex))
+		return fmt.Errorf("%s's locked balance not enough", from.addr.Hex)
 	}
 	from.lockedBalance -= amount
 	account.balance += amount
@@ -479,45 +357,6 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 	err = worldState.Put(account.addr.Hex, *account)
 	if err != nil {
 		panic(err)
-	}
-}
-
-func updateMPCEndorsement(worldState storage.KVStore, key string, initiator *Account, accountID string) error {
-	endorsement, err := GetMPCEndorsementFromWorldState(worldState, key)
-	if err != nil {
-		return fmt.Errorf("%s endorses a non-existing MPC %s", accountID, key)
-	}
-	if _, ok := endorsement.Peers[accountID]; !ok {
-		return fmt.Errorf("%s does not participant in MPC %s. Potentially an attack", accountID, key)
-	}
-	if _, ok := endorsement.Endorsers[accountID]; ok {
-		return fmt.Errorf("%s has already endorsed in MPC %s. Potentially a double-claim", accountID, key)
-	}
-
-	endorsement.Endorsers[accountID] = struct{}{}
-	if !endorsement.Locked {
-		if len(endorsement.Endorsers) == len(endorsement.Peers) {
-			err := worldState.Del(key)
-			if err != nil {
-				panic(err)
-			}
-		}
-		claimAward(worldState, initiator, accountID, endorsement.Budget)
-		return nil
-	}
-
-	threshold := float64(len(endorsement.Peers)) * AwardUnlockThreshold
-	if float64(len(endorsement.Endorsers)) > threshold {
-		for endorser := range endorsement.Endorsers {
-			claimAward(worldState, initiator, endorser, endorsement.Budget)
-		}
-		endorsement.Locked = false
-		if len(endorsement.Endorsers) == len(endorsement.Peers) {
-			err := worldState.Del(key)
-			if err != nil {
-				panic(err)
-			}
-		}
 	}
 	return nil
 }
