@@ -1,6 +1,7 @@
 package mpc
 
 import (
+	"fmt"
 	"log"
 	"math/big"
 	"regexp"
@@ -14,7 +15,6 @@ import (
 	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
 	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 type MPCModule struct {
@@ -59,7 +59,7 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 	ok := m.valueDB.addAsset(key, value)
 	if !ok {
-		return xerrors.Errorf("Add Assets failed")
+		return fmt.Errorf("add Assets failed")
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
 	// Use public key as participants
 	pubKeyStore := m.GetPubkeyStore()
 	if int(m.conf.TotalPeers) > len(pubKeyStore) {
-		return xerrors.Errorf("%s: not received everyone's public key, require %d, have %d",
+		return fmt.Errorf("%s: not received everyone's public key, require %d, have %d",
 			m.conf.Socket.GetAddress(), m.conf.TotalPeers, len(pubKeyStore))
 	}
 	participants := make([]string, 0, len(pubKeyStore))
@@ -183,7 +183,7 @@ func infixToPostfix(infix string) ([]string, error) {
 	infix = strings.ReplaceAll(infix, " ", "")
 	var NoInValidChar = regexp.MustCompile(`^[a-zA-Z0-9_\+\-\*\/\^()\.]+$`).MatchString
 	if !NoInValidChar(infix) {
-		return []string{}, xerrors.Errorf("Infix contains illegal character!")
+		return []string{}, fmt.Errorf("infix contains illegal character")
 	}
 
 	var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
@@ -222,7 +222,7 @@ func infixToPostfix(infix string) ([]string, error) {
 		}
 
 		if !valid {
-			return []string{}, xerrors.Errorf("Infix is invalid!")
+			return []string{}, fmt.Errorf("infix is invalid")
 		}
 	}
 	if curVariable != "" {

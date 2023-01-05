@@ -1,19 +1,19 @@
 package mpc
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 // ProcessShareMsg is a callback function to handle received secret share message
 func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) error {
 	secretMsg, ok := msg.(*types.MPCShareMessage)
 	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
+		return fmt.Errorf("wrong type: %T", msg)
 	}
 
 	// ignore message with wrong id
@@ -21,7 +21,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	defer m.RUnlock()
 	mpc, ok := m.mpcstore[secretMsg.ReqID]
 	if !ok {
-		return xerrors.Errorf("invalid mpc ID: %s", secretMsg.ReqID)
+		return fmt.Errorf("invalid mpc ID: %s", secretMsg.ReqID)
 	}
 
 	log.Printf("%s: mpc value for req %s, %s:%s",
@@ -38,7 +38,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.Packet) error {
 	interpolationMsg, ok := msg.(*types.MPCInterpolationMessage)
 	if !ok {
-		return xerrors.Errorf("wrong type: %T", msg)
+		return fmt.Errorf("wrong type: %T", msg)
 	}
 
 	// ignore message with wrong id
@@ -46,7 +46,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 	defer m.RUnlock()
 	mpc, ok := m.mpcstore[interpolationMsg.ReqID]
 	if !ok {
-		return xerrors.Errorf("invalid mpc ID: %s", interpolationMsg.ReqID)
+		return fmt.Errorf("invalid mpc ID: %s", interpolationMsg.ReqID)
 	}
 
 	log.Printf("%s: interpolation msg req: %s, owner: %s, value: %s",

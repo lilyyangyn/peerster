@@ -1,10 +1,10 @@
 package mpc
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/rs/zerolog/log"
-	"golang.org/x/xerrors"
 )
 
 // Lagrange Interpolation in Zp, returns polynomial value on x = 0
@@ -49,7 +49,7 @@ func (m *MPCModule) shamirSecretShareZp(secret, prime big.Int, xcoord []big.Int)
 	for _, id := range xcoord {
 		// id should not equal to zero, or the secret will be directly leaked
 		if id.Cmp(zero) == 0 {
-			err = xerrors.Errorf("illegal input x equals to 0")
+			err = fmt.Errorf("illegal input x equals to 0")
 			log.Err(err)
 			return
 		}
@@ -103,7 +103,7 @@ func shamirSecretShareZpTest(secret, prime big.Int, xcoord []big.Int) (results [
 	for _, id := range xcoord {
 		// id should not equal to zero, or the secret will be directly leaked
 		if id.Cmp(zero) == 0 {
-			err = xerrors.Errorf("illegal input x equals to 0")
+			err = fmt.Errorf("illegal input x equals to 0")
 			log.Err(err)
 			return
 		}

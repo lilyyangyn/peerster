@@ -1,11 +1,10 @@
 package mpc
 
 import (
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
-
-	"golang.org/x/xerrors"
 )
 
 // MPC handlers mpc related information
@@ -62,7 +61,7 @@ func (mpc *MPC) getPeerIDs() ([]big.Int, error) {
 	for idx, peer := range peers {
 		id, ok := mpc.getPeerID(peer)
 		if !ok {
-			return []big.Int{}, xerrors.Errorf("no id for peer %s", peer)
+			return []big.Int{}, fmt.Errorf("no id for peer %s", peer)
 		}
 		peerIDs[idx] = *big.NewInt(int64(id))
 	}

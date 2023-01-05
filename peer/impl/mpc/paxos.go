@@ -1,16 +1,16 @@
 package mpc
 
 import (
-	"log"
+	"fmt"
 
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 // initMPCConcensus inits a paxos to consensus on mpc value
 func (m *MPCModule) initMPCConcensus(uniqID string, budget float64, expression string, prime string) (err error) {
 	if m.paxos.Type != types.PaxosTypeMPC {
-		return xerrors.Errorf("invalid operation")
+		return fmt.Errorf("invalid operation")
 	}
 
 	// TODO: check balance
@@ -46,7 +46,7 @@ func (m *MPCModule) proposeMPC(uniqID string, budget float64, expression string,
 	}
 	mpcValue, ok := content.(*types.PaxosMPCValue)
 	if !ok {
-		return xerrors.Errorf("wrong type: %T", content)
+		return fmt.Errorf("wrong type: %T", content)
 	}
 
 	if mpcValue.Initiator == initiator && mpcValue.Expression == expression {
@@ -68,7 +68,7 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 	}
 	mpcval, ok := content.(*types.PaxosMPCValue)
 	if !ok {
-		return xerrors.Errorf("paxosvalue wrong type: %T", content)
+		return fmt.Errorf("paxosvalue wrong type: %T", content)
 	}
 
 	resultChan := make(chan MPCResult, 1)
@@ -77,13 +77,12 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 		m.Lock()
 		m.mpcstore[mpc.id] = &mpc
 		m.Unlock()
-		log.Printf("%s: MPC stops", m.conf.Socket.GetAddress())
 		resultChan <- MPCResult{result: 0, err: nil}
 		return nil
 	}
 
 	// init MPC instance and start MPC
-	log.Printf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
+	log.Info().Msgf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
 	err = m.InitMPC(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression, resultChan)
 	if err != nil {
 		return err
