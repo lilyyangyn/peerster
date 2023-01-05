@@ -5,6 +5,9 @@ import (
 	"sync"
 )
 
+// --------------------------------------------------------
+// ValueDB
+
 // ValueDB stores values that can be used in MPC
 // Asset is the value know by the peer, temp is the value we save for MPC.
 // temp need to refresh for each new MPC round.
@@ -32,6 +35,86 @@ func NewValueDB() *ValueDB {
 		map[string]int{},
 	}
 	return &db
+}
+
+// --------------------------------------------------------
+// MPCStore
+
+type MPCCenter struct {
+	*sync.RWMutex
+	nofitication map[string]chan MPCResult
+	store        map[string]*MPC
+}
+
+func NewMPCCenter() *MPCCenter {
+	return &MPCCenter{
+		RWMutex:      &sync.RWMutex{},
+		nofitication: map[string]chan MPCResult{},
+		store:        map[string]*MPC{},
+	}
+}
+
+func (c *MPCCenter) GetMPC(id string) (*MPC, bool) {
+	c.RLock()
+	defer c.RUnlock()
+
+	mpc, ok := c.store[id]
+	return mpc, ok
+}
+
+func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.store[id] = mpc
+	if _, ok := c.nofitication[id]; !ok {
+		c.nofitication[id] = make(chan MPCResult, 1)
+	}
+}
+
+func (c *MPCCenter) Inform(id string, result MPCResult) (err error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	mpc, ok := c.store[id]
+	if ok {
+		err = mpc.finalize(result)
+	}
+
+	channel, ok := c.nofitication[id]
+	if !ok {
+		return
+	}
+	channel <- result
+
+	return err
+}
+
+func (c *MPCCenter) Listen(id string) MPCResult {
+	c.Lock()
+	// first check if MPC already have done
+	if mpc, ok := c.store[id]; ok {
+		if result, err := mpc.getResult(); err == nil {
+			c.Unlock()
+			return *result
+		}
+	}
+
+	channel, ok := c.nofitication[id]
+	if !ok {
+		channel := make(chan MPCResult)
+		c.nofitication[id] = channel
+	}
+	c.Unlock()
+
+	result := <-channel
+
+	c.Lock()
+	defer c.Unlock()
+
+	delete(c.nofitication, id)
+
+	return result
 }
 
 // --------------------------------------------------------

@@ -133,7 +133,7 @@ func (m *BlockchainModule) LoadKeyPair(path string) error {
 }
 
 // SendPreMPCTransaction generates and sends a preMPC transaction
-func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64, prime string) error {
+func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64, prime string) (string, error) {
 	record := permissioned.MPCPropose{
 		Initiator:  m.account.GetAddress().Hex,
 		Budget:     budget,
@@ -142,13 +142,13 @@ func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float
 	}
 	signedTxn, err := permissioned.NewTransactionPreMPC(m.account, record).Sign(m.privKey)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return m.SendTransaction(signedTxn)
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
 // SendPostMPCTransaction generates and sends a postMPC transaction
-func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) error {
+func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) (string, error) {
 	// TODO: update account nonce?
 	record := permissioned.MPCRecord{
 		UniqID: id,
@@ -156,9 +156,9 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) err
 	}
 	signedTxn, err := permissioned.NewTransactionPostMPC(m.account, record).Sign(m.privKey)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return m.SendTransaction(signedTxn)
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
 // -----------------------------------------------------------------------------

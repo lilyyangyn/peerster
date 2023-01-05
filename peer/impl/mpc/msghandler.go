@@ -17,9 +17,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	m.RLock()
-	defer m.RUnlock()
-	mpc, ok := m.mpcstore[secretMsg.ReqID]
+	mpc, ok := m.mpcCenter.GetMPC(secretMsg.ReqID)
 	if !ok {
 		return fmt.Errorf("invalid mpc ID: %s", secretMsg.ReqID)
 	}
@@ -42,9 +40,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 	}
 
 	// ignore message with wrong id
-	m.RLock()
-	defer m.RUnlock()
-	mpc, ok := m.mpcstore[interpolationMsg.ReqID]
+	mpc, ok := m.mpcCenter.GetMPC(interpolationMsg.ReqID)
 	if !ok {
 		return fmt.Errorf("invalid mpc ID: %s", interpolationMsg.ReqID)
 	}

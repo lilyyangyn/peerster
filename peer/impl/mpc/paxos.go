@@ -2,6 +2,7 @@ package mpc
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
@@ -71,25 +72,25 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 		return fmt.Errorf("paxosvalue wrong type: %T", content)
 	}
 
-	resultChan := make(chan MPCResult, 1)
 	if m.conf.DisableMPC {
-		mpc := MPC{id: mpcval.UniqID, resultChan: resultChan}
-		m.Lock()
-		m.mpcstore[mpc.id] = &mpc
-		m.Unlock()
-		resultChan <- MPCResult{result: 0, err: nil}
-		return nil
+		mpc := NewMPC(mpcval.UniqID, big.Int{}, "", "")
+		m.mpcCenter.RegisterMPC(mpc.id, mpc)
+		err = m.mpcCenter.Inform(mpc.id, MPCResult{result: 0, err: nil})
+		return err
 	}
 
 	// init MPC instance and start MPC
 	log.Info().Msgf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
-	err = m.InitMPC(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression, resultChan)
+	err = m.InitMPC(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression)
 	if err != nil {
 		return err
 	}
 	go func() {
 		val, err := m.ComputeExpression(mpcval.UniqID, mpcval.Expression, mpcval.Prime)
-		resultChan <- MPCResult{result: val, err: err}
+		err = m.mpcCenter.Inform(mpcval.UniqID, MPCResult{result: val, err: err})
+		if err != nil {
+			log.Err(err).Send()
+		}
 	}()
 
 	return nil

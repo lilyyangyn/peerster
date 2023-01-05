@@ -32,7 +32,7 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.message = message.NewMessageModule(&conf)
 	n.paxos = paxos.NewPaxosModule(&conf, n.message)
 	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
-	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos)
+	n.mpc = mpc.NewMPCModuleWithPaxos(&conf, n.message, n.paxos)
 	n.blockchain = blockchain.NewBlockchainModule(&conf, n.message)
 
 	return &n
@@ -186,7 +186,7 @@ func (n *node) GetPubkeyStore() peer.PubkeyStore {
 // InitMPC implements peer.InitMPC
 func (n *node) InitMPC(uniqID string, prime string, initiator string,
 	expression string) error {
-	return n.mpc.InitMPC(uniqID, prime, initiator, expression, nil)
+	return n.mpc.InitMPC(uniqID, prime, initiator, expression)
 }
 
 // GetPubkeyStore implements peer.ComputeExpression
@@ -201,7 +201,7 @@ func (n *node) SetValueDBAsset(key string, value int) error {
 
 // Calculate implements peer.Calculate
 func (n *node) Calculate(expression string, budget float64) (int, error) {
-	return n.mpc.Calculate(expression, budget)
+	return n.mpc.CalculateMPC(expression, budget)
 }
 
 // InitBlockchain implements peer.InitBlockchain

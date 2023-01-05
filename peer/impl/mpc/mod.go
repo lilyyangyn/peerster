@@ -7,10 +7,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/rs/xid"
 	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/blockchain"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
 	"go.dedis.ch/cs438/storage"
@@ -21,21 +21,32 @@ type MPCModule struct {
 	*message.MessageModule
 	conf *peer.Configuration
 
-	valueDB *ValueDB
+	valueDB   *ValueDB
+	mpcCenter *MPCCenter
 
-	*sync.RWMutex
-	mpcstore map[string]*MPC
-	paxos    *paxos.PaxosInstance
+	bcModule *blockchain.BlockchainModule
+
+	paxos *paxos.PaxosInstance
 }
 
-func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule, paxosModule *paxos.PaxosModule) *MPCModule {
+func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule) *MPCModule {
 	m := MPCModule{
 		MessageModule: messageModule,
 		conf:          conf,
 		valueDB:       NewValueDB(),
-		RWMutex:       &sync.RWMutex{},
-		mpcstore:      map[string]*MPC{},
+		mpcCenter:     NewMPCCenter(),
 	}
+
+	// message registery
+	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
+	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCInterpolationMessage{}, m.ProcessMPCInterpolationMsg)
+
+	return &m
+}
+
+func NewMPCModuleWithPaxos(conf *peer.Configuration, messageModule *message.MessageModule,
+	paxosModule *paxos.PaxosModule) *MPCModule {
+	m := NewMPCModule(conf, messageModule)
 	instance, err := paxosModule.CreateNewPaxos(
 		types.PaxosTypeMPC,
 		storage.MPCLastBlockKey,
@@ -47,11 +58,15 @@ func NewMPCModule(conf *peer.Configuration, messageModule *message.MessageModule
 	}
 	m.paxos = instance
 
-	// message registery
-	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCShareMessage{}, m.ProcessMPCShareMsg)
-	m.conf.MessageRegistry.RegisterMessageCallback(types.MPCInterpolationMessage{}, m.ProcessMPCInterpolationMsg)
+	return m
+}
 
-	return &m
+func NewMPCModuleWithBlockchain(conf *peer.Configuration, messageModule *message.MessageModule,
+	bcModule *blockchain.BlockchainModule) *MPCModule {
+	m := NewMPCModule(conf, messageModule)
+	m.bcModule = bcModule
+
+	return m
 }
 
 /** Feature Functions **/
@@ -64,9 +79,22 @@ func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 	return nil
 }
 
-// Calculate start a new MPC from making consensus on budget and expression.
-// It will then initiate the MPC automatically
+// Calculate sends a PreMPC txn to the blockchain
+// It will initiate a paxos to start the MPC once it notice the txn is included in the chain
 func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
+	id, err := m.bcModule.SendPreMPCTransaction(expression, budget, "")
+	if err != nil {
+		return 0, err
+	}
+
+	result := m.mpcCenter.Listen(id)
+
+	return result.result, result.err
+}
+
+// CalculateMPC start a new MPC from making consensus on budget and expression.
+// It will then initiate the MPC automatically
+func (m *MPCModule) CalculateMPC(expression string, budget float64) (int, error) {
 	if m.conf.TotalPeers == 1 {
 		log.Println("No MPC. Direct calculate the result.")
 		return 0, nil
@@ -85,23 +113,16 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 		return -1, err
 	}
 
-	// channel wait mpc result
-	m.RLock()
-	resultChan := m.mpcstore[uniqID].resultChan
-	m.RUnlock()
-
-	result := <-resultChan
+	//channel wait mpc result
+	result := m.mpcCenter.Listen(uniqID)
 
 	return result.result, result.err
 }
 
 func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
-	expression string, resultChan chan MPCResult) error {
-	m.Lock()
-	defer m.Unlock()
-
+	expression string) error {
 	mpcPrime, _ := new(big.Int).SetString(prime, 10)
-	m.mpcstore[uniqID] = NewMPC(uniqID, *mpcPrime, initiator, expression, resultChan)
+	mpc := NewMPC(uniqID, *mpcPrime, initiator, expression)
 
 	// Use public key as participants
 	pubKeyStore := m.GetPubkeyStore()
@@ -120,8 +141,11 @@ func (m *MPCModule) InitMPC(uniqID string, prime string, initiator string,
 		peerID, _ := strconv.Atoi(peerIDstr)
 		peersMap[participant] = peerID
 	}
-	m.mpcstore[uniqID].addPeers(peersMap)
-	m.mpcstore[uniqID].addParticipants(participants)
+	mpc.addPeers(peersMap)
+	mpc.addParticipants(participants)
+
+	m.mpcCenter.RegisterMPC(mpc.id, mpc)
+
 	return nil
 }
 
@@ -133,9 +157,7 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 	}
 
 	// get MPC
-	m.RLock()
-	mpc, ok := m.mpcstore[uniqID]
-	m.RUnlock()
+	mpc, ok := m.mpcCenter.GetMPC(uniqID)
 	if !ok {
 		return -1, err
 	}
