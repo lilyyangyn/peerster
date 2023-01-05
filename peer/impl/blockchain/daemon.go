@@ -159,8 +159,9 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 				block.Hash())
 			// notify outside for the received transactions
 			go func() {
+				config := permissioned.GetConfigFromWorldState(block.States)
 				for _, signedTxn := range block.Transactions {
-					err = m.watchRegistry.Tell(&signedTxn.Txn)
+					err = m.watchRegistry.Tell(config, &signedTxn.Txn)
 					if err != nil {
 						log.Err(err).Send()
 					}

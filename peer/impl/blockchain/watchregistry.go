@@ -6,28 +6,31 @@ import (
 	"go.dedis.ch/cs438/permissioned-chain"
 )
 
+type watchCallbck func(config *permissioned.ChainConfig,
+	txn *permissioned.Transaction) error
+
 type WatchRegistry struct {
 	*sync.RWMutex
-	store map[permissioned.TxnType]func(txn *permissioned.Transaction) error
+	store map[permissioned.TxnType]watchCallbck
 }
 
 func NewWatchRegistry() *WatchRegistry {
 	r := WatchRegistry{
 		RWMutex: &sync.RWMutex{},
-		store:   map[permissioned.TxnType]func(txn *permissioned.Transaction) error{},
+		store:   map[permissioned.TxnType]watchCallbck{},
 	}
 	return &r
 }
 
 func (r *WatchRegistry) Register(txnType permissioned.TxnType,
-	watcher func(txn *permissioned.Transaction) error) {
+	watcher watchCallbck) {
 	r.Lock()
 	defer r.Unlock()
 
 	r.store[txnType] = watcher
 }
 
-func (r *WatchRegistry) Tell(txn *permissioned.Transaction) error {
+func (r *WatchRegistry) Tell(config *permissioned.ChainConfig, txn *permissioned.Transaction) error {
 	r.RLock()
 	defer r.RUnlock()
 
@@ -36,5 +39,5 @@ func (r *WatchRegistry) Tell(txn *permissioned.Transaction) error {
 		return nil
 	}
 
-	return watcher(txn)
+	return watcher(config, txn)
 }
