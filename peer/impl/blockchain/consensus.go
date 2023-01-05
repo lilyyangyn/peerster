@@ -46,7 +46,7 @@ func (c *CreditRecords) advanceAndSelect(block *permissioned.Block) string {
 			maxPeer = peer
 		}
 	}
-	log.Info().Msgf("[Credit System] height=%d, %t",
+	log.Info().Msgf("[Credit System] height=%d, %T",
 		block.Height, c.records)
 
 	// select next miner

@@ -73,3 +73,51 @@ func (m BCBlkMessage) String() string {
 func (m BCBlkMessage) HTML() string {
 	return m.String()
 }
+
+// -----------------------------------------------------------------------------
+// BCAskSyncMessage
+
+// NewEmpty implements types.Message.
+func (m BCAskSyncMessage) NewEmpty() Message {
+	return &BCAskSyncMessage{}
+}
+
+// Name implements types.Message.
+func (m BCAskSyncMessage) Name() string {
+	return "blockchainSync"
+}
+
+// String implements types.Message.
+func (m BCAskSyncMessage) String() string {
+	return fmt.Sprintf("{blockchainAskSync %s-%d}",
+		m.Origin, m.LatestHeight)
+}
+
+// HTML implements types.Message.
+func (m BCAskSyncMessage) HTML() string {
+	return m.String()
+}
+
+// -----------------------------------------------------------------------------
+// BCSyncMessage
+
+// NewEmpty implements types.Message.
+func (m BCSyncMessage) NewEmpty() Message {
+	return &BCSyncMessage{}
+}
+
+// Name implements types.Message.
+func (m BCSyncMessage) Name() string {
+	return "blockchainSync"
+}
+
+// String implements types.Message.
+func (m BCSyncMessage) String() string {
+	return fmt.Sprintf("{blockchainSync from %s}",
+		m.Origin)
+}
+
+// HTML implements types.Message.
+func (m BCSyncMessage) HTML() string {
+	return m.String()
+}

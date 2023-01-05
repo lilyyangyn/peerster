@@ -133,7 +133,21 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 				continue
 			}
 
-			// TODO: catchup
+			result := m.CheckBlockHeight(block)
+			if result == permissioned.BlockCompareAdvance ||
+				result == permissioned.BlockCompareNotInitialize {
+				// block too advance. Syncing
+				log.Info().Msgf("receive advance block on height %d. Syncing...", block.Height)
+				err := m.sync(block.Miner)
+				if err != nil {
+					log.Err(err).Send()
+				}
+				continue
+			} else if result != permissioned.BlockCompareMatched {
+				log.Error().Msgf("block %s is invalid. Error code: %d",
+					block.Hash(), result)
+				continue
+			}
 
 			// append the block
 			err := m.AppendBlock(block)
@@ -142,7 +156,7 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 				continue
 			}
 			log.Info().Msgf("Append Block %s successfully",
-				block.Hash(), block.Height)
+				block.Hash())
 			// notify outside for the received transactions
 			go func() {
 				for _, signedTxn := range block.Transactions {

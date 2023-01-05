@@ -7,6 +7,9 @@ import (
 	permissioned "go.dedis.ch/cs438/permissioned-chain"
 )
 
+// -----------------------------------------------------------------------------
+// TxnPool
+
 const POOL_CHAN_BUFFER_SIZE = 5
 
 type TxnPool struct {
@@ -70,4 +73,39 @@ func (p *TxnPool) Pull() <-chan *permissioned.SignedTransaction {
 	p.queue = p.queue[i:]
 
 	return p.channel
+}
+
+// -----------------------------------------------------------------------------
+// SyncCenter
+
+type SyncCenter struct {
+	*sync.Mutex
+	store map[string]chan error
+}
+
+func NewSyncCenter() *SyncCenter {
+	return &SyncCenter{
+		Mutex: &sync.Mutex{},
+		store: map[string]chan error{},
+	}
+}
+
+func (c *SyncCenter) Register(id string, channel chan error) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.store[id] = channel
+}
+
+func (c *SyncCenter) Notify(id string, err error) {
+	c.Lock()
+	defer c.Unlock()
+
+	channel, ok := c.store[id]
+	if !ok {
+		return
+	}
+
+	channel <- err
+	delete(c.store, id)
 }

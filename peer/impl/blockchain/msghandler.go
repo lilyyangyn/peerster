@@ -71,18 +71,48 @@ func (m *BlockchainModule) ProcessBCBlkMsg(msg types.Message, pkt transport.Pack
 		Transactions: txns,
 	}
 
-	// if is genesis block. Directly set
-	if blkMsg.BlkHeader.Height == 0 {
-		err := m.SetGenesisBlock(&block)
-		if err == nil {
-			close(m.bcReadyChan)
-			m.selectNextMiner(&block)
-		}
-		return nil
+	return m.processBlk(&block)
+}
+
+// ProcessBCAskSyncMsg is a callback function to handle the received BCAskSyncMessage
+func (m *BlockchainModule) ProcessBCAskSyncMsg(msg types.Message, pkt transport.Packet) error {
+	askMsg, ok := msg.(*types.BCAskSyncMessage)
+	if !ok {
+		return fmt.Errorf("wrong type: %T", msg)
 	}
 
-	// Otherwise,append the block
-	m.blkChan <- &block
+	// fetch blocks until the latest height
+	fullBlks := m.GetBlockUntil(askMsg.LatestHeight)
+	blocks := make([]permissioned.Block, 0, len(fullBlks))
+	for i := len(fullBlks) - 1; i > -1; i-- {
+		block := permissioned.Block{
+			BlockHeader:  fullBlks[i].BlockHeader,
+			Transactions: fullBlks[i].Transactions,
+		}
+		blocks = append(blocks, block)
+	}
+
+	// send sync
+	err := m.sendBCSyncMessage(askMsg.UniqID, blocks, askMsg.Origin)
+
+	return err
+}
+
+// ProcessBCSyncMsg is a callback function to handle the received BCSyncMessage
+func (m *BlockchainModule) ProcessBCSyncMsg(msg types.Message, pkt transport.Packet) error {
+	synMsg, ok := msg.(*types.BCSyncMessage)
+	if !ok {
+		return fmt.Errorf("wrong type: %T", msg)
+	}
+
+	// process sync
+	latestBlk := m.GetLatestBlock()
+	for _, block := range synMsg.Blocks {
+		if block.Height <= latestBlk.Height {
+			continue
+		}
+		m.processBlk(&block)
+	}
 
 	return nil
 }

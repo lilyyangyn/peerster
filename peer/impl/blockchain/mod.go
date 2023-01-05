@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/rs/xid"
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/message"
@@ -162,6 +163,29 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) err
 // -----------------------------------------------------------------------------
 // Private Helpfer Functions
 
+// sync syncs blochain with the target node
+func (m *BlockchainModule) sync(to string) error {
+	id := xid.New().String()
+	return m.sendBCAskSyncMessage(id, to)
+}
+
+func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
+	// if is genesis block. Directly set
+	if block.Height == 0 {
+		err := m.SetGenesisBlock(block)
+		if err == nil {
+			log.Info().Msgf("init genesis block successfully")
+			close(m.bcReadyChan)
+			m.selectNextMiner(block)
+		}
+		return nil
+	}
+
+	// Otherwise,append the block
+	m.blkChan <- block
+	return nil
+}
+
 // selectNextMiner selects the next Miner
 // it notifies the minning daemon if the miner is us
 func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
@@ -227,4 +251,36 @@ func (m *BlockchainModule) broadcastBCBlkMessage(participants map[string]struct{
 
 	// send in rumor
 	return m.Broadcast(privMsgMarshal)
+}
+
+// sendBCAskSyncMessage sends a BCAskSyncMessage in private msg
+func (m *BlockchainModule) sendBCAskSyncMessage(id string,
+	to string) error {
+	askMsg := types.BCAskSyncMessage{
+		UniqID:       id,
+		Origin:       m.conf.Socket.GetAddress(),
+		LatestHeight: m.GetLatestBlock().Height,
+	}
+	askMsgMarshal, err := m.CreateMsg(askMsg)
+	if err != nil {
+		return err
+	}
+
+	return m.Unicast(to, askMsgMarshal)
+}
+
+// sendBCSyncMessage sends a BCSyncMessage in private msg
+func (m *BlockchainModule) sendBCSyncMessage(id string,
+	blocks []permissioned.Block, to string) error {
+	syncMsg := types.BCSyncMessage{
+		UniqID: id,
+		Origin: m.conf.Socket.GetAddress(),
+		Blocks: blocks,
+	}
+	syncMsgMarshal, err := m.CreateMsg(syncMsg)
+	if err != nil {
+		return err
+	}
+
+	return m.Unicast(to, syncMsgMarshal)
 }

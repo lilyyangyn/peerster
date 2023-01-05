@@ -24,4 +24,16 @@ type BCBlkMessage struct {
 	Txns      []permissioned.SignedTransaction
 }
 
-// TODO: add sync message
+type BCAskSyncMessage struct {
+	UniqID       string
+	Origin       string
+	LatestHeight uint
+}
+type BCSyncMessage struct {
+	UniqID string
+	Origin string
+	// States is not included
+	Blocks []permissioned.Block
+	// BlkHeader permissioned.BlockHeader
+	// Txns      []permissioned.SignedTransaction
+}

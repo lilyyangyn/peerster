@@ -97,6 +97,21 @@ func (bc *Blockchain) GetBlock(blockID string) *Block {
 	return bc.blocksStore[blockID]
 }
 
+// GetBlock returns a copy of the whole chain
+func (bc *Blockchain) GetBlockUntil(height uint) []*Block {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	blocks := make([]*Block, 0)
+	curr := bc.latestBlock
+	for curr != nil && curr.Height > height {
+		blocks = append(blocks, curr)
+		curr = bc.blocksStore[curr.PrevHash]
+	}
+
+	return blocks
+}
+
 // GetLatestBlock returns the latest block
 func (bc *Blockchain) GetLatestBlock() *Block {
 	bc.RLock()
