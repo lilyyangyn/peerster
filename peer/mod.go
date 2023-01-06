@@ -86,6 +86,9 @@ type Configuration struct {
 	// DisableMPC stops starting real MPC after a MPC consensus is done
 	// It makes testing much easier
 	DisableMPC bool
+
+	// MPCType specifies which consensus will be used to start MPC
+	MPCType MPCConsensus
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must

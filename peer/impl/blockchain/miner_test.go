@@ -19,7 +19,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress().Hex: {}},
+		map[string][]byte{account.GetAddress().Hex: {}},
 		1, "2h", 10,
 	)
 	initialGain := map[string]float64{
@@ -77,7 +77,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress().Hex: {}},
+		map[string][]byte{account.GetAddress().Hex: {}},
 		1, "2h", 10,
 	)
 	initialGain := map[string]float64{
@@ -144,7 +144,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress().Hex: {}},
+		map[string][]byte{account.GetAddress().Hex: {}},
 		2, "2s", 10,
 	)
 	initialGain := map[string]float64{
@@ -213,7 +213,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 
 	// init worldstate
 	config := *permissioned.NewChainConfig(
-		map[string]struct{}{account.GetAddress().Hex: {}},
+		map[string][]byte{account.GetAddress().Hex: {}},
 		2, "2h", 10,
 	)
 	initialGain := map[string]float64{

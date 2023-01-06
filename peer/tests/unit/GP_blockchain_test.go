@@ -39,7 +39,7 @@ func Test_GP_BC_Init(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string]struct{}{
+		map[string][]byte{
 			addr1.Hex: {},
 			addr2.Hex: {},
 		},
@@ -127,7 +127,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string]struct{}{
+		map[string][]byte{
 			addr1.Hex: {},
 			addr2.Hex: {},
 		},
@@ -254,7 +254,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string]struct{}{
+		map[string][]byte{
 			addr1.Hex: {},
 			addr2.Hex: {},
 		},
@@ -376,7 +376,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string]struct{}{
+		map[string][]byte{
 			addr1.Hex: {},
 			addr2.Hex: {},
 		},

@@ -23,7 +23,7 @@ type ChainConfig struct {
 	storage.Copyable
 
 	ID           string
-	Participants map[string]struct{}
+	Participants map[string][]byte
 
 	MaxTxnsPerBlk int
 	WaitTimeout   string
@@ -32,7 +32,7 @@ type ChainConfig struct {
 }
 
 // NewChainConfig creates a new config and computes its ID
-func NewChainConfig(participant map[string]struct{},
+func NewChainConfig(participant map[string][]byte,
 	maxTxnsPerBlk int, waitTimeout string, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
@@ -86,7 +86,7 @@ func (c ChainConfig) Hash() string {
 
 // Copy implements Copyable.Copy
 func (c ChainConfig) Copy() storage.Copyable {
-	participants := make(map[string]struct{})
+	participants := make(map[string][]byte)
 	for key, val := range c.Participants {
 		participants[key] = val
 	}

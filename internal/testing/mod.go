@@ -152,6 +152,7 @@ type configTemplate struct {
 	paxosProposerRetry time.Duration
 
 	disableMPC bool
+	MPCtype    peer.MPCConsensus
 }
 
 func newConfigTemplate() configTemplate {
@@ -187,6 +188,7 @@ func newConfigTemplate() configTemplate {
 		paxosID:            0,
 		paxosProposerRetry: time.Second * 5,
 		disableMPC:         false,
+		MPCtype:            peer.MPCConsensusBC,
 	}
 }
 
@@ -303,6 +305,13 @@ func WithDisableMPC() Option {
 	}
 }
 
+// WithMPCPaxos starts MPC with Paxos.
+func WithMPCPaxos() Option {
+	return func(ct *configTemplate) {
+		ct.MPCtype = peer.MPCConsensusPaxos
+	}
+}
+
 // NewTestNode returns a new test node.
 func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	addr string, opts ...Option) TestNode {
@@ -331,6 +340,7 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosID = template.paxosID
 	config.PaxosProposerRetry = template.paxosProposerRetry
 	config.DisableMPC = template.disableMPC
+	config.MPCType = template.MPCtype
 
 	node := f(config)
 

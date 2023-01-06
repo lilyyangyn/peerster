@@ -16,3 +16,10 @@ type MPC interface {
 	// InitMPC inits a MPC instance for mpc before computation.
 	InitMPC(uniqID string, prime string, initiator string, expression string) error
 }
+
+type MPCConsensus int
+
+const (
+	MPCConsensusPaxos MPCConsensus = iota
+	MPCConsensusBC
+)

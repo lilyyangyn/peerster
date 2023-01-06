@@ -32,8 +32,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.message = message.NewMessageModule(&conf)
 	n.paxos = paxos.NewPaxosModule(&conf, n.message)
 	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
-	n.mpc = mpc.NewMPCModuleWithPaxos(&conf, n.message, n.paxos)
 	n.blockchain = blockchain.NewBlockchainModule(&conf, n.message)
+	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos, n.blockchain)
 
 	return &n
 }
@@ -201,7 +201,7 @@ func (n *node) SetValueDBAsset(key string, value int) error {
 
 // Calculate implements peer.Calculate
 func (n *node) Calculate(expression string, budget float64) (int, error) {
-	return n.mpc.CalculateMPC(expression, budget)
+	return n.mpc.Calculate(expression, budget)
 }
 
 // InitBlockchain implements peer.InitBlockchain

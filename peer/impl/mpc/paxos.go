@@ -14,8 +14,6 @@ func (m *MPCModule) initMPCConcensus(uniqID string, budget float64, expression s
 		return fmt.Errorf("invalid operation")
 	}
 
-	// TODO: check balance
-
 	if step, ok := m.paxos.CheckAndWait(); ok {
 		return m.proposeMPC(uniqID, budget, expression, prime, step)
 	}

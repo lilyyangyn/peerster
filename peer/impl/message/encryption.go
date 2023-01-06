@@ -75,11 +75,7 @@ func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string
 }
 
 // EncryptAsymetric encrypts value using peer's pubkey
-func (m *EncryptionModule) EncryptAsymetric(value []byte, peer string) ([]byte, error) {
-	pubkey, ok := m.pubkeyStore.get(peer)
-	if !ok {
-		return nil, xerrors.Errorf("no public key for peer %s", peer)
-	}
+func (m *EncryptionModule) EncryptAsymetric(value []byte, pubkey types.Pubkey) ([]byte, error) {
 	pub := rsa.PublicKey(pubkey)
 
 	hash := sha256.New()
@@ -141,7 +137,11 @@ func (m *EncryptionModule) encryptMsg(msg transport.Message, peer string) (*type
 	if err != nil {
 		return nil, err
 	}
-	encMsg, err := m.EncryptAsymetric(ptxt, peer)
+	pubkey, ok := m.pubkeyStore.get(peer)
+	if !ok {
+		return nil, xerrors.Errorf("no public key for peer %s", peer)
+	}
+	encMsg, err := m.EncryptAsymetric(ptxt, pubkey)
 	if err != nil {
 		return nil, err
 	}

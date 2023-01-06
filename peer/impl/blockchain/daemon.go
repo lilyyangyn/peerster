@@ -48,7 +48,11 @@ out:
 				newBlock.Hash(), newBlock.Height)
 
 			// broadcast block
-			err := m.broadcastBCBlkMessage(config.Participants, newBlock)
+			participants := make(map[string]struct{})
+			for p := range config.Participants {
+				participants[p] = struct{}{}
+			}
+			err := m.broadcastBCBlkMessage(participants, newBlock)
 			if err != nil {
 				log.Err(err).Send()
 			}

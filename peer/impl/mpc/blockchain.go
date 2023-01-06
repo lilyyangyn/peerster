@@ -13,18 +13,37 @@ func (m *MPCModule) PreMPCTxnCallback(config *permissioned.ChainConfig, txn *per
 			permissioned.TxnTypePreMPC, txn.Type)
 	}
 
-	propose := txn.Data.(permissioned.MPCPropose)
-	err := m.initMPCWithBC(txn.ID, config, &propose)
+	// add addr -> pubkey map
+	err := m.pubkeyStore.Add(config.Participants)
 	if err != nil {
+		err = m.mpcCenter.Inform(txn.ID, MPCResult{result: 0, err: err})
 		return err
 	}
 
+	// init MPC
+	propose := txn.Data.(permissioned.MPCPropose)
+	err = m.initMPCWithBlockchain(txn.ID, config, &propose)
+	if err != nil {
+		err = m.mpcCenter.Inform(txn.ID, MPCResult{result: 0, err: err})
+		return err
+	}
+
+	// start MPC
 	go func() {
 		val, err := m.ComputeExpression(txn.ID, propose.Expression, propose.Prime)
 		err = m.mpcCenter.Inform(txn.ID, MPCResult{result: val, err: err})
 		if err != nil {
 			log.Err(err).Send()
 		}
+
+		// TODO: postMPC txn
+		postID, err := m.bcModule.SendPostMPCTransaction(txn.ID, float64(val))
+		if err != nil {
+			log.Err(err).Send()
+		} else {
+			log.Info().Msgf("send postMPC txn %s", postID)
+		}
 	}()
+
 	return nil
 }

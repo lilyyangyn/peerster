@@ -69,7 +69,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string]struct{}{account.addr.Hex: {}},
+		map[string][]byte{account.addr.Hex: {}},
 		10, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -121,7 +121,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string]struct{}{account.addr.Hex: {}},
+		map[string][]byte{account.addr.Hex: {}},
 		10, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -174,7 +174,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string]struct{}{account.addr.Hex: {}},
+		map[string][]byte{account.addr.Hex: {}},
 		10, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -228,7 +228,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string]struct{}{account.addr.Hex: {}},
+		map[string][]byte{account.addr.Hex: {}},
 		10, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -281,7 +281,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string]struct{}{account.addr.Hex: {}},
+		map[string][]byte{account.addr.Hex: {}},
 		10, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)

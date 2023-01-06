@@ -17,6 +17,7 @@ func setup_n_peers(n int, t *testing.T, opt ...z.Option) []z.TestNode {
 
 	for i := 0; i < n; i++ {
 		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+			z.WithMPCPaxos(),
 			z.WithTotalPeers(uint(n)), z.WithPaxosID(uint(i+1)))
 		nodes[i] = node
 	}
@@ -362,45 +363,4 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		require.Equal(t, (valueA+valueB2)*valueB2, ans[i])
 	}
-}
-
-func Test_GP_ComputeExpression_Consensus_Add(t *testing.T) {
-	nodes := setup_n_peers(3, t)
-	nodeA := nodes[0]
-	nodeB := nodes[1]
-	nodeC := nodes[2]
-	defer nodeA.Stop()
-	defer nodeB.Stop()
-	defer nodeC.Stop()
-
-	// nodeA set asset
-	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
-	require.NoError(t, err)
-
-	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
-	require.NoError(t, err)
-
-	// call Calculate on nodeA. The MPC starts automatically
-	mpcDone := make(chan struct{})
-	var recvValue int
-	go func() {
-		ans, err := nodeA.Calculate("a+b", 10)
-		recvValue = ans
-		require.NoError(t, err)
-
-		close(mpcDone)
-	}()
-
-	timeout := time.After(time.Second * 2)
-
-	select {
-	case <-mpcDone:
-	case <-timeout:
-		t.Error(t, "a result must have been computed")
-	}
-
-	// check equal to the expected ans
-	require.Equal(t, valueA+valueB, recvValue)
 }

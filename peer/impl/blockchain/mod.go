@@ -73,7 +73,11 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	}
 
 	// broadcast the genesis block
-	err = m.broadcastBCBlkMessage(config.Participants, &blk)
+	participants := make(map[string]struct{})
+	for p := range config.Participants {
+		participants[p] = struct{}{}
+	}
+	err = m.broadcastBCBlkMessage(participants, &blk)
 	if err != nil {
 		return err
 	}
@@ -87,7 +91,11 @@ func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransac
 
 	// get config and send private message
 	config := m.GetConfig()
-	return m.broadcastBCTxnMessage(config.Participants, signedTxn)
+	participants := make(map[string]struct{})
+	for p := range config.Participants {
+		participants[p] = struct{}{}
+	}
+	return m.broadcastBCTxnMessage(participants, signedTxn)
 }
 
 // GetAddress helps users to know the adress of the node

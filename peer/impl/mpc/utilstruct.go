@@ -1,8 +1,12 @@
 package mpc
 
 import (
-	"math/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"fmt"
 	"sync"
+
+	"go.dedis.ch/cs438/types"
 )
 
 // --------------------------------------------------------
@@ -38,7 +42,7 @@ func NewValueDB() *ValueDB {
 }
 
 // --------------------------------------------------------
-// MPCStore
+// MPCCenter
 
 type MPCCenter struct {
 	*sync.RWMutex
@@ -119,49 +123,6 @@ func (c *MPCCenter) Listen(id string) MPCResult {
 
 // --------------------------------------------------------
 
-// polynomial is an expression of polynomial that can be used in MPC
-type polynomial struct {
-	degree       int
-	coefficients []int
-}
-
-// compute computes the value y of x on the polynomial
-func (p *polynomial) compute(x int) int {
-	if x == 0 {
-		return p.coefficients[0]
-	}
-
-	value := p.coefficients[p.degree]
-	for i := p.degree - 1; i > -1; i-- {
-		value *= x
-		value += p.coefficients[i]
-	}
-
-	return value
-}
-
-// RandomPolynomial generate a random polynomial with f(0)=secret
-func NewRandomPolynomial(secret int, degree int) *polynomial {
-	// random polynomial f of degree d is defined by d + 1 points
-	coefficients := make([]int, degree+1)
-
-	// s = f(0) = secret
-	coefficients[0] = secret
-
-	// generate randome coefficients
-	for i := 0; i < degree; i++ {
-		coefficients[i+1] = rand.Int()
-	}
-
-	p := polynomial{
-		degree:       degree,
-		coefficients: coefficients,
-	}
-	return &p
-}
-
-// --------------------------------------------------------
-
 type Stack []string
 
 // IsEmpty: check if stack is empty
@@ -207,4 +168,59 @@ func prec(s string) int {
 	} else {
 		return -1
 	}
+}
+
+// --------------------------------------------------------
+// PubkeyStore
+
+type PubkeyStore struct {
+	*sync.RWMutex
+	store map[string]*rsa.PublicKey
+}
+
+func NewPubkeyStore() *PubkeyStore {
+	return &PubkeyStore{
+		RWMutex: &sync.RWMutex{},
+		store:   make(map[string]*rsa.PublicKey),
+	}
+}
+
+func (s *PubkeyStore) Get(id string) (*types.Pubkey, bool) {
+	s.RLock()
+	defer s.RUnlock()
+
+	key, ok := s.store[id]
+	return (*types.Pubkey)(key), ok
+}
+
+func (s *PubkeyStore) Add(raw map[string][]byte) error {
+	s.Lock()
+	defer s.Unlock()
+
+	failed := make([]string, 0)
+
+	for addr, pubBytes := range raw {
+		// now do not support pubkey change
+		_, ok := s.store[addr]
+		if ok {
+			continue
+		}
+
+		pubkey, err := x509.ParsePKIXPublicKey(pubBytes)
+		if err != nil {
+			failed = append(failed, addr)
+			continue
+		}
+		rsaPubkey, ok := pubkey.(*rsa.PublicKey)
+		if !ok {
+			failed = append(failed, addr)
+			continue
+		}
+		s.store[addr] = rsaPubkey
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("fail to parse encryption pubkey: %s", failed)
+	}
+	return nil
 }
