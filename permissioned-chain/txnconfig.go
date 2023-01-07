@@ -20,7 +20,7 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
 	ID           string
-	Participants map[string][]byte
+	Participants map[string]string
 
 	MaxTxnsPerBlk int
 	WaitTimeout   string
@@ -29,7 +29,7 @@ type ChainConfig struct {
 }
 
 // NewChainConfig creates a new config and computes its ID
-func NewChainConfig(participant map[string][]byte,
+func NewChainConfig(participant map[string]string,
 	maxTxnsPerBlk int, waitTimeout string, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
@@ -46,7 +46,7 @@ func NewChainConfig(participant map[string][]byte,
 
 // ChainConfigFromYAML creates a new config based on yaml and computes its ID
 func ChainConfigFromYAML(path string) (*ChainConfig, error) {
-	yamlFile, err := os.ReadFile("conf.yaml")
+	yamlFile, err := os.ReadFile("path")
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (c ChainConfig) Hash() string {
 // String implements Describable.String()
 func (c ChainConfig) String() string {
 	participants := "["
-	for peer, _ := range c.Participants {
+	for peer := range c.Participants {
 		participants += fmt.Sprintf("%s, ", peer)
 	}
 	participants = participants[:len(participants)-2] + "]"
@@ -97,7 +97,7 @@ func (c ChainConfig) String() string {
 
 // Copy implements Copyable.Copy
 func (c ChainConfig) Copy() storage.Copyable {
-	participants := make(map[string][]byte)
+	participants := make(map[string]string)
 	for key, val := range c.Participants {
 		participants[key] = val
 	}

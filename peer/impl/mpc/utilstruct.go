@@ -3,6 +3,7 @@ package mpc
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
@@ -209,19 +210,24 @@ func (s *PubkeyStore) Get(id string) (*types.Pubkey, bool) {
 	return (*types.Pubkey)(key), ok
 }
 
-func (s *PubkeyStore) Add(raw map[string][]byte) error {
+func (s *PubkeyStore) Add(raw map[string]string) error {
 	s.Lock()
 	defer s.Unlock()
 
 	failed := make([]string, 0)
 
-	for addr, pubBytes := range raw {
+	for addr, pubEncode := range raw {
 		// now do not support pubkey change
 		_, ok := s.store[addr]
 		if ok {
 			continue
 		}
 
+		pubBytes, err := hex.DecodeString(pubEncode)
+		if err != nil {
+			failed = append(failed, addr)
+			continue
+		}
 		pubkey, err := x509.ParsePKIXPublicKey(pubBytes)
 		if err != nil {
 			failed = append(failed, addr)

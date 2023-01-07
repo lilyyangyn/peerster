@@ -100,7 +100,7 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 	}
 
 	// SSS to all participants that the peer have public key
-	for key, _ := range variablesNeed {
+	for key := range variablesNeed {
 		value, found := m.valueDB.getAsset(key)
 		if !found {
 			// this peer doesn't have this value, continue

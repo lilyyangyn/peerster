@@ -168,6 +168,11 @@ func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name
 	return n.datasharing.SearchFirst(pattern, conf)
 }
 
+// GetPubkeyString implements peer.GetPubkeyString
+func (n *node) GetPubkeyString() (string, error) {
+	return n.message.GetPubkeyString()
+}
+
 // SendEncryptedMessage implements peer.SendEncryptedMessage
 func (n *node) SendEncryptedMessage(msg transport.Message, to string) error {
 	return n.message.SendEncryptedMessage(msg, to)
