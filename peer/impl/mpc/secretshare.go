@@ -41,7 +41,7 @@ func (m *MPCModule) shareSecret(key string, mpc *MPC) error {
 
 	// generate shared secrets
 	// results, err := m.shamirSecretShare(value, peerIDs)
-	results, err := m.shamirSecretShareZp(value, mpc.prime, peerIDs)
+	results, err := m.shamirSecretShareHalfDegreeZp(value, mpc.prime, peerIDs)
 	if err != nil {
 		return err
 	}
