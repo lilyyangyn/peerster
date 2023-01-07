@@ -188,7 +188,7 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 
 }
 
-func Test_GP_ComputeExpression_Add(t *testing.T) {
+func Test_GP_ComputeExpression_Add_Simple(t *testing.T) {
 	nodes := setup_n_peers(3, t)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -249,7 +249,76 @@ func Test_GP_ComputeExpression_Add(t *testing.T) {
 	}
 }
 
-func Test_GP_ComputeExpression_Mult(t *testing.T) {
+func Test_GP_ComputeExpression_Add_Hard(t *testing.T) {
+	nodes := setup_n_peers(3, t)
+	nodeA := nodes[0]
+	nodeB := nodes[1]
+	nodeC := nodes[2]
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
+
+	// nodeA set asset
+	valueA := 5
+	err := nodeA.SetValueDBAsset("a", valueA)
+	require.NoError(t, err)
+
+	valueAA := 4
+	err = nodeA.SetValueDBAsset("aa", valueAA)
+	require.NoError(t, err)
+
+	valueB := 8
+	err = nodeB.SetValueDBAsset("b", valueB)
+	require.NoError(t, err)
+
+	valueC := 9
+	err = nodeC.SetValueDBAsset("c", valueC)
+	require.NoError(t, err)
+
+	// all node will need to run compute Expression simultaneously.
+	// will change to only one node run expression
+	prime := "1000000009"
+	uniqID := "test"
+	expression := "a+b+aa+c+a"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
+	ans := make([]int, 3)
+	go func() {
+		ansA, err := nodeA.ComputeExpression("test", "a+b+c+aa+a", prime)
+		ans[0] = ansA
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansB, err := nodeB.ComputeExpression("test", "a+b+c+aa+a", prime)
+		ans[1] = ansB
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansC, err := nodeC.ComputeExpression("test", "a+b+c+aa+a", prime)
+		ans[2] = ansC
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	// check all received ans is equal
+	recvValue := ans[0]
+	for i := 0; i < 3; i++ {
+		require.Equal(t, recvValue, ans[i])
+	}
+
+	// check equal to the expected ans
+	for i := 0; i < 3; i++ {
+		require.Equal(t, valueA+valueB+valueC+valueAA+valueA, ans[i])
+	}
+}
+
+func Test_GP_ComputeExpression_Mult_Simple(t *testing.T) {
 	nodes := setup_n_peers(3, t)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -309,7 +378,7 @@ func Test_GP_ComputeExpression_Mult(t *testing.T) {
 	}
 }
 
-func Test_GP_ComputeExpression_Complex(t *testing.T) {
+func Test_GP_ComputeExpression_Mult_Hard(t *testing.T) {
 	nodes := setup_n_peers(3, t)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -323,30 +392,38 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)
 
-	valueB1 := 3
-	err = nodeB.SetValueDBAsset("b1", valueB1)
+	valueB := 3
+	err = nodeB.SetValueDBAsset("b", valueB)
 	require.NoError(t, err)
 
-	valueB2 := 2
-	err = nodeB.SetValueDBAsset("b2", valueB2)
+	valueC := 4
+	err = nodeC.SetValueDBAsset("c", valueC)
 	require.NoError(t, err)
 
-	// TODO now structure is all node will need to run compute Expression.
-	// will change to only one node run expression
+	// all node will need to run compute Expression simultaneously.
 	prime := "1000000009"
+	uniqID := "test"
+	expression := "a*b*c"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
 	ans := make([]int, 3)
 	go func() {
-		ansA, err := nodeA.ComputeExpression("test", "(a+b1)*b2", prime)
+		ansA, err := nodeA.ComputeExpression("test", "a*b*c", prime)
 		ans[0] = ansA
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansB, err := nodeB.ComputeExpression("test", "(a+b1)*b2", prime)
+		ansB, err := nodeB.ComputeExpression("test", "a*b*c", prime)
 		ans[1] = ansB
 		require.NoError(t, err)
 	}()
 	go func() {
-		ansC, err := nodeC.ComputeExpression("test", "(a+b1)*b2", prime)
+		ansC, err := nodeC.ComputeExpression("test", "a*b*c", prime)
 		ans[2] = ansC
 		require.NoError(t, err)
 	}()
@@ -361,6 +438,145 @@ func Test_GP_ComputeExpression_Complex(t *testing.T) {
 
 	// check equal to the expected ans
 	for i := 0; i < 3; i++ {
-		require.Equal(t, (valueA+valueB2)*valueB2, ans[i])
+		require.Equal(t, valueA*valueB*valueC, ans[i])
+	}
+}
+
+func Test_GP_ComputeExpression_Complex_1(t *testing.T) {
+	nodes := setup_n_peers(3, t)
+	nodeA := nodes[0]
+	nodeB := nodes[1]
+	nodeC := nodes[2]
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
+
+	// nodeA set asset
+	valueA := 5
+	err := nodeA.SetValueDBAsset("a", valueA)
+	require.NoError(t, err)
+
+	valueB := 3
+	err = nodeB.SetValueDBAsset("b", valueB)
+	require.NoError(t, err)
+
+	valueC := 4
+	err = nodeC.SetValueDBAsset("c", valueC)
+	require.NoError(t, err)
+
+	// all node will need to run compute Expression simultaneously.
+	prime := "1000000009"
+	uniqID := "test"
+	expression := "(a+b)*(c+b)*(a+c)"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
+	ans := make([]int, 3)
+	go func() {
+		ansA, err := nodeA.ComputeExpression("test", "(a+b)*(c+b)*(a+c)", prime)
+		ans[0] = ansA
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansB, err := nodeB.ComputeExpression("test", "(a+b)*(c+b)*(a+c)", prime)
+		ans[1] = ansB
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansC, err := nodeC.ComputeExpression("test", "(a+b)*(c+b)*(a+c)", prime)
+		ans[2] = ansC
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	// check all received ans is equal
+	recvValue := ans[0]
+	for i := 0; i < 3; i++ {
+		require.Equal(t, recvValue, ans[i])
+	}
+
+	// check equal to the expected ans
+	for i := 0; i < 3; i++ {
+		require.Equal(t, (valueA+valueB)*(valueB+valueC)*(valueA+valueC), ans[i])
+	}
+}
+
+func Test_GP_ComputeExpression_Complex_2(t *testing.T) {
+	nodes := setup_n_peers(4, t)
+	nodeA := nodes[0]
+	nodeB := nodes[1]
+	nodeC := nodes[2]
+	nodeD := nodes[3]
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
+	defer nodeD.Stop()
+
+	// nodeA set asset
+	valueA1 := 5
+	err := nodeA.SetValueDBAsset("a1", valueA1)
+	require.NoError(t, err)
+
+	valueA2 := 9
+	err = nodeA.SetValueDBAsset("a2", valueA2)
+	require.NoError(t, err)
+
+	valueB := 3
+	err = nodeB.SetValueDBAsset("b", valueB)
+	require.NoError(t, err)
+
+	valueC := 4
+	err = nodeC.SetValueDBAsset("c", valueC)
+	require.NoError(t, err)
+
+	// all node will need to run compute Expression simultaneously.
+	prime := "1000000009"
+	uniqID := "test"
+	expression := "(a1*a2 + b +c)/2"
+
+	// init the information for all nodes
+	for _, n := range nodes {
+		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
+		require.NoError(t, err)
+	}
+
+	ans := make([]int, 4)
+	go func() {
+		ansA, err := nodeA.ComputeExpression("test", expression, prime)
+		ans[0] = ansA
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansB, err := nodeB.ComputeExpression("test", expression, prime)
+		ans[1] = ansB
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansC, err := nodeC.ComputeExpression("test", expression, prime)
+		ans[2] = ansC
+		require.NoError(t, err)
+	}()
+	go func() {
+		ansD, err := nodeD.ComputeExpression("test", expression, prime)
+		ans[3] = ansD
+		require.NoError(t, err)
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	// check all received ans is equal
+	recvValue := ans[0]
+	for i := 0; i < 4; i++ {
+		require.Equal(t, recvValue, ans[i])
+	}
+
+	// check equal to the expected ans
+	for i := 0; i < 4; i++ {
+		require.Equal(t, int((valueA1*valueA2+valueB+valueC)/2), ans[i])
 	}
 }

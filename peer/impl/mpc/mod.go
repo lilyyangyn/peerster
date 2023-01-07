@@ -91,16 +91,16 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 		return -1, err
 	}
 
-	variablesNeed := []string{}
+	variablesNeed := map[string]struct{}{}
 	for _, exp := range postfix {
 		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
 		if IsVariableName(exp) {
-			variablesNeed = append(variablesNeed, exp)
+			variablesNeed[exp] = struct{}{}
 		}
 	}
 
 	// SSS to all participants that the peer have public key
-	for _, key := range variablesNeed {
+	for key, _ := range variablesNeed {
 		value, found := m.valueDB.getAsset(key)
 		if !found {
 			// this peer doesn't have this value, continue
@@ -206,7 +206,7 @@ func (m *MPCModule) shareSecret(key string, mpc *MPC) error {
 
 	// generate shared secrets
 	// results, err := m.shamirSecretShare(value, peerIDs)
-	results, err := m.shamirSecretShareZp(value, mpc.prime, peerIDs)
+	results, err := m.shamirSecretShareHalfDegreeZp(value, mpc.prime, peerIDs)
 	if err != nil {
 		return err
 	}
@@ -240,8 +240,11 @@ func (m *MPCModule) computeResult(postfix []string, mpc *MPC) (big.Int, error) {
 				res = addZp(&num1, &num2, &mpc.prime)
 			} else if ch == "-" {
 				res = subZp(&num1, &num2, &mpc.prime)
-			} else {
+			} else if ch == "*" {
 				res, err = m.computeMult(num1, num2, i, mpc)
+			} else if ch == "/" {
+				// only support for constant
+				res = divZp(&num1, &num2, &mpc.prime)
 			}
 			if err != nil {
 				return *big.NewInt(0), err
@@ -249,11 +252,13 @@ func (m *MPCModule) computeResult(postfix []string, mpc *MPC) (big.Int, error) {
 			s = append(s, res)
 		default:
 			num, err := strconv.ParseInt(ch, 10, 64)
-			bigNum := *big.NewInt(num)
+			var bigNum big.Int
 			if err != nil {
 				// this is a value needed from SSS.
 				key := ch + "|" + m.getIdentifyKey()
 				bigNum = mpc.waitValueFromTemp(key)
+			} else {
+				bigNum = *big.NewInt(num)
 			}
 			s = append(s, bigNum)
 		}
