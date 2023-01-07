@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	z "go.dedis.ch/cs438/internal/testing"
 	"go.dedis.ch/cs438/permissioned-chain"
@@ -12,6 +13,8 @@ import (
 )
 
 func Test_GP_BC_Init(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
 	transp := channel.NewTransport()
 
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
@@ -92,6 +95,8 @@ func Test_GP_BC_Init(t *testing.T) {
 }
 
 func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
 	transp := channel.NewTransport()
 
 	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
@@ -226,6 +231,8 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 }
 
 func Test_GP_BC_Mine_Block(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
 	transp := channel.NewTransport()
 
 	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
@@ -350,6 +357,8 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 }
 
 func Test_GP_BC_Late_Joing(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
 	transp := channel.NewTransport()
 
 	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
@@ -484,5 +493,106 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	block0b := nodeB.BCGetBlock(block1b.PrevHash)
 	require.NotNil(t, block0b)
 	require.Equal(t, block0a.Hash(), block0b.Hash())
+
+}
+
+func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
+	transp := channel.NewTransport()
+
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
+
+	// generate key pairs
+	privkeyA, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	nodeA.BCSetKeyPair(*privkeyA)
+	addrA, err := nodeA.BCGetAddress()
+	require.NoError(t, err)
+
+	privkeyB, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	nodeB.BCSetKeyPair(*privkeyB)
+	addrB, err := nodeB.BCGetAddress()
+	require.NoError(t, err)
+
+	privkeyC, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	nodeC.BCSetKeyPair(*privkeyC)
+	addrC, err := nodeC.BCGetAddress()
+	require.NoError(t, err)
+
+	// add peer
+	nodeA.AddPeer(nodeB.GetAddr())
+	nodeA.AddPeer(nodeC.GetAddr())
+	nodeB.AddPeer(nodeC.GetAddr())
+
+	// init blockchain
+	config := permissioned.NewChainConfig(
+		map[string][]byte{
+			addrA.Hex: {},
+			addrB.Hex: {},
+			addrC.Hex: {},
+		}, 1, "2s", 1,
+	)
+	initialGain := map[string]float64{
+		addrA.Hex: 100,
+		addrB.Hex: 100,
+		addrC.Hex: 100,
+	}
+	err = nodeA.InitBlockchain(*config, initialGain)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 500)
+
+	block0a := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block0a)
+	require.Equal(t, uint(0), block0a.Height)
+
+	block0b := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block0b)
+	require.Equal(t, uint(0), block0b.Height)
+
+	block0c := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block0c)
+	require.Equal(t, uint(0), block0c.Height)
+
+	// send txn. Need to success
+
+	accountA := permissioned.NewAccount(addrA)
+	txn1 := permissioned.NewTransactionPreMPC(accountA,
+		permissioned.MPCPropose{
+			Initiator:  accountA.GetAddress().Hex,
+			Budget:     10,
+			Expression: "a",
+		})
+	require.Equal(t, addrA.Hex, txn1.From)
+	signedTxn, err := txn1.Sign(privkeyA)
+	require.NoError(t, err)
+	accountA.IncreaseNonce()
+	nodeA.BCSendTransaction(signedTxn)
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 3)
+
+	block1a := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block1a)
+	require.Equal(t, uint(1), block1a.Height)
+
+	block1b := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block1b)
+	require.Equal(t, uint(1), block1b.Height)
+
+	block1c := nodeA.BCGetLatestBlock()
+	require.NotNil(t, block1c)
+	require.Equal(t, uint(1), block1c.Height)
+
+	require.Equal(t, block1a, block1b)
+	require.Equal(t, block1a, block1c)
 
 }

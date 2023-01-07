@@ -63,7 +63,7 @@ func Test_GP_MPC_Paxos_Add(t *testing.T) {
 // -----------------------------------------------------------------------------
 // Blockchain MPC
 
-func Test_GP_BC_Single_No_MPC(t *testing.T) {
+func Test_GP_MPC_Pure_BC_Single(t *testing.T) {
 	nodes, addrs := setup_n_peers_bc(t, 3, 3, "2s", []float64{100}, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -136,8 +136,8 @@ func Test_GP_BC_Single_No_MPC(t *testing.T) {
 	require.Equal(t, float64(0), accountC.GetBalance())
 }
 
-func Test_GP_BC_Multiple_No_MPC(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.Disabled)
+func Test_GP_MPC_Pure_BC_Multiple(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	nodes, addrs := setup_n_peers_bc(t, 3, 3, "2h", []float64{200}, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -218,8 +218,8 @@ func Test_GP_BC_Multiple_No_MPC(t *testing.T) {
 	require.Equal(t, float64(30), accountC.GetBalance())
 }
 
-func Test_GP_BC_Doubel_Spend_No_MPC(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.Disabled)
+func Test_GP_MPC_Pure_BC_Double_Spend(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	nodes, addrs := setup_n_peers_bc(t, 3, 3, "2s", []float64{40}, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -252,7 +252,7 @@ func Test_GP_BC_Doubel_Spend_No_MPC(t *testing.T) {
 
 	time.Sleep(time.Second * 1)
 
-	fmt.Println(nodeA.BCSprintBlockchain())
+	// fmt.Println(nodeA.BCSprintBlockchain())
 
 	// > verify all nodes got four blocks
 	blockA := nodeA.BCGetLatestBlock()
@@ -283,9 +283,9 @@ func Test_GP_BC_Doubel_Spend_No_MPC(t *testing.T) {
 
 }
 
-func Test_GP_MPC_Blockchain_Add(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.Disabled)
-	nodes, _ := setup_n_peers_bc(t, 3, 1, "2h", []float64{100, 100, 100}, false)
+func Test_GP_MPC_BC_Simple(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	nodes, _ := setup_n_peers_bc(t, 3, 1, "2s", []float64{100}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
 	nodeC := nodes[1]
@@ -313,7 +313,7 @@ func Test_GP_MPC_Blockchain_Add(t *testing.T) {
 		close(mpcDone)
 	}()
 
-	timeout := time.After(time.Second * 5)
+	timeout := time.After(time.Second * 10)
 
 	select {
 	case <-mpcDone:

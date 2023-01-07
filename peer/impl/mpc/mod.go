@@ -252,7 +252,7 @@ func (m *MPCModule) computeResult(postfix []string, mpc *MPC) (big.Int, error) {
 			bigNum := *big.NewInt(num)
 			if err != nil {
 				// this is a value needed from SSS.
-				key := ch + "|" + m.conf.Socket.GetAddress()
+				key := ch + "|" + m.getIdentifyKey()
 				bigNum = mpc.waitValueFromTemp(key)
 			}
 			s = append(s, bigNum)
@@ -305,7 +305,7 @@ func (m *MPCModule) computeMult(a big.Int, b big.Int, step int, mpc *MPC) (big.I
 
 	d := multZp(&a, &b, &mpc.prime)
 
-	key := m.conf.Socket.GetAddress() + "|" + strconv.Itoa(step)
+	key := m.getIdentifyKey() + "|" + strconv.Itoa(step)
 	mpc.addValue(key, d)
 
 	err := m.shareSecret(key, mpc)
@@ -323,7 +323,7 @@ func (m *MPCModule) computeMult(a big.Int, b big.Int, step int, mpc *MPC) (big.I
 	participants := mpc.getParticipants()
 	shareD := make([]big.Int, len(participants))
 	for i := 0; i < len(participants); i++ {
-		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.conf.Socket.GetAddress()
+		tmpKey := participants[i] + "|" + strconv.Itoa(step) + "|" + m.getIdentifyKey()
 		shareD[i] = mpc.waitValueFromTemp(tmpKey)
 	}
 
@@ -347,6 +347,20 @@ func (m *MPCModule) boardcastInterpolationResult(result big.Int, mpc *MPC) error
 		return m.boardcastInterpolationResultPaxos(result, mpc)
 	case peer.MPCConsensusBC:
 		return m.boardcastInterpolationResultBlockchain(result, mpc)
+	}
+	panic("invalid MPC type")
+}
+
+func (m *MPCModule) getIdentifyKey() string {
+	switch m.consensusType {
+	case peer.MPCConsensusPaxos:
+		return m.conf.Socket.GetAddress()
+	case peer.MPCConsensusBC:
+		addr, err := m.bcModule.GetAddress()
+		if err != nil {
+			panic(err)
+		}
+		return addr.Hex
 	}
 	panic("invalid MPC type")
 }

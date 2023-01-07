@@ -33,7 +33,6 @@ func (m *MPCModule) PreMPCTxnCallback(config *permissioned.ChainConfig, txn *per
 
 	propose := txn.Data.(permissioned.MPCPropose)
 	log.Info().Msgf("PreMPC Txn %s is confirmed. Start MPC {%s}...", txn.ID, propose.Expression)
-	fmt.Printf("PreMPC Txn %s is confirmed. Start MPC {%s}...\n", txn.ID, propose.Expression)
 
 	// add addr -> pubkey map
 	err := m.pubkeyStore.Add(config.Participants)

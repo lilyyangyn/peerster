@@ -90,7 +90,7 @@ out:
 
 			err := signedTxn.Verify(worldState, config)
 			if err != nil {
-				log.Err(err).Send()
+				log.Warn().Msgf("%s", err)
 				continue
 			}
 			err = blkBuilder.AddTxn(signedTxn)

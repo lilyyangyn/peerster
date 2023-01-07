@@ -22,7 +22,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 		return fmt.Errorf("invalid mpc ID: %s", secretMsg.ReqID)
 	}
 
-	log.Printf("%s: mpc value for req %s, %s:%s",
+	log.Debug().Msgf("%s: mpc value for req %s, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
@@ -45,7 +45,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 		return fmt.Errorf("invalid mpc ID: %s", interpolationMsg.ReqID)
 	}
 
-	log.Printf("%s: interpolation msg req: %s, owner: %s, value: %s",
+	log.Debug().Msgf("%s: interpolation msg req: %s, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value

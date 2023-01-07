@@ -79,23 +79,51 @@ func (m *EncryptionModule) EncryptAsymetric(value []byte, pubkey types.Pubkey) (
 	pub := rsa.PublicKey(pubkey)
 
 	hash := sha256.New()
-	ctxt, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, value, nil)
-	if err != nil {
-		return nil, err
+	msgLen := len(value)
+	step := pub.Size() - 2*hash.Size() - 2
+	var encryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		encryptedBlockBytes, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, value[start:finish], nil)
+		if err != nil {
+			return nil, err
+		}
+
+		encryptedBytes = append(encryptedBytes, encryptedBlockBytes...)
 	}
 
-	return ctxt, nil
+	return encryptedBytes, nil
 }
 
 // DecryptAsymetric decrypts value using self's pubkey
 func (m *EncryptionModule) DecryptAsymetric(value []byte) ([]byte, error) {
+	priv := (*rsa.PrivateKey)(m.privkey)
+
 	hash := sha256.New()
-	ptxt, err := rsa.DecryptOAEP(hash, rand.Reader, (*rsa.PrivateKey)(m.privkey), value, nil)
-	if err != nil {
-		return nil, err
+	msgLen := len(value)
+	step := priv.PublicKey.Size()
+	var decryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		decryptedBlockBytes, err := rsa.DecryptOAEP(hash, rand.Reader, priv, value[start:finish], nil)
+		if err != nil {
+			return nil, err
+		}
+
+		decryptedBytes = append(decryptedBytes, decryptedBlockBytes...)
 	}
 
-	return ptxt, nil
+	return decryptedBytes, nil
 }
 
 // SetPubkeyEntry sets the publickey entry

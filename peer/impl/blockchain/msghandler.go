@@ -44,7 +44,6 @@ func (m *BlockchainModule) ProcessBCTxnMsg(msg types.Message, pkt transport.Pack
 		return err
 	}
 	txn := txnMsg.Txn
-
 	m.txnPool.Push(&txn)
 
 	return nil
@@ -111,7 +110,10 @@ func (m *BlockchainModule) ProcessBCSyncMsg(msg types.Message, pkt transport.Pac
 		if block.Height <= latestBlk.Height {
 			continue
 		}
-		m.processBlk(&block)
+		err := m.processBlk(&block)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

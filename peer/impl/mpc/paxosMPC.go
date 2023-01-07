@@ -101,7 +101,7 @@ func (m *MPCModule) sendShareMessagePaxos(uniqID string, peer string, id int, ke
 	shareMsg := types.MPCShareMessage{
 		ReqID: uniqID,
 		Value: types.MPCSecretValue{
-			Owner: m.conf.Socket.GetAddress(),
+			Owner: m.getIdentifyKey(),
 			Key:   key,
 			Value: value.Text(10),
 		},

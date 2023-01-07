@@ -194,7 +194,7 @@ func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
 			close(m.bcReadyChan)
 			m.selectNextMiner(block)
 		}
-		return nil
+		return err
 	}
 
 	// Otherwise,append the block

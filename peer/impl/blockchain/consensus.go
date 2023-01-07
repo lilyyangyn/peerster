@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/rs/zerolog/log"
@@ -36,23 +37,31 @@ func (c *CreditRecords) advanceAndSelect(block *permissioned.Block) string {
 
 	// top up credits
 	var maxCredit float64 = 0
-	maxPeer := ""
 	for peer := range config.Participants {
 		account := permissioned.GetAccountFromWorldState(worldState, peer)
 		c.records[peer] += account.GetBalance()
 
 		if c.records[peer] >= maxCredit {
 			maxCredit = c.records[peer]
-			maxPeer = peer
 		}
 	}
+
+	// sort to avoid multiple nodes have the same balance
+	// FIXME: bias. Add a counter to do roubin round
+	peerList := make([]string, 0)
+	for peer := range c.records {
+		if c.records[peer] == maxCredit {
+			peerList = append(peerList, peer)
+		}
+	}
+	sort.Strings(peerList)
 	log.Info().Msgf("[Credit System] height=%d, %T",
 		block.Height, c.records)
 
 	// select next miner
-	c.latestMiner = maxPeer
+	c.latestMiner = peerList[0]
 	// clear miner's credits
-	c.records[maxPeer] = 0
+	c.records[peerList[0]] = 0
 
-	return maxPeer
+	return peerList[0]
 }

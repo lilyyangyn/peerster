@@ -77,7 +77,7 @@ func (m *MPCModule) boardcastInterpolationResultBlockchain(result big.Int, mpc *
 	// boardcast the result and compute the final result
 	interpolationMsg := types.MPCInterpolationMessage{
 		ReqID: mpc.id,
-		Owner: m.conf.Socket.GetAddress(),
+		Owner: m.getIdentifyKey(),
 		Value: result.Text(10),
 	}
 	interpolationMsgMarshal, err := m.CreateMsg(interpolationMsg)
