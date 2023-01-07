@@ -81,7 +81,7 @@ func (txn *Transaction) HashBytes() []byte {
 	h.Write([]byte(fmt.Sprintf("%f", txn.Value)))
 
 	switch hh := txn.Data.(type) {
-	case storage.Hashable:
+	case Hashable:
 		h.Write([]byte(hh.Hash()))
 	default:
 		bytes, err := json.Marshal(txn.Data)
@@ -224,7 +224,12 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 	}
 
 	// execute txn
-	err := txn.Exec(worldState, config)
+	stateCopy := worldState.Copy()
+	err := txn.Exec(stateCopy, config)
+	if err == nil {
+		// check before real execution
+		_ = txn.Exec(worldState, config)
+	}
 
 	return err
 }
@@ -256,8 +261,12 @@ func unmarshalCoinbase(data json.RawMessage) (interface{}, error) {
 // -----------------------------------------------------------------------------
 // Utilities
 
-func mpcKeyFromUniqID(uniqID string) string {
-	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
+type Describable interface {
+	String() string
+}
+
+type Hashable interface {
+	Hash() string
 }
 
 func CheckPariticipation(worldState storage.KVStore, config *ChainConfig, addrID string) bool {
@@ -290,6 +299,10 @@ func GetConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	}
 	config := object.(ChainConfig)
 	return &config
+}
+
+func mpcKeyFromUniqID(uniqID string) string {
+	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
 }
 
 func checkNonce(worldState storage.KVStore, txn *Transaction) error {
@@ -346,7 +359,8 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 	}
 
 	if from.lockedBalance < amount {
-		return fmt.Errorf("%s's locked balance not enough", from.addr.Hex)
+		return fmt.Errorf("%s's locked balance not enough. Expected: %f. Got: %f",
+			from.addr.Hex, amount, from.lockedBalance)
 	}
 	from.lockedBalance -= amount
 	account.balance += amount

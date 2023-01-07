@@ -17,6 +17,12 @@ type MPCPropose struct {
 	Prime      string
 }
 
+// String implements Describable.String()
+func (p MPCPropose) String() string {
+	return fmt.Sprintf("Initiator: %s, Budget: %f, Expression: %s, Prime: %s\n",
+		p.Initiator, p.Budget, p.Expression, p.Prime)
+}
+
 func NewTransactionPreMPC(initiator *Account, data MPCPropose) *Transaction {
 	return NewTransaction(
 		initiator,
@@ -69,6 +75,11 @@ type MPCRecord struct {
 	Result float64
 }
 
+// String implements Describable.String()
+func (p MPCRecord) String() string {
+	return fmt.Sprintf("UniqID: %s, Result: %f\n", p.UniqID, p.Result)
+}
+
 func NewTransactionPostMPC(from *Account, data MPCRecord) *Transaction {
 	return NewTransaction(
 		from,
@@ -101,7 +112,7 @@ func unmarshalPostMPC(data json.RawMessage) (interface{}, error) {
 // -----------------------------------------------------------------------------
 // Utilities
 
-var AwardUnlockThreshold = 0.5
+var AWARD_UNLOCK_THRESHOLD = 0.5
 
 type MPCEndorsement struct {
 	// FIXME: not copy peers. Use Config ID
@@ -160,7 +171,7 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, accountID stri
 		return claimAward(worldState, initiator, accountID, endorsement.Budget)
 	}
 
-	threshold := float64(len(endorsement.Peers)) * AwardUnlockThreshold
+	threshold := float64(len(endorsement.Peers)) * AWARD_UNLOCK_THRESHOLD
 	if float64(len(endorsement.Endorsers)) > threshold {
 		for endorser := range endorsement.Endorsers {
 			err = claimAward(worldState, initiator, endorser, endorsement.Budget)
@@ -168,12 +179,21 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, accountID stri
 				return err
 			}
 		}
-		endorsement.Locked = false
+
+		// delete if fully claimed
 		if len(endorsement.Endorsers) == len(endorsement.Peers) {
 			err := worldState.Del(key)
 			if err != nil {
 				panic(err)
 			}
+			return nil
+		}
+
+		// unlock endorsement
+		endorsement.Locked = false
+		err = worldState.Put(key, *endorsement)
+		if err != nil {
+			panic(err)
 		}
 	}
 	return nil

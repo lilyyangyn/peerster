@@ -167,6 +167,37 @@ func (bc *Blockchain) CheckBlockHeight(block *Block) BlockHeightCompareResult {
 	return bc.checkBlockHeight(block)
 }
 
+// Sprint returns a decription of the chain
+func (bc *Blockchain) Sprint() string {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	block := bc.latestBlock
+	description := ""
+	for block != nil {
+		description += fmt.Sprintf("-------------Block %d-------------\n", block.Height)
+		for idx, txn := range block.Transactions {
+			description += fmt.Sprintf("Txn %d [%s] (%s): \n", idx, txn.Txn.Type, txn.Txn.ID)
+			description += fmt.Sprintf("\tFrom: %s\n", txn.Txn.From)
+			description += fmt.Sprintf("\tTo: %s\n", txn.Txn.To)
+			description += fmt.Sprintf("\tValue: %f\n", txn.Txn.Value)
+			if txn.Txn.Data == nil {
+				continue
+			}
+
+			switch vv := txn.Txn.Data.(type) {
+			case Describable:
+				description += fmt.Sprintf("\tData: %s\n", vv.String())
+			default:
+				description += fmt.Sprintf("\tData: %#v\n", vv)
+			}
+		}
+		description += fmt.Sprintf("-------------End Block %d-------------\n", block.Height)
+		block = bc.blocksStore[block.PrevHash]
+	}
+	return description
+}
+
 // AppendBlock appends a new block to the blockchain
 func (bc *Blockchain) AppendBlock(block *Block) error {
 	bc.Lock()
@@ -188,7 +219,7 @@ func (bc *Blockchain) AppendBlock(block *Block) error {
 	}
 
 	// verify block
-	err := block.Verify(bc.latestBlock.States.Copy())
+	err := block.Verify(bc.latestBlock.GetWorldStateCopy())
 	if err != nil {
 		return err
 	}

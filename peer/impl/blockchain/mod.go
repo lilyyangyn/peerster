@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/rs/xid"
@@ -18,8 +20,7 @@ type BlockchainModule struct {
 	*message.MessageModule
 	conf *peer.Configuration
 
-	account *permissioned.Account
-	privKey *ecdsa.PrivateKey
+	wallet *Wallet
 
 	*permissioned.Blockchain
 	txnPool       *TxnPool
@@ -58,9 +59,10 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 
 // MiningDaemon starts a new minor daemon
 func (m *BlockchainModule) MiningDaemon(ctx context.Context) error {
-	m.txnPool.SetCtx(ctx)
+	go m.txnPool.Daemon(ctx)
 	go m.Mine(ctx, m.txnPool)
 	go m.VerifyBlock(ctx)
+
 	return nil
 }
 
@@ -86,9 +88,6 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 
 // SendTransaction signs and sends a transaction
 func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransaction) error {
-	// TODO: check from?
-	// TODO: wallet sevice
-
 	// get config and send private message
 	config := m.GetConfig()
 	participants := make(map[string]struct{})
@@ -100,12 +99,12 @@ func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransac
 
 // GetAddress helps users to know the adress of the node
 func (m *BlockchainModule) GetAddress() (permissioned.Address, error) {
-	if m.account == nil {
+	if m.wallet == nil {
 		return permissioned.Address{},
 			fmt.Errorf("node %s does not have an address yet",
 				m.conf.Socket.GetAddress())
 	}
-	return m.account.GetAddress(), nil
+	return m.wallet.GetAddress(), nil
 }
 
 // GenerateKeyPair generates an ECDSA key pair and write it in the file
@@ -123,9 +122,11 @@ func (m *BlockchainModule) GenerateKeyPair(path string) error {
 
 // SetKeyPair sets an ECDSA key pair to the node
 func (m *BlockchainModule) SetKeyPair(privkey ecdsa.PrivateKey) error {
-	m.privKey = &privkey
-	address := permissioned.NewAddress(&privkey.PublicKey)
-	m.account = permissioned.NewAccount(*address)
+	// Only assume pne-time initialize of wallet
+	if m.wallet != nil {
+		return fmt.Errorf("wallet already set. Account is not changable")
+	}
+	m.wallet = NewWallet(&privkey)
 
 	return nil
 }
@@ -140,15 +141,15 @@ func (m *BlockchainModule) LoadKeyPair(path string) error {
 	return m.SetKeyPair(*privkey)
 }
 
+// RegisterTxnCallabck registers a callback function for a specific type of txn
+// it will be called when the txn is in a newly appended block
+func (m *BlockchainModule) RegisterTxnCallabck(txnType permissioned.TxnType, watcher watchCallbck) {
+	m.watchRegistry.Register(txnType, watcher)
+}
+
 // SendPreMPCTransaction generates and sends a preMPC transaction
 func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float64, prime string) (string, error) {
-	record := permissioned.MPCPropose{
-		Initiator:  m.account.GetAddress().Hex,
-		Budget:     budget,
-		Expression: expression,
-		Prime:      prime,
-	}
-	signedTxn, err := permissioned.NewTransactionPreMPC(m.account, record).Sign(m.privKey)
+	signedTxn, err := m.wallet.PreMPCTxn(expression, budget, prime)
 	if err != nil {
 		return "", err
 	}
@@ -157,16 +158,22 @@ func (m *BlockchainModule) SendPreMPCTransaction(expression string, budget float
 
 // SendPostMPCTransaction generates and sends a postMPC transaction
 func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) (string, error) {
-	// TODO: update account nonce?
-	record := permissioned.MPCRecord{
-		UniqID: id,
-		Result: result,
-	}
-	signedTxn, err := permissioned.NewTransactionPostMPC(m.account, record).Sign(m.privKey)
+	signedTxn, err := m.wallet.PostMPCTxn(id, result)
 	if err != nil {
 		return "", err
 	}
 	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
+}
+
+// SprintBlockchain returns a description of the chain
+func (m *BlockchainModule) SprintBlockchain() string {
+	return m.Sprint()
+}
+
+// GetBlockTimeout returns the maximum timeout of a block
+func (m *BlockchainModule) GetMaxBlockTime() time.Duration {
+	config := m.GetConfig()
+	return getBlockTimeout(&config) * time.Duration(config.MaxTxnsPerBlk)
 }
 
 // -----------------------------------------------------------------------------
@@ -203,9 +210,19 @@ func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
 	log.Info().Msgf("Next miner on height %d is %s",
 		block.Height+1, nextMiner)
 	// notify miner to start if the next miner is myself
-	if nextMiner == m.account.GetAddress().Hex {
+	if nextMiner == m.wallet.GetAddress().Hex {
 		m.minerChan <- block.Height
 	}
+}
+
+func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
+	duration, err := time.ParseDuration(config.WaitTimeout)
+	if err != nil {
+		log.Warn().Msgf(`Dangerous: unrecognize max block timeout. 
+			Miner's max mining period can be infinitive`)
+		duration = math.MaxInt64
+	}
+	return duration
 }
 
 // broadcastBCTxnMessage broadcast a BCTxnMessage in private msg

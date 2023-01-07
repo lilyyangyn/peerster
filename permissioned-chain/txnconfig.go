@@ -19,9 +19,6 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
-	storage.Hashable
-	storage.Copyable
-
 	ID           string
 	Participants map[string][]byte
 
@@ -64,7 +61,7 @@ func ChainConfigFromYAML(path string) (*ChainConfig, error) {
 	return &cc, nil
 }
 
-// Hash computes the hash of the config
+// Hash implements Hashable.Hash
 func (c ChainConfig) Hash() string {
 	h := sha256.New()
 
@@ -82,6 +79,20 @@ func (c ChainConfig) Hash() string {
 	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// String implements Describable.String()
+func (c ChainConfig) String() string {
+	participants := "["
+	for peer, _ := range c.Participants {
+		participants += fmt.Sprintf("%s, ", peer)
+	}
+	participants = participants[:len(participants)-2] + "]"
+	description := fmt.Sprintf(`Participants: %s, MaxNumTxn: %d, 
+	MaxBlockWaitTime: %s, JoinThreshold: %f\n`,
+		participants, c.MaxTxnsPerBlk, c.WaitTimeout, c.JoinThreshold)
+	return description
+
 }
 
 // Copy implements Copyable.Copy

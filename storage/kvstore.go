@@ -6,9 +6,6 @@ import (
 	"sort"
 )
 
-type Hashable interface {
-	Hash() string
-}
 type Copyable interface {
 	Copy() Copyable
 }

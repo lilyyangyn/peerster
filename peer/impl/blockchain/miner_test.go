@@ -36,7 +36,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	defer cancel()
 
 	pool := NewTxnPool()
-	pool.SetCtx(ctx)
+	go pool.Daemon(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
@@ -94,7 +94,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	defer cancel()
 
 	pool := NewTxnPool()
-	pool.SetCtx(ctx)
+	go pool.Daemon(ctx)
 
 	blkDone := make(chan struct{})
 	var block *permissioned.Block
@@ -131,6 +131,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 		t.Error(t, "a block must be built")
 	}
 
+	require.NotNil(t, block)
 	err = bc.AppendBlock(block)
 	require.NoError(t, err)
 }
@@ -161,7 +162,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	defer cancel()
 
 	pool := NewTxnPool()
-	pool.SetCtx(ctx)
+	go pool.Daemon(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,
@@ -229,7 +230,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pool := NewTxnPool()
-	pool.SetCtx(ctx)
+	go pool.Daemon(ctx)
 	txn1, err := permissioned.NewTransactionPreMPC(&account,
 		permissioned.MPCPropose{
 			Initiator:  account.GetAddress().Hex,

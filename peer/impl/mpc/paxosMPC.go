@@ -3,9 +3,11 @@ package mpc
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/xid"
 	"go.dedis.ch/cs438/peer"
@@ -29,8 +31,6 @@ func newMPCModuleWithPaxos(conf *peer.Configuration, messageModule *message.Mess
 		panic(err)
 	}
 	m.paxos = instance
-	_, ok := paxosModule.GetPaxos(instance.Type)
-	fmt.Println("-------------", ok)
 
 	return m
 }
@@ -57,7 +57,7 @@ func (m *MPCModule) CalculatePaxos(expression string, budget float64) (int, erro
 	}
 
 	//channel wait mpc result
-	result := m.mpcCenter.Listen(uniqID)
+	result := m.mpcCenter.Listen(uniqID, time.Duration(math.MaxInt32))
 
 	return result.result, result.err
 }

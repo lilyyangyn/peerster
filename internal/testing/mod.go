@@ -151,8 +151,9 @@ type configTemplate struct {
 	paxosID            uint
 	paxosProposerRetry time.Duration
 
-	disableMPC bool
-	MPCtype    peer.MPCConsensus
+	disableMPC      bool
+	MPCtype         peer.MPCConsensus
+	MPCMaxWaitBlock int
 }
 
 func newConfigTemplate() configTemplate {
@@ -189,6 +190,7 @@ func newConfigTemplate() configTemplate {
 		paxosProposerRetry: time.Second * 5,
 		disableMPC:         false,
 		MPCtype:            peer.MPCConsensusBC,
+		MPCMaxWaitBlock:    2,
 	}
 }
 
@@ -312,6 +314,13 @@ func WithMPCPaxos() Option {
 	}
 }
 
+// WithMPCBlockTime starts MPC with Paxos.
+func WithMPCMaxWaitBlock(t int) Option {
+	return func(ct *configTemplate) {
+		ct.MPCMaxWaitBlock = t
+	}
+}
+
 // NewTestNode returns a new test node.
 func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	addr string, opts ...Option) TestNode {
@@ -341,6 +350,7 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosProposerRetry = template.paxosProposerRetry
 	config.DisableMPC = template.disableMPC
 	config.MPCType = template.MPCtype
+	config.MPCMaxWaitBlock = template.MPCMaxWaitBlock
 
 	node := f(config)
 

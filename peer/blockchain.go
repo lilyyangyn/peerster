@@ -46,4 +46,7 @@ type PermissionedChain interface {
 
 	// BCLoadKeyPair loads an ECDSA key pair from file
 	BCLoadKeyPair(path string) error
+
+	// BCSprintBlockchain returns a decription string of the blockchain
+	BCSprintBlockchain() string
 }

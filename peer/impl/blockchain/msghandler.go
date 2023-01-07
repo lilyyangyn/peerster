@@ -15,7 +15,7 @@ func (m *BlockchainModule) ProcessBCPrivateMsg(msg types.Message, pkt transport.
 		return fmt.Errorf("wrong type: %T", msg)
 	}
 
-	_, ok = privMsg.Recipients[m.account.GetAddress().Hex]
+	_, ok = privMsg.Recipients[m.wallet.GetAddress().Hex]
 	if ok {
 		// process the message if in the recipients list
 		newPkt := transport.Packet{

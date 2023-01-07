@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"sync"
+	"time"
 
 	"go.dedis.ch/cs438/types"
 )
@@ -72,11 +73,22 @@ func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
 
 	c.store[id] = mpc
 	if _, ok := c.nofitication[id]; !ok {
-		c.nofitication[id] = make(chan MPCResult, 1)
+		c.nofitication[id] = make(chan MPCResult, 2)
 	}
 }
 
-func (c *MPCCenter) Inform(id string, result MPCResult) (err error) {
+func (c *MPCCenter) InformMPCStart(id string) {
+	c.RLock()
+	defer c.RUnlock()
+
+	channel, ok := c.nofitication[id]
+	if !ok {
+		return
+	}
+	channel <- MPCResult{}
+}
+
+func (c *MPCCenter) InformMPCComplete(id string, result MPCResult) (err error) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -84,7 +96,6 @@ func (c *MPCCenter) Inform(id string, result MPCResult) (err error) {
 	if ok {
 		err = mpc.finalize(result)
 	}
-
 	channel, ok := c.nofitication[id]
 	if !ok {
 		return
@@ -94,7 +105,7 @@ func (c *MPCCenter) Inform(id string, result MPCResult) (err error) {
 	return err
 }
 
-func (c *MPCCenter) Listen(id string) MPCResult {
+func (c *MPCCenter) Listen(id string, timeout time.Duration) MPCResult {
 	c.Lock()
 	// first check if MPC already have done
 	if mpc, ok := c.store[id]; ok {
@@ -106,19 +117,24 @@ func (c *MPCCenter) Listen(id string) MPCResult {
 
 	channel, ok := c.nofitication[id]
 	if !ok {
-		channel := make(chan MPCResult)
+		channel = make(chan MPCResult)
 		c.nofitication[id] = channel
 	}
 	c.Unlock()
 
-	result := <-channel
+	select {
+	case <-time.After(timeout):
+		return MPCResult{result: 0, err: fmt.Errorf("MPC Timeout")}
+	case <-channel:
+		result := <-channel
 
-	c.Lock()
-	defer c.Unlock()
+		c.Lock()
+		defer c.Unlock()
 
-	delete(c.nofitication, id)
+		delete(c.nofitication, id)
+		return result
+	}
 
-	return result
 }
 
 // --------------------------------------------------------

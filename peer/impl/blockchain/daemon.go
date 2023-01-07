@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"context"
-	"math"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -32,7 +31,7 @@ out:
 			log.Info().Msgf("Mining on height=%d...", prevHeight+1)
 			config := latestBlock.GetConfig()
 			newBlock := createBlock(ctx, txnPool,
-				m.account.GetAddress().Hex, latestBlock, &config)
+				m.wallet.GetAddress().Hex, latestBlock, &config)
 			if newBlock == nil {
 				continue
 			}
@@ -71,21 +70,19 @@ func createBlock(ctx context.Context, txnPool *TxnPool,
 		SetMiner(miner)
 	txnCount := 0
 
-	duration, err := time.ParseDuration(config.WaitTimeout)
-	if err != nil {
-		log.Warn().Msgf(`Dangerous: unrecognize max block timeout. 
-			Miner's max mining period can be infinitive`)
-		duration = math.MaxInt64
-	}
-
+	duration := getBlockTimeout(config)
+	timeout := time.After(duration)
 out:
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(duration):
-			break out
-		case signedTxn := <-txnPool.Pull():
+		case <-timeout:
+			if txnCount > 0 {
+				// if any txn, then produce the block
+				break out
+			}
+		case signedTxn := <-txnPool.channel:
 			// coinbase trasaction can only be created by miner
 			if signedTxn.Txn.Type == permissioned.TxnTypeCoinbase {
 				continue
@@ -105,11 +102,13 @@ out:
 			if txnCount == config.MaxTxnsPerBlk {
 				break out
 			}
+
+			// reset timeout if a txn is successfuly append
+			timeout = time.After(duration)
 		}
 	}
 
 	blkBuilder.SetState(worldState)
-	// TODO: consensus: PoW? PoS?
 
 	return blkBuilder.Build()
 }
@@ -163,6 +162,8 @@ func (m *BlockchainModule) VerifyBlock(ctx context.Context) {
 				block.Hash())
 			// notify outside for the received transactions
 			go func() {
+				m.wallet.Sync(block.States)
+
 				config := permissioned.GetConfigFromWorldState(block.States)
 				for _, signedTxn := range block.Transactions {
 					err = m.watchRegistry.Tell(config, &signedTxn.Txn)

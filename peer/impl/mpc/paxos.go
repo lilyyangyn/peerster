@@ -73,19 +73,22 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 	if m.conf.DisableMPC {
 		mpc := NewMPC(mpcval.UniqID, big.Int{}, "", "")
 		m.mpcCenter.RegisterMPC(mpc.id, mpc)
-		err = m.mpcCenter.Inform(mpc.id, MPCResult{result: 0, err: nil})
+		m.mpcCenter.InformMPCStart(mpc.id)
+		err = m.mpcCenter.InformMPCComplete(mpc.id, MPCResult{result: 0, err: nil})
 		return err
 	}
 
 	// init MPC instance and start MPC
 	log.Info().Msgf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
 	err = m.InitMPCWithPaxos(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression)
+	m.mpcCenter.InformMPCStart(mpcval.UniqID)
 	if err != nil {
+		err = m.mpcCenter.InformMPCComplete(mpcval.UniqID, MPCResult{result: 0, err: err})
 		return err
 	}
 	go func() {
 		val, err := m.ComputeExpression(mpcval.UniqID, mpcval.Expression, mpcval.Prime)
-		err = m.mpcCenter.Inform(mpcval.UniqID, MPCResult{result: val, err: err})
+		err = m.mpcCenter.InformMPCComplete(mpcval.UniqID, MPCResult{result: val, err: err})
 		if err != nil {
 			log.Err(err).Send()
 		}

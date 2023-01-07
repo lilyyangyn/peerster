@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
@@ -21,19 +22,22 @@ func newMPCModuleWithBlockchain(conf *peer.Configuration, messageModule *message
 	m.bcModule = bcModule
 	m.pubkeyStore = NewPubkeyStore()
 
+	// register txn callback
+	bcModule.RegisterTxnCallabck(permissioned.TxnTypePreMPC, m.PreMPCTxnCallback)
+
 	return m
 }
 
 // CalculateBlockchain sends a PreMPC txn to the blockchain
 // It will initiate a paxos to start the MPC once it notice the txn is included in the chain
 func (m *MPCModule) CalculateBlockchain(expression string, budget float64) (int, error) {
-	id, err := m.bcModule.SendPreMPCTransaction(expression, budget, "")
+	id, err := m.bcModule.SendPreMPCTransaction(expression, budget, "1000000009")
 	if err != nil {
 		return 0, err
 	}
 	log.Info().Msgf("send preMPC txn %s", id)
 
-	result := m.mpcCenter.Listen(id)
+	result := m.mpcCenter.Listen(id, m.bcModule.GetMaxBlockTime()*time.Duration(m.conf.MPCMaxWaitBlock))
 
 	return result.result, result.err
 }
@@ -43,7 +47,10 @@ func (m *MPCModule) CalculateBlockchain(expression string, budget float64) (int,
 
 func (m *MPCModule) initMPCWithBlockchain(uniqID string, config *permissioned.ChainConfig,
 	propose *permissioned.MPCPropose) error {
-	mpcPrime, _ := new(big.Int).SetString(propose.Prime, 10)
+	mpcPrime, ok := new(big.Int).SetString(propose.Prime, 10)
+	if !ok {
+		return fmt.Errorf("invalid mpcPrime: %s", propose.Prime)
+	}
 	mpc := NewMPC(uniqID, *mpcPrime, propose.Initiator, propose.Expression)
 
 	// Use chain participants as MPC participants
@@ -56,7 +63,7 @@ func (m *MPCModule) initMPCWithBlockchain(uniqID string, config *permissioned.Ch
 	// add MPC peer, use position as the mpc id.
 	peersMap := map[string]int{}
 	for idx, participant := range participants {
-		peersMap[participant] = idx
+		peersMap[participant] = idx + 1
 	}
 	mpc.addPeers(peersMap)
 	mpc.addParticipants(participants)
