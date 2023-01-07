@@ -628,11 +628,17 @@ func Test_GP_ComputeExpression_Multiple_Time(t *testing.T) {
 			ans[ii][0] = ansA
 			require.NoError(t, err)
 		}()
+	}
+	for i := 0; i < len(uniqID); i++ {
+		ii := i
 		go func() {
 			ansB, err := nodeB.ComputeExpression(uniqID[ii], expression[ii], prime)
 			ans[ii][1] = ansB
 			require.NoError(t, err)
 		}()
+	}
+	for i := 0; i < len(uniqID); i++ {
+		ii := i
 		go func() {
 			ansC, err := nodeC.ComputeExpression(uniqID[ii], expression[ii], prime)
 			ans[ii][2] = ansC

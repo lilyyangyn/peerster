@@ -49,6 +49,7 @@ type MPCCenter struct {
 	*sync.RWMutex
 	nofitication map[string]chan MPCResult
 	store        map[string]*MPC
+	conds        map[string]*sync.Cond
 }
 
 func NewMPCCenter() *MPCCenter {
@@ -56,15 +57,29 @@ func NewMPCCenter() *MPCCenter {
 		RWMutex:      &sync.RWMutex{},
 		nofitication: map[string]chan MPCResult{},
 		store:        map[string]*MPC{},
+		conds:        map[string]*sync.Cond{},
 	}
 }
 
-func (c *MPCCenter) GetMPC(id string) (*MPC, bool) {
-	c.RLock()
-	defer c.RUnlock()
+func (c *MPCCenter) GetMPC(id string) *MPC {
+	var mpc *MPC
+	c.Lock()
+	for {
+		m, ok := c.store[id]
+		if ok {
+			mpc = m
+			break
+		}
 
-	mpc, ok := c.store[id]
-	return mpc, ok
+		cond, ok := c.conds[id]
+		if !ok {
+			cond = sync.NewCond(c.RWMutex)
+		}
+		cond.Wait()
+	}
+	c.Unlock()
+
+	return mpc
 }
 
 func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
@@ -74,6 +89,11 @@ func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
 	c.store[id] = mpc
 	if _, ok := c.nofitication[id]; !ok {
 		c.nofitication[id] = make(chan MPCResult, 2)
+	}
+
+	cond, ok := c.conds[id]
+	if ok {
+		cond.Broadcast()
 	}
 }
 

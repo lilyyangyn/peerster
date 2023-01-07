@@ -17,10 +17,7 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	mpc, ok := m.mpcCenter.GetMPC(secretMsg.ReqID)
-	if !ok {
-		return fmt.Errorf("invalid mpc ID: %s", secretMsg.ReqID)
-	}
+	mpc := m.mpcCenter.GetMPC(secretMsg.ReqID)
 
 	log.Debug().Msgf("%s: mpc value for req %s, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
@@ -40,10 +37,7 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 	}
 
 	// ignore message with wrong id
-	mpc, ok := m.mpcCenter.GetMPC(interpolationMsg.ReqID)
-	if !ok {
-		return fmt.Errorf("invalid mpc ID: %s", interpolationMsg.ReqID)
-	}
+	mpc := m.mpcCenter.GetMPC(interpolationMsg.ReqID)
 
 	log.Debug().Msgf("%s: interpolation msg req: %s, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)

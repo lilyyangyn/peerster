@@ -156,12 +156,15 @@ func (m *MessageModule) MessagingDaemon(ctx context.Context) error {
 				if err != nil {
 					continue
 				}
-				err = m.processPkt(pkt)
-				if err != nil {
-					// return
-					log.Err(err).Send()
-					continue
-				}
+				go func() {
+					err = m.processPkt(pkt)
+					if err != nil {
+						// return
+						log.Err(err).Send()
+						// continue
+					}
+				}()
+
 			}
 		}
 	}()

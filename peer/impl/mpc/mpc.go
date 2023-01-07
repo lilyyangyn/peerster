@@ -119,16 +119,16 @@ func (mpc *MPC) finalize(result MPCResult) error {
 	mpc.Lock()
 	defer mpc.Unlock()
 
-	if mpc.state == MPCStateFinish {
-		return fmt.Errorf("cannot finalize an already finished MPC")
-	}
+	// if mpc.state == MPCStateFinish {
+	// 	return fmt.Errorf("cannot finalize an already finished MPC")
+	// }
 
 	mpc.state = MPCStateFinish
 	mpc.result = &result
 
 	// clear states
-	mpc.peers = nil
-	mpc.interStore = nil
+	// mpc.peers = nil
+	// mpc.interStore = nil
 
 	return nil
 }

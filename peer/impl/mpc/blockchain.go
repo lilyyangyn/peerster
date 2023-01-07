@@ -52,9 +52,13 @@ func (m *MPCModule) PreMPCTxnCallback(config *permissioned.ChainConfig, txn *per
 	// start MPC
 	go func() {
 		val, err := m.ComputeExpression(txn.ID, propose.Expression, propose.Prime)
+		if err != nil {
+			log.Err(err).Send()
+		}
 		err = m.mpcCenter.InformMPCComplete(txn.ID, MPCResult{result: val, err: err})
 		if err != nil {
 			log.Err(err).Send()
+			return
 		}
 
 		// postMPC txn

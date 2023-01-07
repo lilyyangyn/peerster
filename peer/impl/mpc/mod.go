@@ -79,6 +79,7 @@ func (m *MPCModule) SetValueDBAsset(key string, value int) error {
 }
 
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
+	fmt.Printf("#################### %s Start Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
 	// change infix to postfix
 	postfix, err := infixToPostfix(expr)
 	if err != nil {
@@ -86,10 +87,8 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 	}
 
 	// get MPC
-	mpc, ok := m.mpcCenter.GetMPC(uniqID)
-	if !ok {
-		return -1, err
-	}
+	mpc := m.mpcCenter.GetMPC(uniqID)
+	fmt.Printf("#################### %s End Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
 
 	variablesNeed := map[string]struct{}{}
 	for _, exp := range postfix {
@@ -114,15 +113,15 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 			m.conf.Socket.GetAddress(), key, mpc.getParticipants())
 		err = m.shareSecret(key, mpc)
 		if err != nil {
-			log.Printf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
-			return -1, err
+			// log.Error().Msgf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
+			return -1, fmt.Errorf("%s: sss error, %s", m.conf.Socket.GetAddress(), err)
 		}
 	}
 
 	ans, err := m.computeResult(postfix, mpc)
 	if err != nil {
-		log.Info().Msgf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
-		return -1, err
+		// log.Error().Msgf("%s: compute result error, %s", m.conf.Socket.GetAddress(), err)
+		return -1, fmt.Errorf("%s: compute result error, expression: %s, %s", m.conf.Socket.GetAddress(), mpc.expression, err)
 	}
 
 	return int(ans.Uint64()), nil

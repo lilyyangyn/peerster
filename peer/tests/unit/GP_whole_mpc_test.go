@@ -137,7 +137,7 @@ func Test_GP_MPC_Pure_BC_Single(t *testing.T) {
 }
 
 func Test_GP_MPC_Pure_BC_Multiple(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	nodes, addrs := setup_n_peers_bc(t, 3, 3, "2h", []float64{200}, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -219,7 +219,7 @@ func Test_GP_MPC_Pure_BC_Multiple(t *testing.T) {
 }
 
 func Test_GP_MPC_Pure_BC_Double_Spend(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	nodes, addrs := setup_n_peers_bc(t, 3, 3, "2s", []float64{40}, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -284,7 +284,7 @@ func Test_GP_MPC_Pure_BC_Double_Spend(t *testing.T) {
 }
 
 func Test_GP_MPC_BC_ADD_Simple(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	nodes, _ := setup_n_peers_bc(t, 3, 1, "2s", []float64{100}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -326,7 +326,7 @@ func Test_GP_MPC_BC_ADD_Simple(t *testing.T) {
 }
 
 func Test_GP_MPC_BC_MULT_Simple(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	nodes, _ := setup_n_peers_bc(t, 3, 1, "2s", []float64{100}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -368,12 +368,11 @@ func Test_GP_MPC_BC_MULT_Simple(t *testing.T) {
 }
 
 func Test_GP_MPC_BC_COMPLEX(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	// TODO have bug here, calculate will failed when a have no money.
-	nodes, _ := setup_n_peers_bc(t, 3, 1, "2s", []float64{100, 100, 100}, false)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	nodes, _ := setup_n_peers_bc(t, 3, 1, "2s", []float64{0, 0, 100}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
-	nodeC := nodes[1]
+	nodeC := nodes[2]
 	defer nodeA.Stop()
 	defer nodeB.Stop()
 	defer nodeC.Stop()
@@ -399,9 +398,10 @@ func Test_GP_MPC_BC_COMPLEX(t *testing.T) {
 	mpcDone := make(chan struct{})
 	var recvValue int
 	go func() {
+		fmt.Println(nodeC.GetAddr())
 		ans, err := nodeC.Calculate("a*b1 + b2*c*b2 + a+c", 10)
 		recvValue = ans
-		fmt.Println(nodeC.BCSprintBlockchain())
+		// fmt.Println(nodeC.BCSprintBlockchain())
 		require.NoError(t, err)
 
 		close(mpcDone)
@@ -420,8 +420,8 @@ func Test_GP_MPC_BC_COMPLEX(t *testing.T) {
 }
 
 func Test_GP_MPC_BC_Multiple(t *testing.T) {
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	nodes, addrs := setup_n_peers_bc(t, 3, 3, "5h", []float64{200}, false)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	nodes, addrs := setup_n_peers_bc(t, 3, 1, "5h", []float64{200}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
 	nodeC := nodes[2]
@@ -448,6 +448,7 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		for {
 			<-mpcCount
 			count++
+			fmt.Printf("!!!!!!!!!!!!%d!!!!!!!!!!!!!!\n", count)
 			if count == 3 {
 				close(mpcDone)
 			}
@@ -460,18 +461,23 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 
 		mpcCount <- struct{}{}
 	}()
+
+	time.Sleep(time.Second * 2)
 	go func() {
 		_, err := nodeA.Calculate("a+c", 10)
 		require.NoError(t, err)
 
 		mpcCount <- struct{}{}
 	}()
+
+	time.Sleep(time.Second * 2)
 	go func() {
 		_, err := nodeA.Calculate("b+c", 10)
 		require.NoError(t, err)
 
 		mpcCount <- struct{}{}
 	}()
+	time.Sleep(time.Second * 2)
 
 	timeout := time.After(time.Second * 10)
 
