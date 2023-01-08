@@ -204,6 +204,11 @@ func (n *node) SetValueDBAsset(key string, value int, price float64) error {
 	return n.mpc.SetValueDBAsset(key, value, price)
 }
 
+// ShowAllPeerAssets implements peer.ShowAllPeerAssets
+func (n *node) GetAllPeerAssetPrices() map[string]map[string]float64 {
+	return n.mpc.GetPeerAssetPrices()
+}
+
 // Calculate implements peer.Calculate
 func (n *node) Calculate(expression string, budget float64) (int, error) {
 	return n.mpc.Calculate(expression, budget)

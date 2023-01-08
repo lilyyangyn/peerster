@@ -12,6 +12,7 @@ import (
 	"go.dedis.ch/cs438/peer/impl/blockchain"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/types"
 )
 
@@ -87,6 +88,23 @@ func (m *MPCModule) SetValueDBAsset(key string, value int, price float64) error 
 	log.Info().Msgf("send regAssets txn %s for Assets %s", id, key)
 
 	return nil
+}
+
+// GetPeerAssetPrices returns the assets inside the network with the keys and prices
+func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
+	if m.consensusType != peer.MPCConsensusBC {
+		return nil
+	}
+
+	assets := make(map[string]map[string]float64)
+	states := m.bcModule.GetLatestBlock().States
+	config := permissioned.GetConfigFromWorldState(states)
+	for participate := range config.Participants {
+		assets[participate] = permissioned.GetAssetsFromWorldState(states,
+			permissioned.AssetsKeyFromUniqID(participate)).Assets
+	}
+
+	return assets
 }
 
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {

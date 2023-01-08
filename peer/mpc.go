@@ -13,6 +13,9 @@ type MPC interface {
 	// already exists.
 	SetValueDBAsset(key string, value int, price float64) error
 
+	// GetAllPeerAssetPrices returns the assets inside the network with the keys and prices
+	GetAllPeerAssetPrices() map[string]map[string]float64
+
 	// InitMPC inits a MPC instance for mpc before computation.
 	InitMPC(uniqID string, prime string, initiator string, expression string) error
 }

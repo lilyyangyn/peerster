@@ -128,11 +128,11 @@ func NewTransactionRegAssets(from *Account, assets map[string]float64) *Transact
 func execRegAssets(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
 	assets := txn.Data.(map[string]float64)
 
-	key := assetsKeyFromUniqID(txn.From)
+	key := AssetsKeyFromUniqID(txn.From)
 	oldAssets := GetAssetsFromWorldState(worldState, key)
 	oldAssets.Add(assets)
 
-	err := worldState.Put(key, oldAssets)
+	err := worldState.Put(key, *oldAssets)
 	if err != nil {
 		panic(err)
 	}
@@ -174,7 +174,7 @@ func (r AssetsRecord) Hash() string {
 
 	h.Write([]byte(r.Owner))
 	assets := make([]string, 0, len(r.Assets))
-	for asset, _ := range r.Assets {
+	for asset := range r.Assets {
 		assets = append(assets, asset)
 	}
 	sort.Strings(assets)
@@ -207,7 +207,7 @@ func GetAssetsFromWorldState(worldState storage.KVStore, key string) *AssetsReco
 	return &assets
 }
 
-func assetsKeyFromUniqID(uniqID string) string {
+func AssetsKeyFromUniqID(uniqID string) string {
 	return fmt.Sprintf("assets|%s", uniqID)
 }
 

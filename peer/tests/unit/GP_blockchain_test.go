@@ -668,3 +668,94 @@ func Test_GP_BC_Announce_Pubkey(t *testing.T) {
 	require.Equal(t, pubkey2, txn1.Txn.Data.(string))
 	require.Equal(t, pubkey1, txn2.Txn.Data.(string))
 }
+
+func Test_GP_BC_Set_Get_Assets(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
+	transp := channel.NewTransport()
+
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	defer node1.Stop()
+
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	defer node2.Stop()
+
+	node1.AddPeer(node2.GetAddr())
+
+	// generate key pairs
+
+	privkey1, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node1.BCSetKeyPair(*privkey1)
+	addr1, err := node1.BCGetAddress()
+	require.NoError(t, err)
+
+	privkey2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node2.BCSetKeyPair(*privkey2)
+	addr2, err := node2.BCGetAddress()
+	require.NoError(t, err)
+
+	// > init blockchain on node1. Should success
+
+	config := permissioned.NewChainConfig(
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
+		},
+		2, "2h", 1,
+	)
+	require.Len(t, config.Participants, 2)
+	err = node1.InitBlockchain(*config, nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
+	// > both nodes have its first block
+	blk11 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk11)
+	blk12 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk12)
+	require.Equal(t, blk11.Hash(), blk12.Hash())
+	require.Equal(t, uint(0), blk11.Height)
+
+	// set asssets
+
+	err = node1.SetValueDBAsset("a", 1, 1)
+	require.NoError(t, err)
+	err = node2.SetValueDBAsset("b", 2, 2)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 500)
+
+	// > a new block should be mined
+
+	blk21 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk21)
+	blk22 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk22)
+	require.Equal(t, blk21.Hash(), blk22.Hash())
+	require.Equal(t, uint(1), blk21.Height)
+
+	// > should get all value keys
+
+	priceMap := node1.GetAllPeerAssetPrices()
+	price1, ok := priceMap[addr1.Hex]
+	require.True(t, ok)
+	require.Len(t, price1, 1)
+	require.Equal(t, float64(1), price1["a"])
+	price2, ok := priceMap[addr2.Hex]
+	require.True(t, ok)
+	require.Len(t, price2, 1)
+	require.Equal(t, float64(2), price2["b"])
+
+	priceMap = node2.GetAllPeerAssetPrices()
+	price1, ok = priceMap[addr1.Hex]
+	require.True(t, ok)
+	require.Len(t, price1, 1)
+	require.Equal(t, float64(1), price1["a"])
+	price2, ok = priceMap[addr2.Hex]
+	require.True(t, ok)
+	require.Len(t, price2, 1)
+	require.Equal(t, float64(2), price2["b"])
+}
