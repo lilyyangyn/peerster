@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -86,15 +87,35 @@ func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
 	c.Lock()
 	defer c.Unlock()
 
+	// add old values to the mpc instance
+	oldMPC, ok := c.store[id]
+	if ok {
+		mpc.addValues(oldMPC.interStore)
+	}
 	c.store[id] = mpc
+
+	// register notification
 	if _, ok := c.nofitication[id]; !ok {
 		c.nofitication[id] = make(chan MPCResult, 2)
 	}
 
+	// notify if anyone is block waiting
 	cond, ok := c.conds[id]
 	if ok {
 		cond.Broadcast()
 	}
+}
+
+func (c *MPCCenter) AddValue(id string, key string, value big.Int) {
+	c.Lock()
+	defer c.Unlock()
+
+	mpc, ok := c.store[id]
+	if !ok {
+		mpc := NewMPC(id, big.Int{}, "", "")
+		c.store[id] = mpc
+	}
+	mpc.addValue(key, value)
 }
 
 func (c *MPCCenter) InformMPCStart(id string) {

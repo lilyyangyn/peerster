@@ -84,7 +84,7 @@ func (c ChainConfig) Hash() string {
 // String implements Describable.String()
 func (c ChainConfig) String() string {
 	participants := "["
-	for peer, _ := range c.Participants {
+	for peer := range c.Participants {
 		participants += fmt.Sprintf("%s, ", peer)
 	}
 	participants = participants[:len(participants)-2] + "]"
