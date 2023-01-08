@@ -2,16 +2,19 @@ package impl
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"io"
 	"math/rand"
 	"regexp"
 	"time"
 
 	"go.dedis.ch/cs438/peer"
+	"go.dedis.ch/cs438/peer/impl/blockchain"
 	"go.dedis.ch/cs438/peer/impl/datashare"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/mpc"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	permissioned "go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/transport"
 	"go.dedis.ch/cs438/types"
 )
@@ -29,7 +32,8 @@ func NewPeer(conf peer.Configuration) peer.Peer {
 	n.message = message.NewMessageModule(&conf)
 	n.paxos = paxos.NewPaxosModule(&conf, n.message)
 	n.datasharing = datashare.NewDataSharingModule(&conf, n.message, n.paxos)
-	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos)
+	n.blockchain = blockchain.NewBlockchainModule(&conf, n.message)
+	n.mpc = mpc.NewMPCModule(&conf, n.message, n.paxos, n.blockchain)
 
 	return &n
 }
@@ -45,6 +49,7 @@ type node struct {
 	paxos       *paxos.PaxosModule
 	datasharing *datashare.DataSharingModule
 	mpc         *mpc.MPCModule
+	blockchain  *blockchain.BlockchainModule
 
 	stopSig context.CancelFunc
 }
@@ -69,6 +74,11 @@ func (n *node) Start() error {
 	}
 
 	err = n.message.AntiEntropyDaemon(ctx, n.conf.AntiEntropyInterval)
+	if err != nil {
+		return err
+	}
+
+	err = n.blockchain.MiningDaemon(ctx)
 	if err != nil {
 		return err
 	}
@@ -176,7 +186,7 @@ func (n *node) GetPubkeyStore() peer.PubkeyStore {
 // InitMPC implements peer.InitMPC
 func (n *node) InitMPC(uniqID string, prime string, initiator string,
 	expression string) error {
-	return n.mpc.InitMPC(uniqID, prime, initiator, expression, nil)
+	return n.mpc.InitMPCWithPaxos(uniqID, prime, initiator, expression)
 }
 
 // GetPubkeyStore implements peer.ComputeExpression
@@ -192,4 +202,59 @@ func (n *node) SetValueDBAsset(key string, value int) error {
 // Calculate implements peer.Calculate
 func (n *node) Calculate(expression string, budget float64) (int, error) {
 	return n.mpc.Calculate(expression, budget)
+}
+
+// InitBlockchain implements peer.InitBlockchain
+func (n *node) InitBlockchain(config permissioned.ChainConfig, initialGain map[string]float64) error {
+	return n.blockchain.InitBlockchain(config, initialGain)
+}
+
+// BCSendTransaction implements peer.BCSendTransaction
+func (n *node) BCSendTransaction(txn *permissioned.SignedTransaction) error {
+	return n.blockchain.SendTransaction(txn)
+}
+
+// BCHasTransaction implements peer.BCHasTransaction
+func (n *node) BCHasTransaction(txnID string) bool {
+	return n.blockchain.GetTxn(txnID) != nil
+}
+
+// BCGetTransaction implements peer.BCGetTransaction
+func (n *node) BCGetTransaction(txnID string) *permissioned.SignedTransaction {
+	return n.blockchain.GetTxn(txnID)
+}
+
+// BCGetLatestBlock implements peer.BCGetLatestBlock
+func (n *node) BCGetLatestBlock() *permissioned.Block {
+	return n.blockchain.GetLatestBlock()
+}
+
+// BCGetBlock implements peer.BCGetBlock
+func (n *node) BCGetBlock(blockID string) *permissioned.Block {
+	return n.blockchain.GetBlock(blockID)
+}
+
+// BCGetAddress implements peer.BCGetAddress
+func (n *node) BCGetAddress() (permissioned.Address, error) {
+	return n.blockchain.GetAddress()
+}
+
+// BCGenerateKeyPair implements peer.BCGenerateKeyPair
+func (n *node) BCGenerateKeyPair(path string) error {
+	return n.blockchain.GenerateKeyPair(path)
+}
+
+// BCSetKeyPair implements peer.BCSetKeyPair
+func (n *node) BCSetKeyPair(privkey ecdsa.PrivateKey) error {
+	return n.blockchain.SetKeyPair(privkey)
+}
+
+// BCLoadKeyPair implements peer.BCLoadKeyPair
+func (n *node) BCLoadKeyPair(path string) error {
+	return n.blockchain.LoadKeyPair(path)
+}
+
+// BCSprintBlockchain implements peer.BCSprintBlockchain
+func (n *node) BCSprintBlockchain() string {
+	return n.blockchain.SprintBlockchain()
 }

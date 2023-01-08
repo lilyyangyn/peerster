@@ -1,19 +1,18 @@
 package mpc
 
 import (
-	"log"
+	"fmt"
+	"math/big"
 
+	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/types"
-	"golang.org/x/xerrors"
 )
 
 // initMPCConcensus inits a paxos to consensus on mpc value
 func (m *MPCModule) initMPCConcensus(uniqID string, budget float64, expression string, prime string) (err error) {
 	if m.paxos.Type != types.PaxosTypeMPC {
-		return xerrors.Errorf("invalid operation")
+		return fmt.Errorf("invalid operation")
 	}
-
-	// TODO: check balance
 
 	if step, ok := m.paxos.CheckAndWait(); ok {
 		return m.proposeMPC(uniqID, budget, expression, prime, step)
@@ -46,7 +45,7 @@ func (m *MPCModule) proposeMPC(uniqID string, budget float64, expression string,
 	}
 	mpcValue, ok := content.(*types.PaxosMPCValue)
 	if !ok {
-		return xerrors.Errorf("wrong type: %T", content)
+		return fmt.Errorf("wrong type: %T", content)
 	}
 
 	if mpcValue.Initiator == initiator && mpcValue.Expression == expression {
@@ -68,29 +67,31 @@ func (m *MPCModule) mpcCallback(value *types.PaxosValue) error {
 	}
 	mpcval, ok := content.(*types.PaxosMPCValue)
 	if !ok {
-		return xerrors.Errorf("paxosvalue wrong type: %T", content)
+		return fmt.Errorf("paxosvalue wrong type: %T", content)
 	}
 
-	resultChan := make(chan MPCResult, 1)
 	if m.conf.DisableMPC {
-		mpc := MPC{id: mpcval.UniqID, resultChan: resultChan}
-		m.Lock()
-		m.mpcstore[mpc.id] = &mpc
-		m.Unlock()
-		log.Printf("%s: MPC stops", m.conf.Socket.GetAddress())
-		resultChan <- MPCResult{result: 0, err: nil}
-		return nil
+		mpc := NewMPC(mpcval.UniqID, big.Int{}, "", "")
+		m.mpcCenter.RegisterMPC(mpc.id, mpc)
+		m.mpcCenter.InformMPCStart(mpc.id)
+		err = m.mpcCenter.InformMPCComplete(mpc.id, MPCResult{result: 0, err: nil})
+		return err
 	}
 
 	// init MPC instance and start MPC
-	log.Printf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
-	err = m.InitMPC(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression, resultChan)
+	log.Info().Msgf("%s: Consensus Reached!Start MPC!", m.conf.Socket.GetAddress())
+	err = m.InitMPCWithPaxos(mpcval.UniqID, mpcval.Prime, mpcval.Initiator, mpcval.Expression)
+	m.mpcCenter.InformMPCStart(mpcval.UniqID)
 	if err != nil {
+		err = m.mpcCenter.InformMPCComplete(mpcval.UniqID, MPCResult{result: 0, err: err})
 		return err
 	}
 	go func() {
 		val, err := m.ComputeExpression(mpcval.UniqID, mpcval.Expression, mpcval.Prime)
-		resultChan <- MPCResult{result: val, err: err}
+		err = m.mpcCenter.InformMPCComplete(mpcval.UniqID, MPCResult{result: val, err: err})
+		if err != nil {
+			log.Err(err).Send()
+		}
 	}()
 
 	return nil

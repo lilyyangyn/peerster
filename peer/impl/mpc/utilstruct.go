@@ -1,9 +1,18 @@
 package mpc
 
 import (
-	"math/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"fmt"
+	"math/big"
 	"sync"
+	"time"
+
+	"go.dedis.ch/cs438/types"
 )
+
+// --------------------------------------------------------
+// ValueDB
 
 // ValueDB stores values that can be used in MPC
 // Asset is the value know by the peer, temp is the value we save for MPC.
@@ -35,46 +44,138 @@ func NewValueDB() *ValueDB {
 }
 
 // --------------------------------------------------------
+// MPCCenter
 
-// polynomial is an expression of polynomial that can be used in MPC
-type polynomial struct {
-	degree       int
-	coefficients []int
+type MPCCenter struct {
+	*sync.RWMutex
+	nofitication map[string]chan MPCResult
+	store        map[string]*MPC
+	conds        map[string]*sync.Cond
 }
 
-// compute computes the value y of x on the polynomial
-func (p *polynomial) compute(x int) int {
-	if x == 0 {
-		return p.coefficients[0]
+func NewMPCCenter() *MPCCenter {
+	return &MPCCenter{
+		RWMutex:      &sync.RWMutex{},
+		nofitication: map[string]chan MPCResult{},
+		store:        map[string]*MPC{},
+		conds:        map[string]*sync.Cond{},
 	}
-
-	value := p.coefficients[p.degree]
-	for i := p.degree - 1; i > -1; i-- {
-		value *= x
-		value += p.coefficients[i]
-	}
-
-	return value
 }
 
-// RandomPolynomial generate a random polynomial with f(0)=secret
-func NewRandomPolynomial(secret int, degree int) *polynomial {
-	// random polynomial f of degree d is defined by d + 1 points
-	coefficients := make([]int, degree+1)
+func (c *MPCCenter) GetMPC(id string) *MPC {
+	var mpc *MPC
+	c.Lock()
+	for {
+		m, ok := c.store[id]
+		if ok {
+			mpc = m
+			break
+		}
 
-	// s = f(0) = secret
-	coefficients[0] = secret
+		cond, ok := c.conds[id]
+		if !ok {
+			cond = sync.NewCond(c.RWMutex)
+		}
+		cond.Wait()
+	}
+	c.Unlock()
 
-	// generate randome coefficients
-	for i := 0; i < degree; i++ {
-		coefficients[i+1] = rand.Int()
+	return mpc
+}
+
+func (c *MPCCenter) RegisterMPC(id string, mpc *MPC) {
+	c.Lock()
+	defer c.Unlock()
+
+	// add old values to the mpc instance
+	oldMPC, ok := c.store[id]
+	if ok {
+		mpc.addValues(oldMPC.interStore)
+	}
+	c.store[id] = mpc
+
+	// register notification
+	if _, ok := c.nofitication[id]; !ok {
+		c.nofitication[id] = make(chan MPCResult, 2)
 	}
 
-	p := polynomial{
-		degree:       degree,
-		coefficients: coefficients,
+	// notify if anyone is block waiting
+	cond, ok := c.conds[id]
+	if ok {
+		cond.Broadcast()
 	}
-	return &p
+}
+
+func (c *MPCCenter) AddValue(id string, key string, value big.Int) {
+	c.Lock()
+	defer c.Unlock()
+
+	mpc, ok := c.store[id]
+	if !ok {
+		mpc := NewMPC(id, big.Int{}, "", "")
+		c.store[id] = mpc
+	}
+	mpc.addValue(key, value)
+}
+
+func (c *MPCCenter) InformMPCStart(id string) {
+	c.RLock()
+	defer c.RUnlock()
+
+	channel, ok := c.nofitication[id]
+	if !ok {
+		return
+	}
+	channel <- MPCResult{}
+}
+
+func (c *MPCCenter) InformMPCComplete(id string, result MPCResult) (err error) {
+	c.RLock()
+	defer c.RUnlock()
+
+	mpc, ok := c.store[id]
+	if ok {
+		err = mpc.finalize(result)
+	}
+	channel, ok := c.nofitication[id]
+	if !ok {
+		return
+	}
+	channel <- result
+
+	return err
+}
+
+func (c *MPCCenter) Listen(id string, timeout time.Duration) MPCResult {
+	c.Lock()
+	// first check if MPC already have done
+	if mpc, ok := c.store[id]; ok {
+		if result, err := mpc.getResult(); err == nil {
+			c.Unlock()
+			return *result
+		}
+	}
+
+	channel, ok := c.nofitication[id]
+	if !ok {
+		channel = make(chan MPCResult)
+		c.nofitication[id] = channel
+	}
+	c.Unlock()
+
+	select {
+	case <-time.After(timeout):
+		return MPCResult{result: 0, err: fmt.Errorf("MPC Timeout")}
+	case <-channel:
+		result := <-channel
+
+		c.Lock()
+		defer c.Unlock()
+
+		delete(c.nofitication, id)
+		return result
+	}
+
 }
 
 // --------------------------------------------------------
@@ -124,4 +225,59 @@ func prec(s string) int {
 	} else {
 		return -1
 	}
+}
+
+// --------------------------------------------------------
+// PubkeyStore
+
+type PubkeyStore struct {
+	*sync.RWMutex
+	store map[string]*rsa.PublicKey
+}
+
+func NewPubkeyStore() *PubkeyStore {
+	return &PubkeyStore{
+		RWMutex: &sync.RWMutex{},
+		store:   make(map[string]*rsa.PublicKey),
+	}
+}
+
+func (s *PubkeyStore) Get(id string) (*types.Pubkey, bool) {
+	s.RLock()
+	defer s.RUnlock()
+
+	key, ok := s.store[id]
+	return (*types.Pubkey)(key), ok
+}
+
+func (s *PubkeyStore) Add(raw map[string][]byte) error {
+	s.Lock()
+	defer s.Unlock()
+
+	failed := make([]string, 0)
+
+	for addr, pubBytes := range raw {
+		// now do not support pubkey change
+		_, ok := s.store[addr]
+		if ok {
+			continue
+		}
+
+		pubkey, err := x509.ParsePKIXPublicKey(pubBytes)
+		if err != nil {
+			failed = append(failed, addr)
+			continue
+		}
+		rsaPubkey, ok := pubkey.(*rsa.PublicKey)
+		if !ok {
+			failed = append(failed, addr)
+			continue
+		}
+		s.store[addr] = rsaPubkey
+	}
+
+	if len(failed) > 0 {
+		return fmt.Errorf("fail to parse encryption pubkey: %s", failed)
+	}
+	return nil
 }

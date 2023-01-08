@@ -17,6 +17,7 @@ func setup_n_peers(n int, t *testing.T, opt ...z.Option) []z.TestNode {
 
 	for i := 0; i < n; i++ {
 		node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0",
+			z.WithMPCPaxos(),
 			z.WithTotalPeers(uint(n)), z.WithPaxosID(uint(i+1)))
 		nodes[i] = node
 	}
@@ -37,97 +38,6 @@ func setup_n_peers(n int, t *testing.T, opt ...z.Option) []z.TestNode {
 		}
 	}
 	return nodes
-}
-
-func Test_GP_SHAMIR_SECRET_SHARE_SEND(t *testing.T) {
-
-	nodes := setup_n_peers(3, t)
-	nodeA := nodes[0]
-	nodeB := nodes[1]
-	nodeC := nodes[2]
-	defer nodeA.Stop()
-	defer nodeB.Stop()
-	defer nodeC.Stop()
-
-	// nodeA set asset and send sss
-	prime := "1000000009"
-	uniqID := "test"
-	expression := "a"
-
-	// init the information for all nodes
-	for _, n := range nodes {
-		err := n.InitMPC(uniqID, prime, nodeA.GetAddr(), expression)
-		require.NoError(t, err)
-	}
-
-	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
-	require.NoError(t, err)
-	go func() {
-		_, err := nodeA.ComputeExpression("test", "a", prime)
-		require.NoError(t, err)
-	}()
-	time.Sleep(time.Second * 1)
-
-	// check node A send sss Msg.
-	nodeAOuts := nodeA.GetOuts()
-	rumor := z.GetRumor(t, nodeAOuts[0].Msg)
-
-	private := z.GetPrivate(t, rumor.Rumors[0].Msg)
-	require.Len(t, private.Recipients, 1)
-	require.Contains(t, private.Recipients, nodeA.GetAddr())
-
-	_ = z.GetEncrypt(t, private.Msg)
-
-	// check node b received sss msg
-	nodeBIns := nodeB.GetIns()
-	recvMsg := false
-	for i := 0; i < len(nodeBIns); i++ {
-		if nodeBIns[i].Msg.Type != "rumor" {
-			continue
-		}
-		rumor = z.GetRumor(t, nodeBIns[i].Msg)
-		if rumor.Rumors[0].Msg.Type != "private" {
-			continue
-		}
-		private = z.GetPrivate(t, rumor.Rumors[0].Msg)
-		require.Len(t, private.Recipients, 1)
-
-		_, found := private.Recipients[nodeB.GetAddr()]
-		if !found {
-			continue
-		}
-
-		_ = z.GetEncrypt(t, private.Msg)
-		recvMsg = true
-		break
-	}
-	require.True(t, recvMsg)
-
-	// check node c received sss msg
-	nodeCIns := nodeC.GetIns()
-	recvMsg = false
-	for i := 0; i < len(nodeCIns); i++ {
-		if nodeCIns[i].Msg.Type != "rumor" {
-			continue
-		}
-		rumor = z.GetRumor(t, nodeCIns[i].Msg)
-		if rumor.Rumors[0].Msg.Type != "private" {
-			continue
-		}
-		private = z.GetPrivate(t, rumor.Rumors[0].Msg)
-		require.Len(t, private.Recipients, 1)
-
-		_, found := private.Recipients[nodeC.GetAddr()]
-		if !found {
-			continue
-		}
-
-		_ = z.GetEncrypt(t, private.Msg)
-		recvMsg = true
-		break
-	}
-	require.True(t, recvMsg)
 }
 
 func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
@@ -580,7 +490,7 @@ func Test_GP_ComputeExpression_Complex_2(t *testing.T) {
 	}
 }
 
-func Test_GP_ComputeExpression_Consensus_Add(t *testing.T) {
+func Test_GP_ComputeExpression_Multiple_Time(t *testing.T) {
 	nodes := setup_n_peers(3, t)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
@@ -598,25 +508,68 @@ func Test_GP_ComputeExpression_Consensus_Add(t *testing.T) {
 	err = nodeB.SetValueDBAsset("b", valueB)
 	require.NoError(t, err)
 
-	// call Calculate on nodeA. The MPC starts automatically
-	mpcDone := make(chan struct{})
-	var recvValue int
-	go func() {
-		ans, err := nodeA.Calculate("a+b", 10)
-		recvValue = ans
-		require.NoError(t, err)
+	valueC := 4
+	err = nodeC.SetValueDBAsset("c", valueC)
+	require.NoError(t, err)
 
-		close(mpcDone)
-	}()
+	// all node will need to run compute Expression simultaneously.
+	prime := "1000000009"
+	uniqID := []string{"test1", "test2", "test3"}
+	expression := []string{"a*b*c", "a+b+c", "c*c-a*b"}
 
-	timeout := time.After(time.Second * 2)
+	// init the information for all nodes
+	for i := 0; i < len(uniqID); i++ {
+		for _, n := range nodes {
+			err := n.InitMPC(uniqID[i], prime, nodeA.GetAddr(), expression[i])
+			require.NoError(t, err)
+		}
+	}
 
-	select {
-	case <-mpcDone:
-	case <-timeout:
-		t.Error(t, "a result must have been computed")
+	ans := make([][]int, len(uniqID))
+	for i := range ans {
+		ans[i] = []int{0, 0, 0}
+	}
+
+	for i := 0; i < len(uniqID); i++ {
+		ii := i
+		go func() {
+			ansA, err := nodeA.ComputeExpression(uniqID[ii], expression[ii], prime)
+			ans[ii][0] = ansA
+			require.NoError(t, err)
+		}()
+	}
+	for i := 0; i < len(uniqID); i++ {
+		ii := i
+		go func() {
+			ansB, err := nodeB.ComputeExpression(uniqID[ii], expression[ii], prime)
+			ans[ii][1] = ansB
+			require.NoError(t, err)
+		}()
+	}
+	for i := 0; i < len(uniqID); i++ {
+		ii := i
+		go func() {
+			ansC, err := nodeC.ComputeExpression(uniqID[ii], expression[ii], prime)
+			ans[ii][2] = ansC
+			require.NoError(t, err)
+		}()
+	}
+
+	time.Sleep(time.Second * 5)
+
+	// check all received ans is equal
+	for i := 0; i < len(uniqID); i++ {
+		recvValue := ans[i][0]
+		for j := 0; j < 3; j++ {
+			require.Equal(t, recvValue, ans[i][j])
+		}
 	}
 
 	// check equal to the expected ans
-	require.Equal(t, valueA+valueB, recvValue)
+	expected_ans := []int{valueA * valueB * valueC, valueA + valueB + valueC, valueC*valueC - valueA*valueB}
+	for i := 0; i < len(uniqID); i++ {
+		for j := 0; j < 3; j++ {
+			require.Equal(t, expected_ans[i], ans[i][j])
+		}
+	}
 }

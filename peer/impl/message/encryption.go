@@ -75,31 +75,55 @@ func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string
 }
 
 // EncryptAsymetric encrypts value using peer's pubkey
-func (m *EncryptionModule) EncryptAsymetric(value []byte, peer string) ([]byte, error) {
-	pubkey, ok := m.pubkeyStore.get(peer)
-	if !ok {
-		return nil, xerrors.Errorf("no public key for peer %s", peer)
-	}
+func (m *EncryptionModule) EncryptAsymetric(value []byte, pubkey types.Pubkey) ([]byte, error) {
 	pub := rsa.PublicKey(pubkey)
 
 	hash := sha256.New()
-	ctxt, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, value, nil)
-	if err != nil {
-		return nil, err
+	msgLen := len(value)
+	step := pub.Size() - 2*hash.Size() - 2
+	var encryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		encryptedBlockBytes, err := rsa.EncryptOAEP(hash, rand.Reader, &pub, value[start:finish], nil)
+		if err != nil {
+			return nil, err
+		}
+
+		encryptedBytes = append(encryptedBytes, encryptedBlockBytes...)
 	}
 
-	return ctxt, nil
+	return encryptedBytes, nil
 }
 
 // DecryptAsymetric decrypts value using self's pubkey
 func (m *EncryptionModule) DecryptAsymetric(value []byte) ([]byte, error) {
+	priv := (*rsa.PrivateKey)(m.privkey)
+
 	hash := sha256.New()
-	ptxt, err := rsa.DecryptOAEP(hash, rand.Reader, (*rsa.PrivateKey)(m.privkey), value, nil)
-	if err != nil {
-		return nil, err
+	msgLen := len(value)
+	step := priv.PublicKey.Size()
+	var decryptedBytes []byte
+
+	for start := 0; start < msgLen; start += step {
+		finish := start + step
+		if finish > msgLen {
+			finish = msgLen
+		}
+
+		decryptedBlockBytes, err := rsa.DecryptOAEP(hash, rand.Reader, priv, value[start:finish], nil)
+		if err != nil {
+			return nil, err
+		}
+
+		decryptedBytes = append(decryptedBytes, decryptedBlockBytes...)
 	}
 
-	return ptxt, nil
+	return decryptedBytes, nil
 }
 
 // SetPubkeyEntry sets the publickey entry
@@ -141,7 +165,11 @@ func (m *EncryptionModule) encryptMsg(msg transport.Message, peer string) (*type
 	if err != nil {
 		return nil, err
 	}
-	encMsg, err := m.EncryptAsymetric(ptxt, peer)
+	pubkey, ok := m.pubkeyStore.get(peer)
+	if !ok {
+		return nil, xerrors.Errorf("no public key for peer %s", peer)
+	}
+	encMsg, err := m.EncryptAsymetric(ptxt, pubkey)
 	if err != nil {
 		return nil, err
 	}

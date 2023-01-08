@@ -151,7 +151,9 @@ type configTemplate struct {
 	paxosID            uint
 	paxosProposerRetry time.Duration
 
-	disableMPC bool
+	disableMPC      bool
+	MPCtype         peer.MPCConsensus
+	MPCMaxWaitBlock int
 }
 
 func newConfigTemplate() configTemplate {
@@ -187,6 +189,8 @@ func newConfigTemplate() configTemplate {
 		paxosID:            0,
 		paxosProposerRetry: time.Second * 5,
 		disableMPC:         false,
+		MPCtype:            peer.MPCConsensusBC,
+		MPCMaxWaitBlock:    2,
 	}
 }
 
@@ -303,6 +307,20 @@ func WithDisableMPC() Option {
 	}
 }
 
+// WithMPCPaxos starts MPC with Paxos.
+func WithMPCPaxos() Option {
+	return func(ct *configTemplate) {
+		ct.MPCtype = peer.MPCConsensusPaxos
+	}
+}
+
+// WithMPCBlockTime starts MPC with Paxos.
+func WithMPCMaxWaitBlock(t int) Option {
+	return func(ct *configTemplate) {
+		ct.MPCMaxWaitBlock = t
+	}
+}
+
 // NewTestNode returns a new test node.
 func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	addr string, opts ...Option) TestNode {
@@ -331,6 +349,8 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosID = template.paxosID
 	config.PaxosProposerRetry = template.paxosProposerRetry
 	config.DisableMPC = template.disableMPC
+	config.MPCType = template.MPCtype
+	config.MPCMaxWaitBlock = template.MPCMaxWaitBlock
 
 	node := f(config)
 
@@ -655,6 +675,7 @@ func GetPrivate(t *testing.T, msg *transport.Message) types.PrivateMessage {
 	return privateMessage
 }
 
+// GetEncrypt returns the encrypted message associated to the transport.Message.
 func GetEncrypt(t *testing.T, msg *transport.Message) types.EncryptedMessage {
 	require.Equal(t, "encrypt", msg.Type)
 
@@ -689,6 +710,42 @@ func GetInterpolation(t *testing.T, msg *transport.Message) types.MPCInterpolati
 	require.NoError(t, err)
 
 	return interpolationMessage
+}
+
+// GetBCPrivate returns the BCPrivate message associated to the transport.Message.
+func GetBCPrivate(t *testing.T, msg *transport.Message) types.BCPrivateMessage {
+	require.Equal(t, "blockchainPrivate", msg.Type)
+
+	var bcprivMessage types.BCPrivateMessage
+
+	err := json.Unmarshal(msg.Payload, &bcprivMessage)
+	require.NoError(t, err)
+
+	return bcprivMessage
+}
+
+// GetBCTxn returns the BCTxn message associated to the transport.Message.
+func GetBCTxn(t *testing.T, msg *transport.Message) types.BCTxnMessag {
+	require.Equal(t, "blockchainTxn", msg.Type)
+
+	var bctxnMessage types.BCTxnMessag
+
+	err := json.Unmarshal(msg.Payload, &bctxnMessage)
+	require.NoError(t, err)
+
+	return bctxnMessage
+}
+
+// GetBCBlk returns the BCBlk message associated to the transport.Message.
+func GetBCBlk(t *testing.T, msg *transport.Message) types.BCBlkMessage {
+	require.Equal(t, "blockchainBlk", msg.Type)
+
+	var bcblkMessage types.BCBlkMessage
+
+	err := json.Unmarshal(msg.Payload, &bcblkMessage)
+	require.NoError(t, err)
+
+	return bcblkMessage
 }
 
 // DisplayBlokchainBlocks writes a string representation of all blocks store in
