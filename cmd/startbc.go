@@ -11,6 +11,20 @@ import (
 var t = testing{}
 
 // -----------------------------------------------------------------------------
+// Prompt Account
+
+var promptAccount = &survey.Select{
+	Message: "What do you want to do ?",
+	Options: actionOptsAccount,
+}
+
+var actionOptsAccount = []string{
+	GenerateBCAccount,
+	LoadBCAccount,
+	Exit,
+}
+
+// -----------------------------------------------------------------------------
 // Init Prompt
 
 var promptInit = &survey.Select{
@@ -19,21 +33,21 @@ var promptInit = &survey.Select{
 }
 
 var actionOptsInit = []string{
-	"🌱 Start a new blockchain",
-	"🌿 Use an existing blockchain",
-	"🍃 Exit",
-}
-
-var actionsInit = map[string]func(*z.TestNode) error{
-	actionOptsInit[0]: startNewBC,
-	actionOptsInit[1]: startExistingBC,
-	actionOptsInit[2]: exitNode,
+	StartNewBC,
+	StartExistingBC,
+	Exit,
 }
 
 // -----------------------------------------------------------------------------
 // start node
 
 func startBlockchain(node *z.TestNode) error {
+	// initialize blockchain account
+	err := setAccount(node, actionMap)
+	if err != nil {
+		return err
+	}
+
 	// prompt to start a blockchain
 	var action string
 	for {
@@ -42,8 +56,8 @@ func startBlockchain(node *z.TestNode) error {
 			return err
 		}
 
-		method := actionsInit[action]
-		err = method(node)
+		method := actionMap[action]
+		err = method(node, actionMap)
 		if err == nil {
 			break
 		}
@@ -56,7 +70,7 @@ func startBlockchain(node *z.TestNode) error {
 // -----------------------------------------------------------------------------
 // Exit
 
-func exitNode(node *z.TestNode) error {
+func exitNode(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	err := node.Stop()
 	if err != nil {
 		printError(fmt.Errorf("failed to stop node: %v", err))
@@ -70,6 +84,37 @@ func exitNode(node *z.TestNode) error {
 
 // -----------------------------------------------------------------------------
 // Utils
+
+func setAccount(node *z.TestNode, actionMap map[string]ActionFunc) error {
+	var action string
+	for {
+		err := survey.AskOne(promptAccount, &action)
+		if err != nil {
+			return err
+		}
+
+		method := actionMap[action]
+		err = method(node, actionMap)
+		if err != nil {
+			fmt.Println("err:", err)
+			continue
+		}
+
+		addr, err := node.BCGetAddress()
+		if err != nil {
+			fmt.Println("err:", err)
+			continue
+		}
+
+		fmt.Println("#######################################################")
+		fmt.Println("########      Creating Blockchain Account      ########")
+		fmt.Println("#######################################################")
+		fmt.Println("Node account' address: ", addr.Hex)
+		fmt.Println()
+		break
+	}
+	return nil
+}
 
 // testing provides a simple implementation of the require.Testing interface.
 // Needed because we use some the the testing utility functions.

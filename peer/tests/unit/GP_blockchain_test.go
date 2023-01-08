@@ -165,7 +165,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 	require.NoError(t, err)
 
 	worldState := block0.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = node1.BCSendTransaction(signedTxn)
@@ -299,7 +299,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	account1.IncreaseNonce()
 
 	worldState := block0a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -334,7 +334,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	account1.IncreaseNonce()
 
 	worldState = block1a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -421,7 +421,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	account1.IncreaseNonce()
 
 	worldState := block0a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -462,7 +462,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	account1.IncreaseNonce()
 
 	worldState = block1a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -501,9 +501,9 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
-	nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 	defer nodeB.Stop()
 	defer nodeC.Stop()

@@ -62,7 +62,7 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 	stateCopy := worldState.Copy()
 
 	// Execute transaction
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// verify worldState
@@ -114,7 +114,7 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	}
 	worldState.Put(account.addr.Hex, testAccount)
 	stateCopy := worldState.Copy()
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	// worldState should not change
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
@@ -129,11 +129,11 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	}
 	worldState.Put(account.addr.Hex, account)
 	//  execution should success
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 	stateCopy = worldState.Copy()
 	// second execution should fail
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 
 	// worldState should not change for second execution
@@ -178,7 +178,7 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	//> Execute first transaction
 
 	txn := NewTransactionPostMPC(&account, record)
-	err := txn.Exec(worldState, &config)
+	err := txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// > verify worldState
@@ -207,7 +207,7 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	//> Execute second transaction
 
 	txn = NewTransactionPostMPC(&initiator, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// > verify worldState
@@ -265,7 +265,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 
 	stateCopy := worldState.Copy()
 	txn := NewTransactionPostMPC(&account, record)
-	err := txn.Exec(worldState, &config)
+	err := txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 
@@ -281,7 +281,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 
 	stateCopy = worldState.Copy()
 	txn = NewTransactionPostMPC(&account2, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 
@@ -289,7 +289,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 
 	// first claim should succeed
 	txn = NewTransactionPostMPC(&account, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 	// second claim should fail
 	stateCopy = worldState.Copy()
@@ -297,7 +297,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
 	txn = NewTransactionPostMPC(&newAccount, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 }

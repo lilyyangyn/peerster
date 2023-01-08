@@ -6,6 +6,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	z "go.dedis.ch/cs438/internal/testing"
+	"go.dedis.ch/cs438/permissioned-chain"
 )
 
 // -----------------------------------------------------------------------------
@@ -15,38 +16,33 @@ import (
 //		Message: "What do you want to do ?",
 //		Options: actionOpts,
 //	}
+
 var basicActionOpts = []string{
-	"🐋 Show Blockchain",
-	"🦈 Add Peer",
-	"🐊 Show Encryption Pubkey",
-	"🐙 Refresh",
-	"🍃 Exit",
+	ShowAssets,
+	AddAsset,
+	ShowBalance,
+	ShowBlockchain,
+	AddPeer,
+	ShowEncKey,
+	Refresh,
+	Exit,
 }
 
 var actionOpts = append([]string{
-	"🦑 Start MPC",
+	MPCCalc,
 }, basicActionOpts...)
-
-var actions = map[string]func(*z.TestNode) error{
-	actionOpts[0]:      startMPC,
-	basicActionOpts[0]: getBCInfo,
-	basicActionOpts[1]: addPeer,
-	basicActionOpts[2]: getEnckey,
-	basicActionOpts[3]: refresh,
-	basicActionOpts[4]: exitNode,
-}
 
 // -----------------------------------------------------------------------------
 // Perform actions
 
 func performActions(node *z.TestNode) {
 	var action string
-	var enckeyAvailable = node.BCAllEncryptKeySet()
+	// var enckeyAvailable = node.BCAllEncryptKeySet()
 	for {
 		opts := actionOpts
-		if !enckeyAvailable {
+		if !node.BCAllEncryptKeySet() {
 			opts = basicActionOpts
-			enckeyAvailable = node.BCAllEncryptKeySet()
+			// enckeyAvailable = node.BCAllEncryptKeySet()
 		}
 
 		prompt := &survey.Select{
@@ -60,8 +56,8 @@ func performActions(node *z.TestNode) {
 			return
 		}
 
-		method := actions[action]
-		err = method(node)
+		method := actionMap[action]
+		err = method(node, actionMap)
 		if err != nil {
 			printError(err)
 		}
@@ -71,12 +67,12 @@ func performActions(node *z.TestNode) {
 // -----------------------------------------------------------------------------
 // CMD Actions
 
-func startMPC(node *z.TestNode) error {
+func startMPC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	fmt.Println("Enter the expression: ")
 	expr := ""
 	fmt.Scanln(&expr)
 
-	fmt.Printf("Your balance is %f\n", node.BCGetBalance())
+	printData("Your balance is %f\n", node.BCGetBalance())
 	fmt.Println("Enter the budget: ")
 	budgetStr := ""
 	fmt.Scanln(&budgetStr)
@@ -89,13 +85,35 @@ func startMPC(node *z.TestNode) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("The result of %s is %d\n", expr, value)
-	fmt.Printf("Your balance is %f\n", node.BCGetBalance())
+	printData("The result of %s is %d\n", expr, value)
+	printData("Your balance is %f\nPlease check balance later for the automatical deposit claim\n", node.BCGetBalance())
 
 	return nil
 }
 
-func addPeer(node *z.TestNode) error {
+func showAssets(node *z.TestNode, actionMap map[string]ActionFunc) error {
+	// TODO
+	return fmt.Errorf("not implemented")
+}
+
+func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
+	fmt.Println("Enter the key: ")
+	key := ""
+	fmt.Scanln(&key)
+
+	fmt.Println("Enter the value: ")
+	valueStr := ""
+	fmt.Scanln(&valueStr)
+	value, err := strconv.ParseInt(valueStr, 10, 32)
+	if err != nil {
+		return err
+	}
+
+	node.SetValueDBAsset(key, int(value))
+	return nil
+}
+
+func addPeer(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	fmt.Println("Enter the peer IP address: ")
 	addr := ""
 	fmt.Scanln(&addr)
@@ -104,21 +122,188 @@ func addPeer(node *z.TestNode) error {
 	return nil
 }
 
-func getEnckey(node *z.TestNode) error {
+func getEnckey(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	pub, err := node.GetPubkeyString()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Enc key: ", pub)
+	printData("Enc key: ", pub)
 	return nil
 }
 
-func getBCInfo(node *z.TestNode) error {
-	fmt.Println(node.BCSprintBlockchain())
+func getBCBalance(node *z.TestNode, actionMap map[string]ActionFunc) error {
+	printData("Your balance is %f\n", node.BCGetBalance())
 	return nil
 }
 
-func refresh(node *z.TestNode) error {
+func refresh(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// Blockchain Prompt
+
+var NUM_BLOCKS_PER_PAGE = 5
+
+var blockchainBasicPrompt = []string{
+	ReturnPrevious,
+	Exit,
+}
+
+func getBCInfo(node *z.TestNode, actionMap map[string]ActionFunc) error {
+	// fmt.Println(node.BCSprintBlockchain())
+	block := node.BCGetLatestBlock()
+	if block == nil {
+		return fmt.Errorf("fail to get blockchain info")
+	}
+
+	generateBlockPrompt := func(block *permissioned.Block) string {
+		return fmt.Sprintf("🍀 Show {Height: %d, Hash: %s, NumTxn: %d}", block.Height, block.Hash(), len(block.Transactions))
+	}
+
+	opts := []string{}
+	blockMap := map[string]*permissioned.Block{}
+
+	for {
+
+		// get blocks
+		for i := 0; i < NUM_BLOCKS_PER_PAGE; i++ {
+			if block == nil {
+				break
+			}
+			opt := generateBlockPrompt(block)
+			opts = append(opts, opt)
+			blockMap[opt] = block
+			block = node.BCGetBlock(block.PrevHash)
+		}
+		tempOpts := opts
+		if block != nil {
+			tempOpts = append(tempOpts, NextBlockchainPage)
+		}
+		tempOpts = append(tempOpts, blockchainBasicPrompt...)
+
+		prompt := &survey.Select{
+			Message: "What do you want to do ?",
+			Options: tempOpts,
+		}
+
+		var action string
+		err := survey.AskOne(prompt, &action)
+		if err != nil {
+			return err
+		}
+
+		if action == ReturnPrevious {
+			return nil
+		}
+		if action == NextBlockchainPage {
+			continue
+		}
+		if curBlock, ok := blockMap[action]; ok {
+			err = getBlockDetails(curBlock, node, actionMap)
+			if err != nil {
+				printError(err)
+			}
+			continue
+		}
+
+		method := actionMap[action]
+		err = method(node, actionMap)
+		if err != nil {
+			printError(err)
+		}
+	}
+}
+
+var NUM_TXN_PER_PAGE = 5
+
+func getBlockDetails(block *permissioned.Block, node *z.TestNode, actionMap map[string]ActionFunc) error {
+	printData("Block %s:\n", block.Hash())
+	printData("- PreHash: %s\n", block.PrevHash)
+	printData("- Height: %s\n", block.Hash())
+	printData("- Miner: %s\n", block.Miner)
+	printData("- StateHash: %s\n", block.StateHash)
+	printData("- TxnHash: %s\n", block.TransationHash)
+	printData("\n")
+
+	generateTxnPrompt := func(txn *permissioned.SignedTransaction) string {
+		return fmt.Sprintf("🍀 Show {TxnID: %s, Type: %s}", txn.Txn.ID, txn.Txn.Type)
+	}
+
+	opts := []string{}
+	txnMap := map[string]*permissioned.SignedTransaction{}
+	i := 0
+
+	for {
+		// get blocks
+		for ; i < NUM_TXN_PER_PAGE && i < len(block.Transactions); i++ {
+			opt := generateTxnPrompt(&block.Transactions[i])
+			opts = append(opts, opt)
+			txnMap[opt] = &block.Transactions[i]
+		}
+		tempOpts := opts
+		if i < len(block.Transactions) {
+			tempOpts = append(tempOpts, NextBlockchainPage)
+		}
+		tempOpts = append(tempOpts, blockchainBasicPrompt...)
+
+		prompt := &survey.Select{
+			Message: "What do you want to do ?",
+			Options: tempOpts,
+		}
+
+		var action string
+		err := survey.AskOne(prompt, &action)
+		if err != nil {
+			return err
+		}
+
+		if action == ReturnPrevious {
+			return nil
+		}
+		if action == NextBlockchainPage {
+			continue
+		}
+		if txn, ok := txnMap[action]; ok {
+			for {
+				printData("Txn %s:\n", txn.Txn.ID)
+				printData("- Type: %s\n", txn.Txn.Type)
+				printData("- Nonce: %d\n", txn.Txn.Nonce)
+				printData("- From: %s\n", txn.Txn.From)
+				printData("- To: %s\n", txn.Txn.To)
+				printData("- Value: %f\n", txn.Txn.Value)
+				if txn.Txn.Data != nil {
+					switch vv := txn.Txn.Data.(type) {
+					case permissioned.Describable:
+						printData("\t Data: %s\n", vv.String())
+					default:
+						printData("\t Data: %#v\n", vv)
+					}
+				}
+
+				prompt := &survey.Select{
+					Options: blockchainBasicPrompt,
+				}
+				err := survey.AskOne(prompt, &action)
+				if err != nil {
+					return err
+				}
+
+				if action == ReturnPrevious {
+					return nil
+				}
+				method := actionMap[action]
+				err = method(node, actionMap)
+				if err != nil {
+					printError(err)
+				}
+			}
+		}
+		method := actionMap[action]
+		err = method(node, actionMap)
+		if err != nil {
+			printError(err)
+		}
+	}
 }

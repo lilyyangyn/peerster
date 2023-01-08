@@ -74,7 +74,7 @@ func Test_BC_Append_Correct(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -123,7 +123,7 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	// > block too stale
@@ -190,7 +190,7 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.Error(t, err)
 
 	bb := NewBlockBuilder()
@@ -238,7 +238,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
@@ -248,7 +248,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn2.Verify(worldstate, &config)
+	err = txn2.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -269,7 +269,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn3.Verify(worldstate, &config)
+	err = txn3.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb = NewBlockBuilder()

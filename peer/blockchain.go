@@ -12,6 +12,9 @@ type PermissionedChain interface {
 	// with the given config
 	InitBlockchain(config permissioned.ChainConfig, initialGain map[string]float64) error
 
+	// BCWaitGenesis blocks the thread until the genesis block is found
+	BCWaitGenesis() *permissioned.Block
+
 	// BCSendTransaction signs the given transaction
 	// and broadcast it to the network in private message
 	BCSendTransaction(txn *permissioned.SignedTransaction) error

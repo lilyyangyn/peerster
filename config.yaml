@@ -1,5 +1,6 @@
 participants:
     0xa369dEdd2e8633d1AbEDDdCBC451C4B1D7aBF985: ""
+    0xbEEDfdE33a66786C7A7661A2F6f3FAc813C7058c: ""
 maxtxnsperblk: 10
 waittimeout: 5s
 jointhreshold: 1

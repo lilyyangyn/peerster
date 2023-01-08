@@ -138,7 +138,9 @@ func (txn *Transaction) Unmarshal() error {
 }
 
 // Exec executes the transaction based on the input worldState
-func (txn *Transaction) Exec(worldState storage.KVStore, config *ChainConfig) error {
+func (txn *Transaction) Exec(worldState storage.KVStore) error {
+	config := GetConfigFromWorldState(worldState)
+
 	// check nonce
 	err := checkNonce(worldState, txn)
 	if err != nil {
@@ -206,8 +208,9 @@ func (signedTxn *SignedTransaction) String() string {
 }
 
 // Verify verify the signature and then execute to see whether the result is consistent with worldState
-func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *ChainConfig) error {
+func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
 	txn := signedTxn.Txn
+	config := GetConfigFromWorldState(worldState)
 
 	// verify origin is inside the chain
 	if !CheckPariticipation(worldState, config, txn.From) {
@@ -234,10 +237,10 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 
 	// execute txn
 	stateCopy := worldState.Copy()
-	err := txn.Exec(stateCopy, config)
+	err := txn.Exec(stateCopy)
 	if err == nil {
 		// check before real execution
-		_ = txn.Exec(worldState, config)
+		_ = txn.Exec(worldState)
 	}
 
 	return err

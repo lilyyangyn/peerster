@@ -15,12 +15,62 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Action Define
+
+const (
+	StartNewBC      = "🌱 Start a new blockchain"
+	StartExistingBC = "🌿 Use an existing blockchain"
+
+	GenerateBCAccount = "🌱 Generate a new blockchain account"
+	LoadBCAccount     = "🌿 Use an existing blockchain account"
+
+	MPCCalc = "🦑 MPC Calculate"
+
+	ShowAssets     = "🐥 Show Assets"
+	AddAsset       = "🐣 Add Asset to Database"
+	ShowBalance    = "🐳 Show Balance"
+	ShowBlockchain = "🐋 Show Blockchain"
+	AddPeer        = "🦈 Add Peer"
+	ShowEncKey     = "🐊 Show Encryption Pubkey"
+	Refresh        = "🐙 Refresh"
+
+	NextBlockchainPage = "🍀 More..."
+	ReturnPrevious     = "🎋 Return back"
+
+	Exit = "🍃 Exit"
+)
+
+type ActionFunc func(*z.TestNode, map[string]ActionFunc) error
+
+var actionMap = map[string]ActionFunc{
+	StartNewBC:      startNewBC,
+	StartExistingBC: startExistingBC,
+
+	GenerateBCAccount: createAccount,
+	LoadBCAccount:     loadAccount,
+
+	MPCCalc: startMPC,
+
+	ShowAssets:     showAssets,
+	AddAsset:       addAsset,
+	ShowBalance:    getBCBalance,
+	ShowBlockchain: getBCInfo,
+	AddPeer:        addPeer,
+	ShowEncKey:     getEnckey,
+	Refresh:        refresh,
+
+	Exit: exitNode,
+}
+
+// -----------------------------------------------------------------------------
 // Start CMD
 
-func StartCMD(ip string, daemon bool, customOpts ...z.Option) {
-	if len(ip) == 0 {
-		ip = "127.0.0.1:6050"
+func StartCMD(port int, daemon bool, customOpts ...z.Option) {
+	if port == 0 {
+		port = 6050
 	}
+
+	ip := fmt.Sprintf("127.0.0.1:%d", port)
 
 	transp := udp.NewUDP()
 	peerFac := impl.NewPeer
@@ -46,7 +96,7 @@ func StartCMD(ip string, daemon bool, customOpts ...z.Option) {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		exitNode(&node)
+		exitNode(&node, actionMap)
 		os.Exit(1)
 	}()
 
@@ -67,6 +117,10 @@ func StartCMD(ip string, daemon bool, customOpts ...z.Option) {
 	performActions(&node)
 }
 
+func printData(format string, a ...interface{}) {
+	fmt.Printf(Yellow(format), a...)
+}
+
 func printError(err error) {
-	fmt.Println("🐡 Ops. Something is wrong: ", err)
+	fmt.Printf(Red("Ops. Something is wrong: %s"), err)
 }

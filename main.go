@@ -22,7 +22,7 @@ func main() {
 
 // addCliCmd starts a node with customization
 func addCliCmd(command *cobra.Command) {
-	var ip string
+	var port int
 	// var opts []z.Option
 
 	startCmd := &cobra.Command{
@@ -32,18 +32,18 @@ func addCliCmd(command *cobra.Command) {
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-			cli.StartCMD("", false)
+			cli.StartCMD(port, false)
 		},
 	}
 
-	startCmd.Flags().StringVarP(&ip, "ip", "", "", "Set customized node ip")
+	startCmd.Flags().IntVarP(&port, "port", "p", 0, "Start node on a customized port")
 
 	command.AddCommand(startCmd)
 }
 
 // addStartCmd starts a node with customization
 func addDaemonCmd(command *cobra.Command) {
-	var ip string
+	var port int
 	// var opts []z.Option
 
 	daemonCmd := &cobra.Command{
@@ -53,11 +53,11 @@ func addDaemonCmd(command *cobra.Command) {
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-			cli.StartCMD("", true)
+			cli.StartCMD(port, true)
 		},
 	}
 
-	daemonCmd.Flags().StringVarP(&ip, "ip", "", "", "Set customized node ip")
+	daemonCmd.Flags().IntVarP(&port, "port", "p", 0, "Start node on a customized port")
 
 	command.AddCommand(daemonCmd)
 }

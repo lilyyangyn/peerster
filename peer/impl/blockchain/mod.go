@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -27,9 +28,9 @@ type BlockchainModule struct {
 	watchRegistry *WatchRegistry
 	cr            *CreditRecords
 
-	blkChan     chan *permissioned.Block
-	bcReadyChan chan struct{}
-	minerChan   chan uint
+	blkChan   chan *permissioned.Block
+	readyCond sync.Cond
+	minerChan chan uint
 }
 
 func NewBlockchainModule(conf *peer.Configuration, messageModule *message.MessageModule) *BlockchainModule {
@@ -42,7 +43,7 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 		watchRegistry: NewWatchRegistry(),
 		cr:            NewCreditRecords(),
 		blkChan:       make(chan *permissioned.Block, 5),
-		bcReadyChan:   make(chan struct{}),
+		readyCond:     *sync.NewCond(&sync.Mutex{}),
 		minerChan:     make(chan uint, 5),
 	}
 
@@ -84,6 +85,18 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 		return err
 	}
 	return nil
+}
+
+func (m *BlockchainModule) WaitGenesis() *permissioned.Block {
+	m.readyCond.L.Lock()
+	for {
+		genesis := m.GetLatestBlock()
+		if genesis != nil {
+			m.readyCond.L.Unlock()
+			return genesis
+		}
+		m.readyCond.Wait()
+	}
 }
 
 // GetAccountBalance returns the current balance of the node's account
@@ -206,7 +219,7 @@ func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
 		}
 
 		log.Info().Msgf("init genesis block successfully")
-		close(m.bcReadyChan)
+		m.readyCond.Broadcast()
 		m.selectNextMiner(block)
 
 		// send SetPubkey Txn

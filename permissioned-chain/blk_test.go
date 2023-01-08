@@ -82,7 +82,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -92,7 +92,7 @@ func Test_Block_Verify_Correct(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -134,7 +134,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -144,7 +144,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -187,7 +187,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -197,7 +197,7 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -241,7 +241,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -251,7 +251,7 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.Error(t, err)
 
 	bb := NewBlockBuilder()
@@ -294,7 +294,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -304,7 +304,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()

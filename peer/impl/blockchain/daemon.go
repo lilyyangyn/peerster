@@ -13,7 +13,7 @@ import (
 
 func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
 	// wait until the blockchain's genesis block is set
-	<-m.bcReadyChan
+	_ = m.WaitGenesis()
 	log.Info().Msgf("Start mining")
 out:
 	for {
@@ -88,7 +88,7 @@ out:
 				continue
 			}
 
-			err := signedTxn.Verify(worldState, config)
+			err := signedTxn.Verify(worldState)
 			if err != nil {
 				log.Warn().Msgf("%s", err)
 				continue
