@@ -152,7 +152,7 @@ type configTemplate struct {
 	paxosProposerRetry time.Duration
 
 	disableMPC           bool
-	disableAnnoncePubkey bool
+	disableAnnonceEnckey bool
 	MPCtype              peer.MPCConsensus
 	MPCMaxWaitBlock      int
 }
@@ -190,7 +190,7 @@ func newConfigTemplate() configTemplate {
 		paxosID:              0,
 		paxosProposerRetry:   time.Second * 5,
 		disableMPC:           false,
-		disableAnnoncePubkey: false,
+		disableAnnonceEnckey: false,
 		MPCtype:              peer.MPCConsensusBC,
 		MPCMaxWaitBlock:      2,
 	}
@@ -309,10 +309,10 @@ func WithDisableMPC() Option {
 	}
 }
 
-// WithDisableAnnoncePubkey disable sending SetPub Txn automatically.
-func WithDisableAnnoncePubkey() Option {
+// WithDisableAnnonceEnckey disable sending SetPub Txn automatically.
+func WithDisableAnnonceEnckey() Option {
 	return func(ct *configTemplate) {
-		ct.disableAnnoncePubkey = true
+		ct.disableAnnonceEnckey = true
 	}
 }
 
@@ -358,7 +358,7 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosID = template.paxosID
 	config.PaxosProposerRetry = template.paxosProposerRetry
 	config.DisableMPC = template.disableMPC
-	config.DisableAnnoncePubkey = template.disableAnnoncePubkey
+	config.DisableAnnonceEnckey = template.disableAnnonceEnckey
 	config.MPCType = template.MPCtype
 	config.MPCMaxWaitBlock = template.MPCMaxWaitBlock
 

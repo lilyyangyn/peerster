@@ -89,8 +89,8 @@ func (bc *Blockchain) SetGenesisBlock(block *Block) error {
 	return nil
 }
 
-// AllPubkeySet checks if all public keys of nodes are registered
-func (bc *Blockchain) AllPubkeySet() bool {
+// AllEncryptKeySet checks if all public keys of nodes are registered
+func (bc *Blockchain) AllEncryptKeySet() bool {
 	bc.RLock()
 	defer bc.RUnlock()
 

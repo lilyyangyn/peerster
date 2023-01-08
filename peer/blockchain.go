@@ -47,6 +47,9 @@ type PermissionedChain interface {
 	// BCLoadKeyPair loads an ECDSA key pair from file
 	BCLoadKeyPair(path string) error
 
+	// BCAllEncryptKeySet checks if all encryption keys of nodes are registered
+	BCAllEncryptKeySet() bool
+
 	// BCSprintBlockchain returns a decription string of the blockchain
 	BCSprintBlockchain() string
 }

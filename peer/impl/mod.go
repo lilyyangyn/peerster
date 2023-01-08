@@ -259,6 +259,11 @@ func (n *node) BCLoadKeyPair(path string) error {
 	return n.blockchain.LoadKeyPair(path)
 }
 
+// BCAllEncryptKeySet implements peer.BCAllEncryptKeySet
+func (n *node) BCAllEncryptKeySet() bool {
+	return n.blockchain.AllEncryptKeySet()
+}
+
 // BCSprintBlockchain implements peer.BCSprintBlockchain
 func (n *node) BCSprintBlockchain() string {
 	return n.blockchain.SprintBlockchain()

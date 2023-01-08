@@ -22,7 +22,7 @@ const (
 	TxnTypePostMPC  TxnType = "txn-postmpc"
 
 	TxnTypeInitConfig TxnType = "txn-initconfig"
-	TxnTypeSetPubkey  TxnType = "txn-setpubkey"
+	TxnTypeSetPubkey  TxnType = "txn-regenckey"
 )
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
@@ -31,7 +31,7 @@ var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transacti
 	TxnTypePostMPC:  execPostMPC,
 
 	TxnTypeInitConfig: execInitConfig,
-	TxnTypeSetPubkey:  execSetPubkey,
+	TxnTypeSetPubkey:  execRegEnckey,
 }
 
 var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error){
@@ -40,7 +40,7 @@ var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error)
 	TxnTypePostMPC:  unmarshalPostMPC,
 
 	TxnTypeInitConfig: unmarshalInitConfig,
-	TxnTypeSetPubkey:  unmarshalSetPubkey,
+	TxnTypeSetPubkey:  unmarshalRegEnckey,
 }
 
 // -----------------------------------------------------------------------------

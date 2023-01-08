@@ -200,10 +200,10 @@ func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
 		m.selectNextMiner(block)
 
 		// send SetPubkey Txn
-		if m.conf.DisableAnnoncePubkey {
+		if m.conf.DisableAnnonceEnckey {
 			return nil
 		}
-		txnID, err := m.sendSetPubkeyTransaction()
+		txnID, err := m.sendRegEnckeyTransaction()
 		if err != nil {
 			return err
 		}
@@ -241,13 +241,13 @@ func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
 	return duration
 }
 
-func (m *BlockchainModule) sendSetPubkeyTransaction() (string, error) {
+func (m *BlockchainModule) sendRegEnckeyTransaction() (string, error) {
 	pubkey, err := m.GetPubkeyString()
 	if err != nil {
 		return "", err
 	}
 
-	signedTxn, err := m.wallet.SetPubkeyTxn(pubkey)
+	signedTxn, err := m.wallet.RegEnckeyTxn(pubkey)
 	if err != nil {
 		return "", err
 	}

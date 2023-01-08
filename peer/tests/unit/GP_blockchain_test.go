@@ -17,10 +17,10 @@ func Test_GP_BC_Init(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -99,7 +99,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node1.Stop()
 
 	sock2, err := transp.CreateSocket("127.0.0.1:0")
@@ -235,10 +235,10 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeB.Stop()
 
 	nodeA.AddPeer(nodeB.GetAddr())
@@ -361,10 +361,10 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeB.Stop()
 
 	// generate key pairs

@@ -91,7 +91,7 @@ type Configuration struct {
 	// DisableSetPubkey stops nodes from automatically send a SetPubkey message
 	// when they receive a genesis block
 	// Default: false
-	DisableAnnoncePubkey bool
+	DisableAnnonceEnckey bool
 
 	// MPCType specifies which consensus will be used to start MPC
 	// Default: MPCConsensusBC

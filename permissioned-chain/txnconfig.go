@@ -142,9 +142,9 @@ func unmarshalInitConfig(data json.RawMessage) (interface{}, error) {
 }
 
 // -----------------------------------------------------------------------------
-// Transaction Polymophism - SetPubkey
+// Transaction Polymophism - RegEnckey
 
-func NewTransactionSetPubkey(peer *Account, pubkey string) *Transaction {
+func NewTransactionRegEnckey(peer *Account, pubkey string) *Transaction {
 	return NewTransaction(
 		peer,
 		&ZeroAddress,
@@ -154,7 +154,7 @@ func NewTransactionSetPubkey(peer *Account, pubkey string) *Transaction {
 	)
 }
 
-func execSetPubkey(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+func execRegEnckey(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
 	if len(config.Participants[txn.From]) > 0 {
 		return fmt.Errorf("public key for account %s is already set", txn.From)
 	}
@@ -165,7 +165,7 @@ func execSetPubkey(worldState storage.KVStore, config *ChainConfig, txn *Transac
 	return nil
 }
 
-func unmarshalSetPubkey(data json.RawMessage) (interface{}, error) {
+func unmarshalRegEnckey(data json.RawMessage) (interface{}, error) {
 	var c ChainConfig
 	err := json.Unmarshal(data, &c)
 
