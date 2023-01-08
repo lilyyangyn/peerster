@@ -17,14 +17,19 @@ func (m *MPCModule) ProcessMPCShareMsg(msg types.Message, pkt transport.Packet) 
 	}
 
 	// ignore message with wrong id
-	mpc := m.mpcCenter.GetMPC(secretMsg.ReqID)
+	// mpc := m.mpcCenter.GetMPC(secretMsg.ReqID)
 
 	log.Debug().Msgf("%s: mpc value for req %s, %s:%s",
 		m.conf.Socket.GetAddress(), secretMsg.ReqID, secretMsg.Value.Key, secretMsg.Value.Value)
 
 	// MPC operation
-	valueBig, _ := new(big.Int).SetString(secretMsg.Value.Value, 10)
-	mpc.addValue(secretMsg.Value.Key, *valueBig)
+	valueBig, ok := new(big.Int).SetString(secretMsg.Value.Value, 10)
+	if !ok {
+		return fmt.Errorf("fail to parse big integer: %s", secretMsg.Value.Value)
+	}
+	// mpc.addValue(secretMsg.Value.Key, *valueBig)
+
+	m.mpcCenter.AddValue(secretMsg.ReqID, secretMsg.Value.Key, *valueBig)
 
 	return nil
 }
@@ -37,14 +42,21 @@ func (m *MPCModule) ProcessMPCInterpolationMsg(msg types.Message, pkt transport.
 	}
 
 	// ignore message with wrong id
-	mpc := m.mpcCenter.GetMPC(interpolationMsg.ReqID)
+	// mpc := m.mpcCenter.GetMPC(interpolationMsg.ReqID)
 
 	log.Debug().Msgf("%s: interpolation msg req: %s, owner: %s, value: %s",
 		m.conf.Socket.GetAddress(), interpolationMsg.ReqID, interpolationMsg.Owner, interpolationMsg.Value)
 
 	// Add to intermediate value
-	valueBig, _ := new(big.Int).SetString(interpolationMsg.Value, 10)
-	mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
+	valueBig, ok := new(big.Int).SetString(interpolationMsg.Value, 10)
+	if !ok {
+		return fmt.Errorf("fail to parse big integer: %s", interpolationMsg.Value)
+	}
+	// mpc.addValue(interpolationMsg.Owner+"|InterpolationResult", *valueBig)
+
+	m.mpcCenter.AddValue(interpolationMsg.ReqID,
+		interpolationMsg.Owner+"|InterpolationResult",
+		*valueBig)
 
 	return nil
 }

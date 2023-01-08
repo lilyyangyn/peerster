@@ -92,6 +92,21 @@ func (mpc *MPC) addValue(key string, value big.Int) bool {
 	return true
 }
 
+func (mpc *MPC) addValues(values map[string]big.Int) bool {
+	mpc.Lock()
+	defer mpc.Unlock()
+
+	if mpc.state == MPCStateFinish {
+		return false
+	}
+
+	for k, v := range values {
+		mpc.interStore[k] = v
+	}
+
+	return true
+}
+
 func (mpc *MPC) getValue(key string) (big.Int, bool) {
 	mpc.RLock()
 	defer mpc.RUnlock()

@@ -44,7 +44,6 @@ func (m *BlockchainModule) ProcessBCTxnMsg(msg types.Message, pkt transport.Pack
 		return err
 	}
 	txn := txnMsg.Txn
-
 	m.txnPool.Push(&txn)
 
 	return nil

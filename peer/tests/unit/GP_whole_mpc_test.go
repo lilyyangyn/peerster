@@ -449,7 +449,6 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		for {
 			<-mpcCount
 			count++
-			fmt.Printf("!!!!!!!!!!!!%d!!!!!!!!!!!!!!\n", count)
 			if count == 3 {
 				close(mpcDone)
 			}
@@ -463,7 +462,6 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		mpcCount <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 2)
 	go func() {
 		_, err := nodeA.Calculate("a+c", 10)
 		require.NoError(t, err)
@@ -471,7 +469,6 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		mpcCount <- struct{}{}
 	}()
 
-	time.Sleep(time.Second * 2)
 	go func() {
 		_, err := nodeA.Calculate("b+c", 10)
 		require.NoError(t, err)
@@ -479,7 +476,7 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		mpcCount <- struct{}{}
 	}()
 
-	timeout := time.After(time.Second * 2)
+	timeout := time.After(time.Second * 3)
 
 	select {
 	case <-mpcDone:
@@ -529,7 +526,6 @@ func Test_GP_MPC_BC_MULT_Simple_With_Pubkey_Txn(t *testing.T) {
 	defer nodeB.Stop()
 	defer nodeC.Stop()
 
-	// nodeA set asset
 	valueA := 5
 	err := nodeA.SetValueDBAsset("a", valueA)
 	require.NoError(t, err)
@@ -564,6 +560,99 @@ func Test_GP_MPC_BC_MULT_Simple_With_Pubkey_Txn(t *testing.T) {
 
 	// check equal to the expected ans
 	require.Equal(t, valueA*valueB, recvValue)
+}
+func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	nodes, addrs := setup_n_peers_bc(t, 3, 2, "5s", []float64{200}, false, true)
+	nodeA := nodes[0]
+	nodeB := nodes[1]
+	nodeC := nodes[2]
+	defer nodeA.Stop()
+	defer nodeB.Stop()
+	defer nodeC.Stop()
+
+	valueA := 5
+	err := nodeA.SetValueDBAsset("a", valueA)
+	require.NoError(t, err)
+
+	valueB := 3
+	err = nodeB.SetValueDBAsset("b", valueB)
+	require.NoError(t, err)
+
+	valueC := 4
+	err = nodeC.SetValueDBAsset("c", valueC)
+	require.NoError(t, err)
+
+	mpcDone := make(chan struct{})
+	mpcCount := make(chan struct{})
+	go func() {
+		count := 0
+		for {
+			<-mpcCount
+			count++
+			if count == 3 {
+				close(mpcDone)
+			}
+		}
+	}()
+
+	go func() {
+		_, err := nodeA.Calculate("a+b", 10)
+		require.NoError(t, err)
+
+		mpcCount <- struct{}{}
+	}()
+	go func() {
+		_, err := nodeA.Calculate("a+c", 10)
+		require.NoError(t, err)
+
+		mpcCount <- struct{}{}
+	}()
+	go func() {
+		_, err := nodeA.Calculate("b+c", 10)
+		require.NoError(t, err)
+
+		mpcCount <- struct{}{}
+	}()
+
+	timeout := time.After(time.Second * 3)
+
+	select {
+	case <-mpcDone:
+	case <-timeout:
+		t.Error(t, "calculation must finish")
+	}
+
+	time.Sleep(time.Second * 5)
+
+	fmt.Println(nodeA.BCSprintBlockchain())
+
+	// > verify all nodes got four blocks
+	blockA := nodeA.BCGetLatestBlock()
+	require.NotNil(t, blockA)
+	require.Equal(t, uint(6), blockA.Height)
+
+	blockB := nodeB.BCGetLatestBlock()
+	require.NotNil(t, blockB)
+	require.Equal(t, uint(6), blockB.Height)
+
+	blockC := nodeC.BCGetLatestBlock()
+	require.NotNil(t, blockC)
+	require.Equal(t, uint(6), blockC.Height)
+
+	// > verify blockchain are the same
+
+	require.Equal(t, blockA.Hash(), blockB.Hash())
+	require.Equal(t, blockA.Hash(), blockC.Hash())
+
+	// > verify balance are correct at last
+	worldstate := blockA.GetWorldStateCopy()
+	accountA := permissioned.GetAccountFromWorldState(worldstate, addrs[0])
+	require.Equal(t, float64(140), accountA.GetBalance())
+	accountB := permissioned.GetAccountFromWorldState(worldstate, addrs[1])
+	require.Equal(t, float64(30), accountB.GetBalance())
+	accountC := permissioned.GetAccountFromWorldState(worldstate, addrs[2])
+	require.Equal(t, float64(30), accountC.GetBalance())
 }
 
 // -----------------------------------------------------------------------------
