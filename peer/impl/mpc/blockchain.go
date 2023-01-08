@@ -50,25 +50,22 @@ func (m *MPCModule) PreMPCTxnCallback(config *permissioned.ChainConfig, txn *per
 	}
 
 	// start MPC
-	go func() {
-		val, err := m.ComputeExpression(txn.ID, propose.Expression, propose.Prime)
-		if err != nil {
-			log.Err(err).Send()
-		}
-		err = m.mpcCenter.InformMPCComplete(txn.ID, MPCResult{result: val, err: err})
-		if err != nil {
-			log.Err(err).Send()
-			return
-		}
+	val, err := m.ComputeExpression(txn.ID, propose.Expression, propose.Prime)
+	if err != nil {
+		return err
+	}
+	err = m.mpcCenter.InformMPCComplete(txn.ID, MPCResult{result: val, err: err})
+	if err != nil {
+		return err
+	}
 
-		// postMPC txn
-		postID, err := m.bcModule.SendPostMPCTransaction(txn.ID, float64(val))
-		if err != nil {
-			log.Err(err).Send()
-		} else {
-			log.Info().Msgf("send postMPC txn %s for MPC %s", postID, txn.ID)
-		}
-	}()
+	// postMPC txn
+	postID, err := m.bcModule.SendPostMPCTransaction(txn.ID, float64(val))
+	if err != nil {
+		return err
+	} else {
+		log.Info().Msgf("send postMPC txn %s for MPC %s", postID, txn.ID)
+	}
 
 	return nil
 }
