@@ -178,8 +178,8 @@ func (txn *Transaction) Sign(privateKey *ecdsa.PrivateKey) (*SignedTransaction, 
 	return &SignedTransaction{Txn: *txn, Signature: signature}, nil
 }
 
-// Hash computes the hash of the signed transaction
-func (signedTxn *SignedTransaction) Hash() []byte {
+// HashBytes computes the hashbytes of the signed transaction
+func (signedTxn *SignedTransaction) HashBytes() []byte {
 	h := sha256.New()
 
 	h.Write(signedTxn.Txn.HashBytes())
@@ -187,6 +187,11 @@ func (signedTxn *SignedTransaction) Hash() []byte {
 	h.Write(signedTxn.Signature)
 
 	return h.Sum(nil)
+}
+
+// Hash computes the hash of the signed transaction
+func (signedTxn *SignedTransaction) Hash() string {
+	return hex.EncodeToString(signedTxn.HashBytes())
 }
 
 // String returns a description string for the transaction

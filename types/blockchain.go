@@ -42,7 +42,7 @@ func (m BCTxnMessag) Name() string {
 // String implements types.Message.
 func (m BCTxnMessag) String() string {
 	return fmt.Sprintf("{blockchainTxn %s - %s}",
-		m.Origin, m.Txn.Hash())
+		m.Origin, m.Txn.HashBytes())
 }
 
 // HTML implements types.Message.

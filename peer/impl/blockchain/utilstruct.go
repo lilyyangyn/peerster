@@ -12,7 +12,7 @@ import (
 // -----------------------------------------------------------------------------
 // TxnPool
 
-const POOL_CHAN_BUFFER_SIZE = 5
+const POOL_CHAN_BUFFER_SIZE = 10
 
 type TxnPool struct {
 	*sync.Mutex
@@ -74,23 +74,23 @@ func (p *TxnPool) PushSeveral(txns []permissioned.SignedTransaction) {
 	}
 }
 
-func (p *TxnPool) Pull() <-chan *permissioned.SignedTransaction {
-	p.Lock()
-	defer p.Unlock()
+// func (p *TxnPool) Pull() <-chan *permissioned.SignedTransaction {
+// 	p.Lock()
+// 	defer p.Unlock()
 
-	if len(p.channel) > 0 {
-		return p.channel
-	}
+// 	if len(p.channel) > 0 {
+// 		return p.channel
+// 	}
 
-	i := 0
-	queueLen := len(p.queue)
-	for ; i < POOL_CHAN_BUFFER_SIZE && i < queueLen; i++ {
-		p.channel <- p.queue[i]
-	}
-	p.queue = p.queue[i:]
+// 	i := 0
+// 	queueLen := len(p.queue)
+// 	for ; i < POOL_CHAN_BUFFER_SIZE && i < queueLen; i++ {
+// 		p.channel <- p.queue[i]
+// 	}
+// 	p.queue = p.queue[i:]
 
-	return p.channel
-}
+// 	return p.channel
+// }
 
 // -----------------------------------------------------------------------------
 // SyncCenter
@@ -194,18 +194,18 @@ func (w *Wallet) GetAddress() permissioned.Address {
 }
 
 func (w *Wallet) Sync(worldState storage.KVStore) {
-	w.Lock()
-	defer w.Unlock()
+	// w.Lock()
+	// defer w.Unlock()
 
-	account := permissioned.GetAccountFromWorldState(worldState, w.addr.Hex)
+	// account := permissioned.GetAccountFromWorldState(worldState, w.addr.Hex)
 
-	if w.account.GetAddress().Hex != account.GetAddress().Hex {
-		return
-	}
+	// if w.account.GetAddress().Hex != account.GetAddress().Hex {
+	// 	return
+	// }
 
-	if w.account.GetNonce() != account.GetNonce() {
-		w.account = account
-	}
+	// if w.account.GetNonce() != account.GetNonce() {
+	// 	w.account = account
+	// }
 }
 
 func (w *Wallet) PreMPCTxn(expression string, budget float64, prime string) (*permissioned.SignedTransaction, error) {
@@ -220,9 +220,10 @@ func (w *Wallet) PreMPCTxn(expression string, budget float64, prime string) (*pe
 	}
 	txn := permissioned.NewTransactionPreMPC(w.account, propose)
 	signedTxn, err := txn.Sign(w.privKey)
-	if err == nil {
-		w.account.IncreaseNonce()
+	if err != nil {
+		return nil, err
 	}
+	w.account.IncreaseNonce()
 
 	return signedTxn, err
 }
@@ -237,9 +238,10 @@ func (w *Wallet) PostMPCTxn(id string, result float64) (*permissioned.SignedTran
 	}
 	txn := permissioned.NewTransactionPostMPC(w.account, record)
 	signedTxn, err := txn.Sign(w.privKey)
-	if err == nil {
-		w.account.IncreaseNonce()
+	if err != nil {
+		return nil, err
 	}
+	w.account.IncreaseNonce()
 
 	return signedTxn, err
 }

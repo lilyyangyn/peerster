@@ -477,9 +477,8 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 
 		mpcCount <- struct{}{}
 	}()
-	time.Sleep(time.Second * 2)
 
-	timeout := time.After(time.Second * 10)
+	timeout := time.After(time.Second * 2)
 
 	select {
 	case <-mpcDone:
@@ -487,22 +486,22 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		t.Error(t, "calculation must finish")
 	}
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 5)
 
-	// fmt.Println(nodeA.BCSprintBlockchain())
+	fmt.Println(nodeA.BCSprintBlockchain())
 
 	// > verify all nodes got four blocks
 	blockA := nodeA.BCGetLatestBlock()
 	require.NotNil(t, blockA)
-	require.Equal(t, uint(4), blockA.Height)
+	require.Equal(t, uint(12), blockA.Height)
 
 	blockB := nodeB.BCGetLatestBlock()
 	require.NotNil(t, blockB)
-	require.Equal(t, uint(4), blockB.Height)
+	require.Equal(t, uint(12), blockB.Height)
 
 	blockC := nodeC.BCGetLatestBlock()
 	require.NotNil(t, blockC)
-	require.Equal(t, uint(4), blockC.Height)
+	require.Equal(t, uint(12), blockC.Height)
 
 	// > verify blockchain are the same
 

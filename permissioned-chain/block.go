@@ -83,7 +83,7 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 	// check hash
 	h := sha256.New()
 	for _, txn := range b.Transactions {
-		h.Write(txn.Hash())
+		h.Write(txn.HashBytes())
 	}
 	hash := hex.EncodeToString(h.Sum(nil))
 	if b.TransationHash != hash {
@@ -160,7 +160,7 @@ func (bb *BlockBuilder) SetState(state storage.KVStore) *BlockBuilder {
 func (bb *BlockBuilder) Build() *Block {
 	h := sha256.New()
 	for _, txn := range bb.transactions {
-		h.Write(txn.Hash())
+		h.Write(txn.HashBytes())
 	}
 	txnHash := h.Sum(nil)
 

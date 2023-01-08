@@ -38,7 +38,7 @@ func Test_Block_Build(t *testing.T) {
 	expectedBlock.StateHash = hex.EncodeToString(expectedBlock.States.Hash())
 	h := sha256.New()
 	for _, txn := range transactions {
-		h.Write(txn.Hash())
+		h.Write(txn.HashBytes())
 	}
 	expectedBlock.TransationHash = hex.EncodeToString(h.Sum(nil))
 
