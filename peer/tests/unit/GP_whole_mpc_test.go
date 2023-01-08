@@ -31,11 +31,11 @@ func Test_GP_MPC_Paxos_Add(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// call Calculate on nodeA. The MPC starts automatically
@@ -296,11 +296,11 @@ func Test_GP_MPC_BC_ADD_Simple(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// call Calculate on nodeA. The MPC starts automatically
@@ -338,11 +338,11 @@ func Test_GP_MPC_BC_MULT_Simple(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// call Calculate on nodeA. The MPC starts automatically
@@ -380,19 +380,19 @@ func Test_GP_MPC_BC_COMPLEX(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB1 := 3
-	err = nodeB.SetValueDBAsset("b1", valueB1)
+	err = nodeB.SetValueDBAsset("b1", valueB1, 0)
 	require.NoError(t, err)
 
 	valueB2 := 4
-	err = nodeB.SetValueDBAsset("b2", valueB2)
+	err = nodeB.SetValueDBAsset("b2", valueB2, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// call Calculate on nodeA. The MPC starts automatically
@@ -431,15 +431,15 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 	defer nodeC.Stop()
 
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	mpcDone := make(chan struct{})
@@ -491,15 +491,15 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 	// > verify all nodes got four blocks
 	blockA := nodeA.BCGetLatestBlock()
 	require.NotNil(t, blockA)
-	require.Equal(t, uint(12), blockA.Height)
+	require.Equal(t, uint(15), blockA.Height)
 
 	blockB := nodeB.BCGetLatestBlock()
 	require.NotNil(t, blockB)
-	require.Equal(t, uint(12), blockB.Height)
+	require.Equal(t, uint(15), blockB.Height)
 
 	blockC := nodeC.BCGetLatestBlock()
 	require.NotNil(t, blockC)
-	require.Equal(t, uint(12), blockC.Height)
+	require.Equal(t, uint(15), blockC.Height)
 
 	// > verify blockchain are the same
 
@@ -527,11 +527,11 @@ func Test_GP_MPC_BC_MULT_Simple_With_Pubkey_Txn(t *testing.T) {
 	defer nodeC.Stop()
 
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// wait for the public key to be distributed
@@ -563,7 +563,7 @@ func Test_GP_MPC_BC_MULT_Simple_With_Pubkey_Txn(t *testing.T) {
 }
 func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	nodes, addrs := setup_n_peers_bc(t, 3, 2, "5s", []float64{200}, false, true)
+	nodes, addrs := setup_n_peers_bc(t, 3, 3, "5s", []float64{200}, false, true)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
 	nodeC := nodes[2]
@@ -572,15 +572,15 @@ func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 	defer nodeC.Stop()
 
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	mpcDone := make(chan struct{})
@@ -623,22 +623,22 @@ func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 		t.Error(t, "calculation must finish")
 	}
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 7)
 
 	fmt.Println(nodeA.BCSprintBlockchain())
 
 	// > verify all nodes got four blocks
 	blockA := nodeA.BCGetLatestBlock()
 	require.NotNil(t, blockA)
-	require.Equal(t, uint(6), blockA.Height)
+	require.Equal(t, uint(5), blockA.Height)
 
 	blockB := nodeB.BCGetLatestBlock()
 	require.NotNil(t, blockB)
-	require.Equal(t, uint(6), blockB.Height)
+	require.Equal(t, uint(5), blockB.Height)
 
 	blockC := nodeC.BCGetLatestBlock()
 	require.NotNil(t, blockC)
-	require.Equal(t, uint(6), blockC.Height)
+	require.Equal(t, uint(5), blockC.Height)
 
 	// > verify blockchain are the same
 

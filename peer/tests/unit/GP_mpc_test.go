@@ -51,7 +51,7 @@ func Test_GP_ComputeExpression_Single_Value_Send(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	// all node will run compute Expression simultaneously.
@@ -108,11 +108,11 @@ func Test_GP_ComputeExpression_Add_Simple(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -169,19 +169,19 @@ func Test_GP_ComputeExpression_Add_Hard(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueAA := 4
-	err = nodeA.SetValueDBAsset("aa", valueAA)
+	err = nodeA.SetValueDBAsset("aa", valueAA, 0)
 	require.NoError(t, err)
 
 	valueB := 8
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 9
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -238,11 +238,11 @@ func Test_GP_ComputeExpression_Mult_Simple(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -298,15 +298,15 @@ func Test_GP_ComputeExpression_Mult_Hard(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -362,15 +362,15 @@ func Test_GP_ComputeExpression_Complex_1(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -428,19 +428,19 @@ func Test_GP_ComputeExpression_Complex_2(t *testing.T) {
 
 	// nodeA set asset
 	valueA1 := 5
-	err := nodeA.SetValueDBAsset("a1", valueA1)
+	err := nodeA.SetValueDBAsset("a1", valueA1, 0)
 	require.NoError(t, err)
 
 	valueA2 := 9
-	err = nodeA.SetValueDBAsset("a2", valueA2)
+	err = nodeA.SetValueDBAsset("a2", valueA2, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.
@@ -501,15 +501,15 @@ func Test_GP_ComputeExpression_Multiple_Time(t *testing.T) {
 
 	// nodeA set asset
 	valueA := 5
-	err := nodeA.SetValueDBAsset("a", valueA)
+	err := nodeA.SetValueDBAsset("a", valueA, 0)
 	require.NoError(t, err)
 
 	valueB := 3
-	err = nodeB.SetValueDBAsset("b", valueB)
+	err = nodeB.SetValueDBAsset("b", valueB, 0)
 	require.NoError(t, err)
 
 	valueC := 4
-	err = nodeC.SetValueDBAsset("c", valueC)
+	err = nodeC.SetValueDBAsset("c", valueC, 0)
 	require.NoError(t, err)
 
 	// all node will need to run compute Expression simultaneously.

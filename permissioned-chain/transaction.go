@@ -17,27 +17,30 @@ import (
 type TxnType string
 
 const (
-	TxnTypeCoinbase TxnType = "txn-coinbase"
-	TxnTypePreMPC   TxnType = "txn-prempc"
-	TxnTypePostMPC  TxnType = "txn-postmpc"
+	TxnTypeCoinbase  TxnType = "txn-coinbase"
+	TxnTypePreMPC    TxnType = "txn-preMPC"
+	TxnTypePostMPC   TxnType = "txn-postMPC"
+	TxnTypeRegAssets TxnType = "txn-regAssets"
 
-	TxnTypeInitConfig TxnType = "txn-initconfig"
-	TxnTypeSetPubkey  TxnType = "txn-regenckey"
+	TxnTypeInitConfig TxnType = "txn-initConfig"
+	TxnTypeSetPubkey  TxnType = "txn-regEnckey"
 )
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
-	TxnTypeCoinbase: execCoinbase,
-	TxnTypePreMPC:   execPreMPC,
-	TxnTypePostMPC:  execPostMPC,
+	TxnTypeCoinbase:  execCoinbase,
+	TxnTypePreMPC:    execPreMPC,
+	TxnTypePostMPC:   execPostMPC,
+	TxnTypeRegAssets: execRegAssets,
 
 	TxnTypeInitConfig: execInitConfig,
 	TxnTypeSetPubkey:  execRegEnckey,
 }
 
 var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error){
-	TxnTypeCoinbase: unmarshalCoinbase,
-	TxnTypePreMPC:   unmarshalPreMPC,
-	TxnTypePostMPC:  unmarshalPostMPC,
+	TxnTypeCoinbase:  unmarshalCoinbase,
+	TxnTypePreMPC:    unmarshalPreMPC,
+	TxnTypePostMPC:   unmarshalPostMPC,
+	TxnTypeRegAssets: unmarshalRegAssets,
 
 	TxnTypeInitConfig: unmarshalInitConfig,
 	TxnTypeSetPubkey:  unmarshalRegEnckey,
@@ -91,7 +94,7 @@ func (txn *Transaction) HashBytes() []byte {
 		if err != nil {
 			panic(err)
 		}
-		h.Write(bytes)
+		h.Write([]byte(hash(bytes)))
 	}
 
 	return h.Sum(nil)
@@ -226,12 +229,12 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
 		}
 		addr := NewAddress(publicKey)
 		if addr.Hex != txn.From {
-			return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+			return fmt.Errorf("transaction (%s) %s is not signed by sender %s", signedTxn.Txn.Type, signedTxn.Txn.ID, signedTxn.Txn.From)
 		}
 		// verify sig input needs to be in [R || S] format
 		sigValid := crypto.VerifySignature(crypto.FromECDSAPub(publicKey), digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
 		if !sigValid {
-			return fmt.Errorf("transaction %s has invalid signature from %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+			return fmt.Errorf("transaction (%s) %s has invalid signature from %s", signedTxn.Txn.Type, signedTxn.Txn.ID, signedTxn.Txn.From)
 		}
 	}
 
@@ -313,10 +316,6 @@ func GetConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	return &config
 }
 
-func mpcKeyFromUniqID(uniqID string) string {
-	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
-}
-
 func checkNonce(worldState storage.KVStore, txn *Transaction) error {
 	// Do nothing to zeroaddress
 	if txn.From == ZeroAddress.Hex {
@@ -385,4 +384,10 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 		panic(err)
 	}
 	return nil
+}
+
+func hash(bytes []byte) string {
+	h := sha256.New()
+	h.Write(bytes)
+	return hex.EncodeToString(h.Sum(nil))
 }

@@ -11,7 +11,7 @@ type MPC interface {
 
 	// SetValueDBAsset set the asset of the peers. Overwrites it if the entry
 	// already exists.
-	SetValueDBAsset(key string, value int) error
+	SetValueDBAsset(key string, value int, price float64) error
 
 	// InitMPC inits a MPC instance for mpc before computation.
 	InitMPC(uniqID string, prime string, initiator string, expression string) error

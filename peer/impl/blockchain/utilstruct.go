@@ -246,6 +246,20 @@ func (w *Wallet) PostMPCTxn(id string, result float64) (*permissioned.SignedTran
 	return signedTxn, err
 }
 
+func (w *Wallet) RegAssets(assets map[string]float64) (*permissioned.SignedTransaction, error) {
+	w.Lock()
+	defer w.Unlock()
+
+	txn := permissioned.NewTransactionRegAssets(w.account, assets)
+	signedTxn, err := txn.Sign(w.privKey)
+	if err != nil {
+		return nil, err
+	}
+	w.account.IncreaseNonce()
+
+	return signedTxn, err
+}
+
 func (w *Wallet) RegEnckeyTxn(pubkey string) (*permissioned.SignedTransaction, error) {
 	w.Lock()
 	defer w.Unlock()

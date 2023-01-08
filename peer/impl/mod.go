@@ -200,8 +200,8 @@ func (n *node) ComputeExpression(uniqID string, expr string, prime string) (int,
 }
 
 // GetPubkeyStore implements peer.SetValueDBAsset
-func (n *node) SetValueDBAsset(key string, value int) error {
-	return n.mpc.SetValueDBAsset(key, value)
+func (n *node) SetValueDBAsset(key string, value int, price float64) error {
+	return n.mpc.SetValueDBAsset(key, value, price)
 }
 
 // Calculate implements peer.Calculate

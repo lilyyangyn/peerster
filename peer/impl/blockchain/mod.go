@@ -189,6 +189,15 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) (st
 	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
+// SendRegAssetsTransaction generates and sends a regAssets transaction
+func (m *BlockchainModule) SendRegAssetsTransaction(assets map[string]float64) (string, error) {
+	signedTxn, err := m.wallet.RegAssets(assets)
+	if err != nil {
+		return "", err
+	}
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
+}
+
 // SprintBlockchain returns a description of the chain
 func (m *BlockchainModule) SprintBlockchain() string {
 	return m.Sprint()

@@ -109,7 +109,15 @@ func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		return err
 	}
 
-	node.SetValueDBAsset(key, int(value))
+	fmt.Println("Enter the price: ")
+	priceStr := ""
+	fmt.Scanln(&priceStr)
+	price, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return err
+	}
+
+	node.SetValueDBAsset(key, int(value), price)
 	return nil
 }
 

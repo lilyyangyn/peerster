@@ -70,11 +70,22 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 	panic("invalid MPC type")
 }
 
-func (m *MPCModule) SetValueDBAsset(key string, value int) error {
+func (m *MPCModule) SetValueDBAsset(key string, value int, price float64) error {
 	ok := m.valueDB.addAsset(key, value)
 	if !ok {
 		return fmt.Errorf("add Assets failed")
 	}
+
+	if m.consensusType != peer.MPCConsensusBC {
+		return nil
+	}
+
+	id, err := m.bcModule.SendRegAssetsTransaction(map[string]float64{key: price})
+	if err != nil {
+		return err
+	}
+	log.Info().Msgf("send regAssets txn %s for Assets %s", id, key)
+
 	return nil
 }
 

@@ -1,8 +1,11 @@
 package permissioned
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"go.dedis.ch/cs438/storage"
 )
@@ -110,7 +113,106 @@ func unmarshalPostMPC(data json.RawMessage) (interface{}, error) {
 }
 
 // -----------------------------------------------------------------------------
-// Utilities
+// Transaction Polymophism - RegAssets
+
+func NewTransactionRegAssets(from *Account, assets map[string]float64) *Transaction {
+	return NewTransaction(
+		from,
+		&ZeroAddress,
+		TxnTypeRegAssets,
+		0,
+		assets,
+	)
+}
+
+func execRegAssets(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+	assets := txn.Data.(map[string]float64)
+
+	key := assetsKeyFromUniqID(txn.From)
+	oldAssets := GetAssetsFromWorldState(worldState, key)
+	oldAssets.Add(assets)
+
+	err := worldState.Put(key, oldAssets)
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
+
+func unmarshalRegAssets(data json.RawMessage) (interface{}, error) {
+	var r map[string]float64
+	err := json.Unmarshal(data, &r)
+
+	return r, err
+}
+
+// -----------------------------------------------------------------------------
+// Utilities - Assets
+
+type AssetsRecord struct {
+	Owner  string
+	Assets map[string]float64
+}
+
+// Copy implements Copyable.Copy()
+func (r AssetsRecord) Copy() storage.Copyable {
+	assets := map[string]float64{}
+	for asset, price := range r.Assets {
+		assets[asset] = price
+	}
+	record := AssetsRecord{
+		Owner:  r.Owner,
+		Assets: assets,
+	}
+	return record
+}
+
+// Hash implements Hashable.Hash
+func (r AssetsRecord) Hash() string {
+	h := sha256.New()
+
+	h.Write([]byte(r.Owner))
+	assets := make([]string, 0, len(r.Assets))
+	for asset, _ := range r.Assets {
+		assets = append(assets, asset)
+	}
+	sort.Strings(assets)
+	for _, asset := range assets {
+		h.Write([]byte(asset))
+		h.Write([]byte(fmt.Sprintf("%f", r.Assets[asset])))
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func NewAssetsRecord() *AssetsRecord {
+	return &AssetsRecord{
+		Assets: map[string]float64{},
+	}
+}
+
+func (r AssetsRecord) Add(newAssets map[string]float64) {
+	for newAsset, price := range newAssets {
+		r.Assets[newAsset] = price
+	}
+}
+
+func GetAssetsFromWorldState(worldState storage.KVStore, key string) *AssetsRecord {
+	object, ok := worldState.Get(key)
+	if !ok {
+		return NewAssetsRecord()
+	}
+	assets := object.(AssetsRecord)
+	return &assets
+}
+
+func assetsKeyFromUniqID(uniqID string) string {
+	return fmt.Sprintf("assets|%s", uniqID)
+}
+
+// -----------------------------------------------------------------------------
+// Utilities - MPC
 
 var AWARD_UNLOCK_THRESHOLD = 0.5
 
@@ -123,6 +225,7 @@ type MPCEndorsement struct {
 	Locked    bool
 }
 
+// Copy implements Copyable.Copy()
 func (e MPCEndorsement) Copy() storage.Copyable {
 	endorsers := map[string]struct{}{}
 	for endorser := range e.Endorsers {
@@ -145,6 +248,10 @@ func GetMPCEndorsementFromWorldState(worldState storage.KVStore, key string) (*M
 	}
 	endorsement := object.(MPCEndorsement)
 	return &endorsement, nil
+}
+
+func mpcKeyFromUniqID(uniqID string) string {
+	return fmt.Sprintf("ongoging-mpc|%s", uniqID)
 }
 
 func updateMPCEndorsement(worldState storage.KVStore, key string, accountID string) error {
