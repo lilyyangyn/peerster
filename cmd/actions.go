@@ -92,8 +92,22 @@ func startMPC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 }
 
 func showAssets(node *z.TestNode, actionMap map[string]ActionFunc) error {
-	// TODO
-	return fmt.Errorf("not implemented")
+	records := node.GetAllPeerAssetPrices()
+
+	hasValue := false
+	for addr, record := range records {
+		hasValue = true
+		printData("Peer %s: \n", addr)
+		for key, price := range record {
+			printData("- Value: %s\t Price:%f\n", key, price)
+		}
+		printData("\n")
+	}
+	if !hasValue {
+		printData("No assets in the network :(")
+	}
+
+	return nil
 }
 
 func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
@@ -112,7 +126,7 @@ func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	fmt.Println("Enter the price: ")
 	priceStr := ""
 	fmt.Scanln(&priceStr)
-	price, err := strconv.ParseFloat(valueStr, 64)
+	price, err := strconv.ParseFloat(priceStr, 64)
 	if err != nil {
 		return err
 	}

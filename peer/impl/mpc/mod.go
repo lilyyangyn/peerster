@@ -100,8 +100,12 @@ func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
 	states := m.bcModule.GetLatestBlock().States
 	config := permissioned.GetConfigFromWorldState(states)
 	for participate := range config.Participants {
-		assets[participate] = permissioned.GetAssetsFromWorldState(states,
+		prices := permissioned.GetAssetsFromWorldState(states,
 			permissioned.AssetsKeyFromUniqID(participate)).Assets
+		if len(prices) == 0 {
+			continue
+		}
+		assets[participate] = prices
 	}
 
 	return assets
