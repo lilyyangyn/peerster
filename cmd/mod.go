@@ -59,6 +59,7 @@ func StartCMD(ip string, daemon bool, customOpts ...z.Option) {
 
 	if daemon {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+		// TODO: start httpserver
 		return
 	}
 
