@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	h "go.dedis.ch/cs438/httpserver"
 	z "go.dedis.ch/cs438/internal/testing"
 	"go.dedis.ch/cs438/peer/impl"
 	"go.dedis.ch/cs438/transport/udp"
@@ -110,6 +112,9 @@ func StartCMD(port int, daemon bool, customOpts ...z.Option) {
 	if daemon {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		// TODO: start httpserver
+		daemonPort := ":7122"
+		log.Info().Msgf("Start HTTP daemon server on port %s", daemonPort)
+		h.MainHttp(&node, daemonPort)
 		return
 	}
 

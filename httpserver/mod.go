@@ -1,177 +1,215 @@
-package main
+package httpserver
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
+	z "go.dedis.ch/cs438/internal/testing"
 )
 
-type Peer struct {
+type PeerJson struct {
 	Addr string `json:"Addr"`
 }
 
-type Asset struct {
+type AssetJson struct {
 	Key   string `json:"Key"`
 	Value int    `json:"Value"`
 }
 
-type MPCRequest struct {
+type MPCRequestJson struct {
 	Expr   string `json:"Expr"`
 	Budget int    `json:"Budget"`
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, you've requested: %s. which is a 404 because it is not implemented yet.\n", r.URL.Path)
+type MPCReplyJson struct {
+	Expr    string  `json:"Expr"`
+	Balance float64 `json:"Balance"`
+	Result  int     `json:"Result"`
 }
 
-func peerHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// The request is a POST request
-		var peer Peer
-		err := json.NewDecoder(r.Body).Decode(&peer)
-		if err != nil {
-			http.Error(w, "Invalid post request", http.StatusBadRequest)
-			return
-		}
-
-		fmt.Println("Adding peer:", peer.Addr)
-		// TODO: add peer
-
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		// Marshal the user object into a JSON object
-		json, _ := json.Marshal(peer)
-
-		// Write the JSON object to the response
-		w.Write(json)
+func handler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Error().Msgf("got 404 since the url is unrecognized!!.")
+		fmt.Fprintf(w, "Hello, you've requested: %s. which is a 404 because it is not implemented yet.\n", r.URL.Path)
 	}
 }
 
-func assetHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		// The request is a GET request
-		fmt.Println("showing assets:")
+func peerHandler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			// The request is a POST request
+			var peer PeerJson
+			err := json.NewDecoder(r.Body).Decode(&peer)
+			if err != nil {
+				http.Error(w, "Invalid post request", http.StatusBadRequest)
+				return
+			}
 
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
+			log.Info().Msgf("HTTP request Adding peer:", peer.Addr)
+			n.AddPeer(peer.Addr)
 
-		assets := map[string]map[string]int{}
-		assets["peerA"] = map[string]int{
-			"a1": 3,
-			"a2": 4,
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
+
+			// Marshal the user object into a JSON object
+			json, _ := json.Marshal(peer)
+
+			// Write the JSON object to the response
+			w.Write(json)
 		}
-		assets["peerB"] = map[string]int{
-			"b": 5,
-		}
-		// TODO: get real assets
-
-		json, _ := json.Marshal(assets)
-		w.Write(json)
-
-	} else if r.Method == http.MethodPost {
-		// The request is a POST request
-		var asset Asset
-		err := json.NewDecoder(r.Body).Decode(&asset)
-		if err != nil {
-			http.Error(w, "Invalid post request", http.StatusBadRequest)
-			return
-		}
-
-		fmt.Printf("Adding assets key: %s, value: %d\n", asset.Key, asset.Value)
-		// TODO: add assets
-
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
-		json, _ := json.Marshal(asset)
-		w.Write(json)
 	}
 }
 
-func balanceHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		// The request is a GET request
-		fmt.Println("showing balance:")
+func assetHandler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// The request is a GET request
+			fmt.Println("showing assets:")
 
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
 
-		balance := map[string]int{}
-		balance["peerA"] = 10
-		balance["peerB"] = 20
-		balance["peerC"] = 30
-		// TODO: get real balance
+			assets := map[string]map[string]int{}
+			assets["peerA"] = map[string]int{
+				"a1": 3,
+				"a2": 4,
+			}
+			assets["peerB"] = map[string]int{
+				"b": 5,
+			}
+			// TODO: get real assets
 
-		json, _ := json.Marshal(balance)
-		w.Write(json)
+			json, _ := json.Marshal(assets)
+			w.Write(json)
 
-	}
-}
+		} else if r.Method == http.MethodPost {
+			// The request is a POST request
+			var asset AssetJson
+			err := json.NewDecoder(r.Body).Decode(&asset)
+			if err != nil {
+				http.Error(w, "Invalid post request", http.StatusBadRequest)
+				return
+			}
 
-func blockchainHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		// The request is a GET request
-		fmt.Println("showing blockchain:")
+			log.Info().Msgf("HTTP adding assets key: %s, value: %d", asset.Key, asset.Value)
+			err = n.SetValueDBAsset(asset.Key, asset.Value)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
-
-		blocks := map[string]string{}
-		blocks["block1"] = "hahahe"
-		blocks["block2"] = "hehehe"
-
-		// TODO: get real block
-
-		json, _ := json.Marshal(blocks)
-		w.Write(json)
-
-	}
-}
-
-func mpcHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodPost {
-		// The request is a POST request
-		var mpcRequest MPCRequest
-		err := json.NewDecoder(r.Body).Decode(&mpcRequest)
-		if err != nil {
-			http.Error(w, "Invalid post request", http.StatusBadRequest)
-			return
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
+			json, _ := json.Marshal(asset)
+			w.Write(json)
 		}
-
-		fmt.Printf("MPC Calculate expr: %s, budget: %d\n", mpcRequest.Expr, mpcRequest.Budget)
-		// TODO: calling real MPC
-
-		// Set the content type to JSON
-		w.Header().Set("Content-Type", "application/json")
-		json, _ := json.Marshal(mpcRequest)
-		w.Write(json)
 	}
 }
 
-func main() {
-	http.HandleFunc("/", handler)
-	http.HandleFunc("/peer", peerHandler)
-	http.HandleFunc("/asset", assetHandler)
-	http.HandleFunc("/balance", balanceHandler)
-	http.HandleFunc("/blockchain", blockchainHandler)
-	http.HandleFunc("/mpcCalculate", mpcHandler)
+func balanceHandler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// The request is a GET request
+			fmt.Println("showing balance:")
 
-	http.ListenAndServe(":8080", nil)
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
 
+			balance := map[string]float64{}
+			balance["peerA"] = 10
+			balance["peerB"] = 20
+			balance["peerC"] = 30
+			addr, _ := n.BCGetAddress()
+			balance[addr.Hex] = n.BCGetBalance()
+
+			json, _ := json.Marshal(balance)
+			w.Write(json)
+
+		}
+	}
+}
+
+func blockchainHandler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// The request is a GET request
+			fmt.Println("showing blockchain:")
+
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
+
+			blocks := map[string]string{}
+			blocks["block1"] = "hahahe"
+			blocks["block2"] = "hehehe"
+
+			// TODO: get real block
+
+			json, _ := json.Marshal(blocks)
+			w.Write(json)
+
+		}
+	}
+}
+
+func mpcHandler(n *z.TestNode) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			// The request is a POST request
+			var mpcRequest MPCRequestJson
+			err := json.NewDecoder(r.Body).Decode(&mpcRequest)
+			if err != nil {
+				http.Error(w, "Invalid post request", http.StatusBadRequest)
+				return
+			}
+
+			log.Info().Msgf("Http MPC Calculate expr: %s, budget: %d", mpcRequest.Expr, mpcRequest.Budget)
+			ans, err := n.Calculate(mpcRequest.Expr, float64(mpcRequest.Budget))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			log.Info().Msgf("Http MPC calculate done, expr: %s, result: %d", mpcRequest.Expr, ans)
+
+			mpcResult := MPCReplyJson{}
+			mpcResult.Balance = n.BCGetBalance()
+			mpcResult.Result = ans
+			mpcResult.Expr = mpcRequest.Expr
+			// Set the content type to JSON
+			w.Header().Set("Content-Type", "application/json")
+			json, _ := json.Marshal(mpcResult)
+			w.Write(json)
+		}
+	}
+}
+
+func MainHttp(n *z.TestNode, port string) {
+	http.HandleFunc("/", handler(n))
+	http.HandleFunc("/peer", peerHandler(n))
+	http.HandleFunc("/asset", assetHandler(n))
+	http.HandleFunc("/balance", balanceHandler(n))
+	http.HandleFunc("/blockchain", blockchainHandler(n))
+	http.HandleFunc("/mpcCalculate", mpcHandler(n))
+
+	http.ListenAndServe(port, nil)
+
+	// go run main.go cli
+	// go run main.go daemon -p 1234
 	// // add peer
-	// curl -X POST -H "Content-Type: application/json" -d '{"Addr":"127.0.0.1:2"}' http://127.0.0.1:8080/peer
+	// curl -X POST -H "Content-Type: application/json" -d '{"Addr":"127.0.0.1:2"}' http://127.0.0.1:7122/peer
 
 	// // get/add assets
-	// curl http://127.0.0.1:8080/asset
-	// curl -X POST -H "Content-Type: application/json" -d '{"key":"a", "value":3}' http://127.0.0.1:8080/asset
+	// curl http://127.0.0.1:7122/asset
+	// curl -X POST -H "Content-Type: application/json" -d '{"key":"a", "value":3}' http://127.0.0.1:7122/asset
 
 	// // get balance
-	// curl http://127.0.0.1:8080/balance
+	// curl http://127.0.0.1:7122/balance
 
 	// // get blockchain
-	// curl http://127.0.0.1:8080/blockchain
+	// curl http://127.0.0.1:7122/blockchain
 
 	// // post mpcCalculate
-	// curl -X POST -H "Content-Type: application/json" -d '{"Expr":"a+b", "Budget":10}' http://127.0.0.1:8080/mpcCalculate
+	// curl -X POST -H "Content-Type: application/json" -d '{"Expr":"a+b", "Budget":10}' http://127.0.0.1:7122/mpcCalculate
 
 }
