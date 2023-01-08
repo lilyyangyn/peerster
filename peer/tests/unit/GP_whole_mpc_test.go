@@ -3,6 +3,7 @@ package unit
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"testing"
 	"time"
@@ -572,11 +573,11 @@ func setup_n_peers_bc(t *testing.T, n int, maxTxn int,
 
 	// > init blockchain. Should success
 	// all should have the block
-	participants := make(map[string][]byte)
+	participants := make(map[string]string)
 	for i, addr := range addrs {
 		pubBytes, err := x509.MarshalPKIXPublicKey((*rsa.PublicKey)(&pubkeys[i]))
 		require.NoError(t, err)
-		participants[addr] = pubBytes
+		participants[addr] = hex.EncodeToString(pubBytes)
 	}
 
 	config := permissioned.NewChainConfig(

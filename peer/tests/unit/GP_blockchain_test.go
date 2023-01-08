@@ -42,9 +42,9 @@ func Test_GP_BC_Init(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
 		10, "2h", 1,
 	)
@@ -132,9 +132,9 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
 		1, "2h", 1,
 	)
@@ -261,9 +261,9 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
 		1, "2h", 1,
 	)
@@ -385,9 +385,9 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
 		1, "2h", 1,
 	)
@@ -534,10 +534,10 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	// init blockchain
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addrA.Hex: {},
-			addrB.Hex: {},
-			addrC.Hex: {},
+		map[string]string{
+			addrA.Hex: "",
+			addrB.Hex: "",
+			addrC.Hex: "",
 		}, 1, "2s", 1,
 	)
 	initialGain := map[string]float64{

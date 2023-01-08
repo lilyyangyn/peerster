@@ -54,7 +54,7 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
+		map[string]string{account.addr.Hex: ""},
 		1, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -99,7 +99,7 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: nil},
+		map[string]string{account.addr.Hex: ""},
 		1, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -159,9 +159,9 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{
-			account.addr.Hex:   {},
-			initiator.addr.Hex: {}},
+		map[string]string{
+			account.addr.Hex:   "",
+			initiator.addr.Hex: ""},
 		1, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
@@ -252,9 +252,9 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{
-			account.addr.Hex:   {},
-			initiator.addr.Hex: {}},
+		map[string]string{
+			account.addr.Hex:   "",
+			initiator.addr.Hex: ""},
 		1, "2h", 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)

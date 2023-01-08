@@ -116,7 +116,7 @@ var AWARD_UNLOCK_THRESHOLD = 0.5
 
 type MPCEndorsement struct {
 	// FIXME: not copy peers. Use Config ID
-	Peers     map[string][]byte
+	Peers     map[string]string
 	Endorsers map[string]struct{}
 	Initiator string
 	Budget    float64
