@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
+	"github.com/rs/zerolog"
 	z "go.dedis.ch/cs438/internal/testing"
 	"go.dedis.ch/cs438/peer/impl"
 	"go.dedis.ch/cs438/transport/udp"
@@ -17,7 +17,11 @@ import (
 // -----------------------------------------------------------------------------
 // Start CMD
 
-func StartCMD(daemon bool, customOpts ...z.Option) {
+func StartCMD(ip string, daemon bool, customOpts ...z.Option) {
+	if len(ip) == 0 {
+		ip = "127.0.0.1:6050"
+	}
+
 	transp := udp.NewUDP()
 	peerFac := impl.NewPeer
 
@@ -30,8 +34,14 @@ func StartCMD(daemon bool, customOpts ...z.Option) {
 	opts := append(basicOpts, customOpts...)
 
 	// start a node
-	node := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", opts...)
+	node := z.NewTestNode(t, peerFac, transp, ip, opts...)
+	fmt.Println("#######################################################")
+	fmt.Println("######             Starting a MPCPeer            ######")
+	fmt.Println("#######################################################")
+	fmt.Println("Node running on address: ", node.GetAddr())
+	fmt.Println()
 
+	// catch interrupt signal
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -40,28 +50,22 @@ func StartCMD(daemon bool, customOpts ...z.Option) {
 		os.Exit(1)
 	}()
 
-	err := startNode(&node)
+	// initialize chain
+	err := startBlockchain(&node)
 	if err != nil {
-		fmt.Println(err)
+		printError(err)
 		return
 	}
 
 	if daemon {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		return
 	}
 
-	var action string
-	for {
-		err := survey.AskOne(prompt, &action)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+	// perform action loop
+	performActions(&node)
+}
 
-		method := actions[action]
-		err = method(&node)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
+func printError(err error) {
+	fmt.Println("🐡 Ops. Something is wrong: ", err)
 }

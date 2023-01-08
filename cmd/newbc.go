@@ -131,7 +131,7 @@ func loadConfigAndInit(node *z.TestNode) error {
 	}
 	_, ok := config.Participants[addr.Hex]
 	if !ok {
-		return fmt.Errorf("must be inside the chain participant list")
+		return fmt.Errorf("you should be in the chain participant list")
 	}
 
 	// initial Gain is equal per account. (100)

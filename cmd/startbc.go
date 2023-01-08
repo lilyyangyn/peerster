@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -34,13 +33,7 @@ var actionsInit = map[string]func(*z.TestNode) error{
 // -----------------------------------------------------------------------------
 // start node
 
-func startNode(node *z.TestNode) error {
-	fmt.Println("#######################################################")
-	fmt.Println("######             Starting a MPCPeer            ######")
-	fmt.Println("#######################################################")
-	fmt.Println("Node running on address: ", node.GetAddr())
-	fmt.Println()
-
+func startBlockchain(node *z.TestNode) error {
 	// prompt to start a blockchain
 	var action string
 	for {
@@ -54,7 +47,7 @@ func startNode(node *z.TestNode) error {
 		if err == nil {
 			break
 		}
-		fmt.Println(err)
+		printError(err)
 	}
 
 	return nil
@@ -66,7 +59,7 @@ func startNode(node *z.TestNode) error {
 func exitNode(node *z.TestNode) error {
 	err := node.Stop()
 	if err != nil {
-		log.Fatalf("failed to stop node: %v", err)
+		printError(fmt.Errorf("failed to stop node: %v", err))
 		return err
 	}
 
@@ -83,8 +76,7 @@ func exitNode(node *z.TestNode) error {
 type testing struct{}
 
 func (testing) Errorf(format string, args ...interface{}) {
-	fmt.Println("~~ERROR~~")
-	fmt.Printf(format, args...)
+	printError(fmt.Errorf(format, args...))
 }
 
 func (testing) FailNow() {

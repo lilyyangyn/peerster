@@ -11,25 +11,61 @@ import (
 // -----------------------------------------------------------------------------
 // Node CMD Prompt
 
-var prompt = &survey.Select{
-	Message: "What do you want to do ?",
-	Options: actionOpts,
-}
-
-var actionOpts = []string{
-	"🦑 Start MPC",
+//	var prompt = &survey.Select{
+//		Message: "What do you want to do ?",
+//		Options: actionOpts,
+//	}
+var basicActionOpts = []string{
 	"🐋 Show Blockchain",
 	"🦈 Add Peer",
-	"🦭 Show Encryption Pubkey",
+	"🐊 Show Encryption Pubkey",
+	"🐙 Refresh",
 	"🍃 Exit",
 }
 
+var actionOpts = append([]string{
+	"🦑 Start MPC",
+}, basicActionOpts...)
+
 var actions = map[string]func(*z.TestNode) error{
-	actionOpts[0]: startMPC,
-	actionOpts[1]: getBCInfo,
-	actionOpts[2]: addPeer,
-	actionOpts[3]: getEnckey,
-	actionOpts[4]: exitNode,
+	actionOpts[0]:      startMPC,
+	basicActionOpts[0]: getBCInfo,
+	basicActionOpts[1]: addPeer,
+	basicActionOpts[2]: getEnckey,
+	basicActionOpts[3]: refresh,
+	basicActionOpts[4]: exitNode,
+}
+
+// -----------------------------------------------------------------------------
+// Perform actions
+
+func performActions(node *z.TestNode) {
+	var action string
+	var enckeyAvailable = node.BCAllEncryptKeySet()
+	for {
+		opts := actionOpts
+		if !enckeyAvailable {
+			opts = basicActionOpts
+			enckeyAvailable = node.BCAllEncryptKeySet()
+		}
+
+		prompt := &survey.Select{
+			Message: "What do you want to do ?",
+			Options: opts,
+		}
+
+		err := survey.AskOne(prompt, &action)
+		if err != nil {
+			printError(err)
+			return
+		}
+
+		method := actions[action]
+		err = method(node)
+		if err != nil {
+			printError(err)
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -80,5 +116,9 @@ func getEnckey(node *z.TestNode) error {
 
 func getBCInfo(node *z.TestNode) error {
 	fmt.Println(node.BCSprintBlockchain())
+	return nil
+}
+
+func refresh(node *z.TestNode) error {
 	return nil
 }

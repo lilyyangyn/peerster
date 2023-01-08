@@ -19,7 +19,6 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
-	ID           string
 	Participants map[string]string
 
 	MaxTxnsPerBlk int
@@ -39,24 +38,22 @@ func NewChainConfig(participant map[string]string,
 
 		JoinThreshold: threshold,
 	}
-	cc.ID = cc.Hash()
 
 	return &cc
 }
 
 // ChainConfigFromYAML creates a new config based on yaml and computes its ID
 func ChainConfigFromYAML(path string) (*ChainConfig, error) {
-	yamlFile, err := os.ReadFile("path")
+	yamlFile, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := ChainConfig{}
+	var cc ChainConfig
 	err = yaml.Unmarshal(yamlFile, &cc)
 	if err != nil {
 		return nil, err
 	}
-	cc.ID = cc.Hash()
 
 	return &cc, nil
 }
@@ -102,7 +99,6 @@ func (c ChainConfig) Copy() storage.Copyable {
 		participants[key] = val
 	}
 	config := ChainConfig{
-		ID:            c.ID,
 		Participants:  participants,
 		MaxTxnsPerBlk: c.MaxTxnsPerBlk,
 		WaitTimeout:   c.WaitTimeout,

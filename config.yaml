@@ -1,8 +1,5 @@
-{
-  "Participants": {
-    "0x8e9903C96e8aC2D1B8701AFe223ef53016Cb4B4E" : ""
-  },
-  "MaxTxnsPerBlk": 10,
-  "WaitTimeout": "5s",
-  "JoinThreshold": 1,
-}
+participants:
+    0xa369dEdd2e8633d1AbEDDdCBC451C4B1D7aBF985: ""
+maxtxnsperblk: 10
+waittimeout: 5s
+jointhreshold: 1

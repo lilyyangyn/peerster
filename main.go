@@ -11,7 +11,8 @@ func main() {
 	command := &cobra.Command{
 		Use: "mpcpeer",
 	}
-	addStartCmd(command)
+	addCliCmd(command)
+	addDaemonCmd(command)
 
 	err := command.Execute()
 	if err != nil {
@@ -19,18 +20,44 @@ func main() {
 	}
 }
 
-// addStartCmd starts a node with customization
-func addStartCmd(command *cobra.Command) {
+// addCliCmd starts a node with customization
+func addCliCmd(command *cobra.Command) {
+	var ip string
 	// var opts []z.Option
+
 	startCmd := &cobra.Command{
-		Use:   "start",
-		Short: "Start a MPCPeer",
-		Long:  "Start a MPCPeer, init blockchain and perform MPC requests",
+		Use:   "cli",
+		Short: "Start a MPCPeer with interactive CLI",
+		Long:  "Start a MPCPeer with interactive CLI, init blockchain and perform MPC requests",
 		Args:  cobra.MinimumNArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-			cli.StartCMD(false)
+			cli.StartCMD("", false)
 		},
 	}
+
+	startCmd.Flags().StringVarP(&ip, "ip", "", "", "Set customized node ip")
+
 	command.AddCommand(startCmd)
+}
+
+// addStartCmd starts a node with customization
+func addDaemonCmd(command *cobra.Command) {
+	var ip string
+	// var opts []z.Option
+
+	daemonCmd := &cobra.Command{
+		Use:   "daemon",
+		Short: "Start a MPCPeer as daemon",
+		Long:  "Start a MPCPeer as daemon, init blockchain and perform MPC requests",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+			cli.StartCMD("", true)
+		},
+	}
+
+	daemonCmd.Flags().StringVarP(&ip, "ip", "", "", "Set customized node ip")
+
+	command.AddCommand(daemonCmd)
 }
