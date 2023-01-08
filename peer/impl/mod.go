@@ -241,7 +241,7 @@ func (n *node) BCGetBlock(blockID string) *permissioned.Block {
 
 // BCGetAddress implements peer.BCGetAddress
 func (n *node) BCGetAddress() (permissioned.Address, error) {
-	return n.blockchain.GetAddress()
+	return n.blockchain.GetChainAddress()
 }
 
 // BCGenerateKeyPair implements peer.BCGenerateKeyPair

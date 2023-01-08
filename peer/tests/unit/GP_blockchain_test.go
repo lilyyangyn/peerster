@@ -17,10 +17,10 @@ func Test_GP_BC_Init(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -99,7 +99,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer node1.Stop()
 
 	sock2, err := transp.CreateSocket("127.0.0.1:0")
@@ -235,10 +235,10 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer nodeB.Stop()
 
 	nodeA.AddPeer(nodeB.GetAddr())
@@ -361,10 +361,10 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnoncePubkey())
 	defer nodeB.Stop()
 
 	// generate key pairs
@@ -594,5 +594,77 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	require.Equal(t, block1a, block1b)
 	require.Equal(t, block1a, block1c)
+}
 
+func Test_GP_BC_Announce_Pubkey(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
+	transp := channel.NewTransport()
+
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer node1.Stop()
+
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer node2.Stop()
+
+	node1.AddPeer(node2.GetAddr())
+
+	// generate key pairs
+
+	privkey1, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node1.BCSetKeyPair(*privkey1)
+	addr1, err := node1.BCGetAddress()
+	require.NoError(t, err)
+
+	privkey2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node2.BCSetKeyPair(*privkey2)
+	addr2, err := node2.BCGetAddress()
+	require.NoError(t, err)
+
+	// > init blockchain on node1. Should success
+
+	config := permissioned.NewChainConfig(
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
+		},
+		2, "2h", 1,
+	)
+	require.Len(t, config.Participants, 2)
+	err = node1.InitBlockchain(*config, nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
+	// > both nodes have its first block
+	blk11 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk11)
+	blk12 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk12)
+	require.Equal(t, blk11.Hash(), blk12.Hash())
+	require.Equal(t, uint(1), blk11.Height)
+
+	// this block should contain two public info
+
+	require.Len(t, blk11.Transactions, 2)
+	txn1 := blk11.Transactions[0]
+	txn2 := blk11.Transactions[1]
+
+	pubkey1, err := node1.GetPubkeyString()
+	require.NoError(t, err)
+	pubkey2, err := node2.GetPubkeyString()
+	require.NoError(t, err)
+
+	if txn1.Txn.From == addr1.Hex {
+		require.Equal(t, addr2.Hex, txn2.Txn.From)
+		require.Equal(t, pubkey1, txn1.Txn.Data.(string))
+		require.Equal(t, pubkey2, txn2.Txn.Data.(string))
+		return
+	}
+
+	require.Equal(t, addr1.Hex, txn2.Txn.From)
+	require.Equal(t, pubkey2, txn1.Txn.Data.(string))
+	require.Equal(t, pubkey1, txn2.Txn.Data.(string))
 }

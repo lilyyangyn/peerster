@@ -140,3 +140,34 @@ func unmarshalInitConfig(data json.RawMessage) (interface{}, error) {
 
 	return c, err
 }
+
+// -----------------------------------------------------------------------------
+// Transaction Polymophism - SetPubkey
+
+func NewTransactionSetPubkey(peer *Account, pubkey string) *Transaction {
+	return NewTransaction(
+		peer,
+		&ZeroAddress,
+		TxnTypeSetPubkey,
+		0,
+		pubkey,
+	)
+}
+
+func execSetPubkey(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+	if len(config.Participants[txn.From]) > 0 {
+		return fmt.Errorf("public key for account %s is already set", txn.From)
+	}
+
+	pubkey := txn.Data.(string)
+	config.Participants[txn.From] = pubkey
+
+	return nil
+}
+
+func unmarshalSetPubkey(data json.RawMessage) (interface{}, error) {
+	var c ChainConfig
+	err := json.Unmarshal(data, &c)
+
+	return c, err
+}

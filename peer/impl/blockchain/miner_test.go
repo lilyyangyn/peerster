@@ -50,7 +50,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	var block *permissioned.Block
 	go func() {
 		blk := createBlock(ctx, pool, account.GetAddress().Hex,
-			&block0, &config)
+			&block0)
 		block = blk
 
 		close(blkDone)
@@ -100,7 +100,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	var block *permissioned.Block
 	go func() {
 		blk := createBlock(ctx, pool, account.GetAddress().Hex,
-			&block0, &config)
+			&block0)
 		block = blk
 
 		close(blkDone)
@@ -176,7 +176,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	var block *permissioned.Block
 	go func() {
 		blk := createBlock(ctx, pool, account.GetAddress().Hex,
-			&block0, &config)
+			&block0)
 		block = blk
 
 		close(blkDone)
@@ -244,7 +244,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	var block *permissioned.Block
 	go func() {
 		blk := createBlock(ctx, pool, account.GetAddress().Hex,
-			&block0, &config)
+			&block0)
 		block = blk
 
 		close(blkDone)

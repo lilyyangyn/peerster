@@ -44,7 +44,7 @@ func (m *BlockchainModule) ProcessBCTxnMsg(msg types.Message, pkt transport.Pack
 		return err
 	}
 	txn := txnMsg.Txn
-	fmt.Println(m.conf.Socket.GetAddress())
+
 	m.txnPool.Push(&txn)
 
 	return nil

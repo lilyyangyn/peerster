@@ -245,3 +245,17 @@ func (w *Wallet) PostMPCTxn(id string, result float64) (*permissioned.SignedTran
 
 	return signedTxn, err
 }
+
+func (w *Wallet) SetPubkeyTxn(pubkey string) (*permissioned.SignedTransaction, error) {
+	w.Lock()
+	defer w.Unlock()
+
+	txn := permissioned.NewTransactionSetPubkey(w.account, pubkey)
+	signedTxn, err := txn.Sign(w.privKey)
+	if err != nil {
+		return nil, err
+	}
+	w.account.IncreaseNonce()
+
+	return signedTxn, err
+}

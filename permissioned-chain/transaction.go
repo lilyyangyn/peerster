@@ -22,6 +22,7 @@ const (
 	TxnTypePostMPC  TxnType = "txn-postmpc"
 
 	TxnTypeInitConfig TxnType = "txn-initconfig"
+	TxnTypeSetPubkey  TxnType = "txn-setpubkey"
 )
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
@@ -30,6 +31,7 @@ var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transacti
 	TxnTypePostMPC:  execPostMPC,
 
 	TxnTypeInitConfig: execInitConfig,
+	TxnTypeSetPubkey:  execSetPubkey,
 }
 
 var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error){
@@ -38,6 +40,7 @@ var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error)
 	TxnTypePostMPC:  unmarshalPostMPC,
 
 	TxnTypeInitConfig: unmarshalInitConfig,
+	TxnTypeSetPubkey:  unmarshalSetPubkey,
 }
 
 // -----------------------------------------------------------------------------
@@ -112,7 +115,8 @@ func (txn *Transaction) Unmarshal() error {
 
 	dict, ok := txn.Data.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("invalid data type")
+		// simple type, no need to do futhur operations
+		return nil
 	}
 	jsonbody, err := json.Marshal(dict)
 	if err != nil {

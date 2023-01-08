@@ -94,11 +94,12 @@ func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransac
 	for p := range config.Participants {
 		participants[p] = struct{}{}
 	}
+
 	return m.broadcastBCTxnMessage(participants, signedTxn)
 }
 
-// GetAddress helps users to know the adress of the node
-func (m *BlockchainModule) GetAddress() (permissioned.Address, error) {
+// GetChainAddress helps users to know the adress of the node
+func (m *BlockchainModule) GetChainAddress() (permissioned.Address, error) {
 	if m.wallet == nil {
 		return permissioned.Address{},
 			fmt.Errorf("node %s does not have an address yet",
@@ -185,16 +186,30 @@ func (m *BlockchainModule) sync(to string) error {
 	return m.sendBCAskSyncMessage(id, to)
 }
 
+// processBlk process a received block
 func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
 	// if is genesis block. Directly set
 	if block.Height == 0 {
 		err := m.SetGenesisBlock(block)
-		if err == nil {
-			log.Info().Msgf("init genesis block successfully")
-			close(m.bcReadyChan)
-			m.selectNextMiner(block)
+		if err != nil {
+			return err
 		}
-		return err
+
+		log.Info().Msgf("init genesis block successfully")
+		close(m.bcReadyChan)
+		m.selectNextMiner(block)
+
+		// send SetPubkey Txn
+		if m.conf.DisableAnnoncePubkey {
+			return nil
+		}
+		txnID, err := m.sendSetPubkeyTransaction()
+		if err != nil {
+			return err
+		}
+		log.Info().Msgf("send setPubkey txn %s", txnID)
+
+		return nil
 	}
 
 	// Otherwise,append the block
@@ -215,6 +230,7 @@ func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
 	}
 }
 
+// getBlockTimeout returns the maxTimeout configured by chain config
 func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
 	duration, err := time.ParseDuration(config.WaitTimeout)
 	if err != nil {
@@ -223,6 +239,19 @@ func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
 		duration = math.MaxInt64
 	}
 	return duration
+}
+
+func (m *BlockchainModule) sendSetPubkeyTransaction() (string, error) {
+	pubkey, err := m.GetPubkeyString()
+	if err != nil {
+		return "", err
+	}
+
+	signedTxn, err := m.wallet.SetPubkeyTxn(pubkey)
+	if err != nil {
+		return "", err
+	}
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
 // broadcastBCTxnMessage broadcast a BCTxnMessage in private msg

@@ -360,7 +360,7 @@ func (m *MPCModule) getIdentifyKey() string {
 	case peer.MPCConsensusPaxos:
 		return m.conf.Socket.GetAddress()
 	case peer.MPCConsensusBC:
-		addr, err := m.bcModule.GetAddress()
+		addr, err := m.bcModule.GetChainAddress()
 		if err != nil {
 			panic(err)
 		}

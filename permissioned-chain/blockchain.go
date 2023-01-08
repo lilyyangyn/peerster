@@ -89,6 +89,28 @@ func (bc *Blockchain) SetGenesisBlock(block *Block) error {
 	return nil
 }
 
+// AllPubkeySet checks if all public keys of nodes are registered
+func (bc *Blockchain) AllPubkeySet() bool {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	if bc.latestBlock == nil {
+		return false
+	}
+
+	config := GetConfigFromWorldState(bc.latestBlock.States)
+	if config == nil {
+		return false
+	}
+
+	for _, pubkey := range config.Participants {
+		if len(pubkey) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // GetBlock returns a copy of the whole chain
 func (bc *Blockchain) GetBlock(blockID string) *Block {
 	bc.RLock()
