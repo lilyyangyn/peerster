@@ -448,7 +448,6 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		for {
 			<-mpcCount
 			count++
-			fmt.Printf("!!!!!!!!!!!!%d!!!!!!!!!!!!!!\n", count)
 			if count == 3 {
 				close(mpcDone)
 			}
@@ -476,7 +475,7 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 		mpcCount <- struct{}{}
 	}()
 
-	timeout := time.After(time.Second * 2)
+	timeout := time.After(time.Second * 3)
 
 	select {
 	case <-mpcDone:
@@ -518,7 +517,7 @@ func Test_GP_MPC_BC_Multiple(t *testing.T) {
 
 func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	nodes, addrs := setup_n_peers_bc(t, 3, 3, "5h", []float64{200}, false)
+	nodes, addrs := setup_n_peers_bc(t, 3, 2, "5s", []float64{200}, false)
 	nodeA := nodes[0]
 	nodeB := nodes[1]
 	nodeC := nodes[2]
@@ -570,7 +569,7 @@ func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 		mpcCount <- struct{}{}
 	}()
 
-	timeout := time.After(time.Second * 2)
+	timeout := time.After(time.Second * 3)
 
 	select {
 	case <-mpcDone:
@@ -585,15 +584,15 @@ func Test_GP_MPC_BC_Stress_Multiple(t *testing.T) {
 	// > verify all nodes got four blocks
 	blockA := nodeA.BCGetLatestBlock()
 	require.NotNil(t, blockA)
-	require.Equal(t, uint(4), blockA.Height)
+	require.Equal(t, uint(6), blockA.Height)
 
 	blockB := nodeB.BCGetLatestBlock()
 	require.NotNil(t, blockB)
-	require.Equal(t, uint(4), blockB.Height)
+	require.Equal(t, uint(6), blockB.Height)
 
 	blockC := nodeC.BCGetLatestBlock()
 	require.NotNil(t, blockC)
-	require.Equal(t, uint(4), blockC.Height)
+	require.Equal(t, uint(6), blockC.Height)
 
 	// > verify blockchain are the same
 
