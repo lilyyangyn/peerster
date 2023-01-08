@@ -244,6 +244,11 @@ func (n *node) BCGetAddress() (permissioned.Address, error) {
 	return n.blockchain.GetChainAddress()
 }
 
+// BCGetBalance implements peer.BCGetBalance
+func (n *node) BCGetBalance() float64 {
+	return n.blockchain.GetAccountBalance()
+}
+
 // BCGenerateKeyPair implements peer.BCGenerateKeyPair
 func (n *node) BCGenerateKeyPair(path string) error {
 	return n.blockchain.GenerateKeyPair(path)

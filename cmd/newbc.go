@@ -53,9 +53,9 @@ func startNewBC(node *z.TestNode) error {
 			continue
 		}
 
-		fmt.Println("##########################################")
-		fmt.Println("####    Creating Blockchain Account   ####")
-		fmt.Println("##########################################")
+		fmt.Println("#######################################################")
+		fmt.Println("########      Creating Blockchain Account      ########")
+		fmt.Println("#######################################################")
 		fmt.Println("Node account' address: ", addr.Hex)
 		fmt.Println()
 
@@ -100,7 +100,7 @@ func createAccount(node *z.TestNode) error {
 
 // Read a key pair from filesystem
 func loadAccount(node *z.TestNode) error {
-	fmt.Println("Where do you want to store the account? Enter the path:  ")
+	fmt.Println("Enter the path to your privkey file:  ")
 	fp := ""
 	fmt.Scanln(&fp)
 
@@ -114,7 +114,7 @@ func loadAccount(node *z.TestNode) error {
 
 // load config and initialize blockchain
 func loadConfigAndInit(node *z.TestNode) error {
-	fmt.Println("Where do you want to store the account? Enter the path:  ")
+	fmt.Println("Enter the path to blockchain config: ")
 	fp := ""
 	fmt.Scanln(&fp)
 

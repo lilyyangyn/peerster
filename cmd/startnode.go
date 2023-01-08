@@ -35,15 +35,10 @@ var actionsInit = map[string]func(*z.TestNode) error{
 // start node
 
 func startNode(node *z.TestNode) error {
-	pubkey, err := node.GetPubkeyString()
-	if err != nil {
-		return err
-	}
-	fmt.Println("##########################################")
-	fmt.Println("######      Starting a MPCPeer      ######")
-	fmt.Println("##########################################")
+	fmt.Println("#######################################################")
+	fmt.Println("######             Starting a MPCPeer            ######")
+	fmt.Println("#######################################################")
 	fmt.Println("Node running on address: ", node.GetAddr())
-	fmt.Println("Contact public key: ", pubkey)
 	fmt.Println()
 
 	// prompt to start a blockchain

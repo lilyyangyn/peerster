@@ -15,24 +15,6 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Node CMD Prompt
-
-var prompt = &survey.Select{
-	Message: "What do you want to do ?",
-	Options: actionOpts,
-}
-
-var actionOpts = []string{
-	"🌱 Start MPC",
-	"🍃 Exit",
-}
-
-var actions = map[string]func(*z.TestNode) error{
-	actionOptsInit[0]: startNewBC,
-	actionOptsInit[1]: startExistingBC,
-}
-
-// -----------------------------------------------------------------------------
 // Start CMD
 
 func StartCMD(daemon bool, customOpts ...z.Option) {

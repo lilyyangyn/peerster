@@ -86,6 +86,16 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	return nil
 }
 
+// GetAccountBalance returns the current balance of the node's account
+func (m *BlockchainModule) GetAccountBalance() float64 {
+	if m.wallet == nil {
+		return 0
+	}
+
+	addr := m.wallet.GetAddress().Hex
+	return m.GetBalance(addr)
+}
+
 // SendTransaction signs and sends a transaction
 func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransaction) error {
 	// get config and send private message

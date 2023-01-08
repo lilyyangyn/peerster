@@ -160,6 +160,19 @@ const (
 	BlockCompareNotInitialize
 )
 
+// GetBalance returns the current account balance of the address
+func (bc *Blockchain) GetBalance(addr string) float64 {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	if bc.latestBlock == nil {
+		return 0
+	}
+
+	account := GetAccountFromWorldState(bc.latestBlock.States, addr)
+	return account.balance
+}
+
 // GetTxn checks if the target transaction is in blockchain
 func (bc *Blockchain) GetTxn(txnID string) *SignedTransaction {
 	bc.RLock()

@@ -37,6 +37,9 @@ type PermissionedChain interface {
 	// or not yep have an address
 	BCGetAddress() (permissioned.Address, error)
 
+	// BCGetBalance returns the current balance of the node's account
+	BCGetBalance() float64
+
 	// BCGenerateKeyPair generates an ECDSA key pair
 	// and write it in the file
 	BCGenerateKeyPair(path string) error
