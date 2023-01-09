@@ -219,9 +219,9 @@ func (n *node) InitBlockchain(config permissioned.ChainConfig, initialGain map[s
 	return n.blockchain.InitBlockchain(config, initialGain)
 }
 
-// BCWaitGenesis implements peer.BCWaitGenesis
-func (n *node) BCWaitGenesis() *permissioned.Block {
-	return n.blockchain.WaitGenesis()
+// BCWaitBlock implements peer.BCWaitBlock
+func (n *node) BCWaitBlock() *permissioned.Block {
+	return n.blockchain.WaitBlock()
 }
 
 // BCSendTransaction implements peer.BCSendTransaction

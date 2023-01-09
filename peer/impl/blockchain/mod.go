@@ -87,7 +87,8 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	return nil
 }
 
-func (m *BlockchainModule) WaitGenesis() *permissioned.Block {
+// WaitBlock blocks until the blockchain has at lest a block block
+func (m *BlockchainModule) WaitBlock() *permissioned.Block {
 	m.readyCond.L.Lock()
 	for {
 		genesis := m.GetLatestBlock()

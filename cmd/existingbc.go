@@ -12,7 +12,7 @@ import (
 
 func startExistingBC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 	fmt.Println("Waiting for the genesis block")
-	genesis := node.BCWaitGenesis()
+	genesis := node.BCWaitBlock()
 	config := permissioned.GetConfigFromWorldState(genesis.States)
 	fmt.Println("Got genesis block. Chain config: ", config)
 

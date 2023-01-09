@@ -13,7 +13,7 @@ import (
 
 func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
 	// wait until the blockchain's genesis block is set
-	_ = m.WaitGenesis()
+	_ = m.WaitBlock()
 	log.Info().Msgf("Start mining")
 out:
 	for {
