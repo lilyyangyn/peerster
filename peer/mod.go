@@ -15,6 +15,7 @@ type Peer interface {
 	Messaging
 	DataSharing
 	MPC
+	PermissionedChain
 }
 
 // Factory is the type of function we are using to create new instances of
@@ -81,6 +82,21 @@ type Configuration struct {
 	// retries to send a prepare when it doesn't get enough promises or accepts.
 	// Default: 5s.
 	PaxosProposerRetry time.Duration
+
+	// DisableMPC stops starting real MPC after a MPC consensus is done
+	// It makes testing much easier
+	// Default: false
+	DisableMPC bool
+
+	// MPCType specifies which consensus will be used to start MPC
+	// Default: MPCConsensusBC
+	MPCType MPCConsensus
+
+	// MPCMaxWaitTime specifies the maximal waiting block time the node
+	// wait for MPC to starts. It also means the maximal time the node wait
+	// for the PreMPC Txn to be on chain
+	// Default: 2
+	MPCMaxWaitBlock int
 }
 
 // Backoff describes parameters for a backoff algorithm. The initial time must

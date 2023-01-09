@@ -54,6 +54,8 @@ func NewSafeRoutingTable(addr string) *SafeRoutingTable {
 	return &rt
 }
 
+// --------------------------------------------------------
+
 type RumorsTable map[string][]types.Rumor
 
 // SafeRumorsTable implements a thread-safe rumor table
@@ -105,6 +107,8 @@ func NewSafeRumorsTable() *SafeRumorsTable {
 	return &rt
 }
 
+// --------------------------------------------------------
+
 type TimerTable map[string]chan struct{}
 
 // TimerController implements a thread-safe table for timer
@@ -118,7 +122,6 @@ func (t *TimerController) add(pktID string, done chan struct{}) {
 	defer t.Unlock()
 	t.table[pktID] = done
 }
-
 func (t *TimerController) remove(key string) {
 	t.Lock()
 	defer t.Unlock()
@@ -133,5 +136,45 @@ func (t *TimerController) getAndRemove(key string) (chan struct{}, bool) {
 }
 func NewTimeController() *TimerController {
 	rt := TimerController{&sync.RWMutex{}, TimerTable{}}
+	return &rt
+}
+
+// --------------------------------------------------------
+
+// PubkeyController implements a thread-safe table to store public key of peers
+type PubkeyController struct {
+	*sync.RWMutex
+	table peer.PubkeyStore
+}
+
+func (t *PubkeyController) add(peer string, pubkey *types.Pubkey) {
+	t.Lock()
+	defer t.Unlock()
+	if _, ok := t.table[peer]; !ok {
+		t.table[peer] = *pubkey
+	}
+}
+func (t *PubkeyController) remove(key string) {
+	t.Lock()
+	defer t.Unlock()
+	delete(t.table, key)
+}
+func (t *PubkeyController) get(peer string) (types.Pubkey, bool) {
+	t.RLock()
+	defer t.RUnlock()
+	pubkey, ok := t.table[peer]
+	return pubkey, ok
+}
+func (t *PubkeyController) getAll() peer.PubkeyStore {
+	pubkeyStore := peer.PubkeyStore{}
+	t.RLock()
+	for key, value := range t.table {
+		pubkeyStore[key] = value
+	}
+	t.RUnlock()
+	return pubkeyStore
+}
+func NewPubkeyController(self string, selfkey *types.Pubkey) *PubkeyController {
+	rt := PubkeyController{&sync.RWMutex{}, peer.PubkeyStore{self: *selfkey}}
 	return &rt
 }

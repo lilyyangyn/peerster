@@ -150,6 +150,10 @@ type configTemplate struct {
 	paxosThreshold     func(uint) int
 	paxosID            uint
 	paxosProposerRetry time.Duration
+
+	disableMPC      bool
+	MPCtype         peer.MPCConsensus
+	MPCMaxWaitBlock int
 }
 
 func newConfigTemplate() configTemplate {
@@ -184,6 +188,9 @@ func newConfigTemplate() configTemplate {
 		},
 		paxosID:            0,
 		paxosProposerRetry: time.Second * 5,
+		disableMPC:         false,
+		MPCtype:            peer.MPCConsensusBC,
+		MPCMaxWaitBlock:    2,
 	}
 }
 
@@ -293,6 +300,27 @@ func WithPaxosProposerRetry(d time.Duration) Option {
 	}
 }
 
+// WithDisableMPC disable MPC computation for testing.
+func WithDisableMPC() Option {
+	return func(ct *configTemplate) {
+		ct.disableMPC = true
+	}
+}
+
+// WithMPCPaxos starts MPC with Paxos.
+func WithMPCPaxos() Option {
+	return func(ct *configTemplate) {
+		ct.MPCtype = peer.MPCConsensusPaxos
+	}
+}
+
+// WithMPCBlockTime starts MPC with Paxos.
+func WithMPCMaxWaitBlock(t int) Option {
+	return func(ct *configTemplate) {
+		ct.MPCMaxWaitBlock = t
+	}
+}
+
 // NewTestNode returns a new test node.
 func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	addr string, opts ...Option) TestNode {
@@ -320,6 +348,9 @@ func NewTestNode(t require.TestingT, f peer.Factory, trans transport.Transport,
 	config.PaxosThreshold = template.paxosThreshold
 	config.PaxosID = template.paxosID
 	config.PaxosProposerRetry = template.paxosProposerRetry
+	config.DisableMPC = template.disableMPC
+	config.MPCType = template.MPCtype
+	config.MPCMaxWaitBlock = template.MPCMaxWaitBlock
 
 	node := f(config)
 
@@ -500,6 +531,18 @@ func GetStatus(t *testing.T, msg *transport.Message) types.StatusMessage {
 	return status
 }
 
+// GetPubkey returns the PubkeyMessage associated to the transport.Message.
+func GetPubkey(t *testing.T, msg *transport.Message) types.PubkeyMessage {
+	require.Equal(t, "pubkey", msg.Type)
+
+	var pubkeyMsg types.PubkeyMessage
+
+	err := json.Unmarshal(msg.Payload, &pubkeyMsg)
+	require.NoError(t, err)
+
+	return pubkeyMsg
+}
+
 // GetEmpty returns the EmptyMessage associated to the transport.Message.
 func GetEmpty(t *testing.T, msg *transport.Message) types.EmptyMessage {
 	require.Equal(t, "empty", msg.Type)
@@ -632,10 +675,83 @@ func GetPrivate(t *testing.T, msg *transport.Message) types.PrivateMessage {
 	return privateMessage
 }
 
+// GetEncrypt returns the encrypted message associated to the transport.Message.
+func GetEncrypt(t *testing.T, msg *transport.Message) types.EncryptedMessage {
+	require.Equal(t, "encrypt", msg.Type)
+
+	var encMessage types.EncryptedMessage
+
+	err := json.Unmarshal(msg.Payload, &encMessage)
+	require.NoError(t, err)
+
+	return encMessage
+
+}
+
+// GetShare returns the SSS message associated to the transport.Message.
+func GetShare(t *testing.T, msg *transport.Message) types.MPCShareMessage {
+	require.Equal(t, "mpcshare", msg.Type)
+
+	var shareMessage types.MPCShareMessage
+
+	err := json.Unmarshal(msg.Payload, &shareMessage)
+	require.NoError(t, err)
+
+	return shareMessage
+}
+
+// GetInterpolation returns the SSS message associated to the transport.Message.
+func GetInterpolation(t *testing.T, msg *transport.Message) types.MPCInterpolationMessage {
+	require.Equal(t, "mpcinterpolation", msg.Type)
+
+	var interpolationMessage types.MPCInterpolationMessage
+
+	err := json.Unmarshal(msg.Payload, &interpolationMessage)
+	require.NoError(t, err)
+
+	return interpolationMessage
+}
+
+// GetBCPrivate returns the BCPrivate message associated to the transport.Message.
+func GetBCPrivate(t *testing.T, msg *transport.Message) types.BCPrivateMessage {
+	require.Equal(t, "blockchainPrivate", msg.Type)
+
+	var bcprivMessage types.BCPrivateMessage
+
+	err := json.Unmarshal(msg.Payload, &bcprivMessage)
+	require.NoError(t, err)
+
+	return bcprivMessage
+}
+
+// GetBCTxn returns the BCTxn message associated to the transport.Message.
+func GetBCTxn(t *testing.T, msg *transport.Message) types.BCTxnMessag {
+	require.Equal(t, "blockchainTxn", msg.Type)
+
+	var bctxnMessage types.BCTxnMessag
+
+	err := json.Unmarshal(msg.Payload, &bctxnMessage)
+	require.NoError(t, err)
+
+	return bctxnMessage
+}
+
+// GetBCBlk returns the BCBlk message associated to the transport.Message.
+func GetBCBlk(t *testing.T, msg *transport.Message) types.BCBlkMessage {
+	require.Equal(t, "blockchainBlk", msg.Type)
+
+	var bcblkMessage types.BCBlkMessage
+
+	err := json.Unmarshal(msg.Payload, &bcblkMessage)
+	require.NoError(t, err)
+
+	return bcblkMessage
+}
+
 // DisplayBlokchainBlocks writes a string representation of all blocks store in
 // the storage.
-func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 	endBlockHasHex := hex.EncodeToString(make([]byte, 32))
 
 	for lastBlockHashHex != endBlockHasHex {
@@ -654,8 +770,8 @@ func DisplayBlokchainBlocks(t *testing.T, out io.Writer, store storage.Store) {
 
 // DisplayLastBlockchainBlock writes the string representation of the last
 // blockchain block.
-func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 	lastBlockBuf := store.Get(string(lastBlockHashHex))
 
 	var lastBlock types.BlockchainBlock
@@ -668,8 +784,8 @@ func DisplayLastBlockchainBlock(t *testing.T, out io.Writer, store storage.Store
 
 // ValidateBlockchain parses the whole blockchain and checks the hash of each
 // block.
-func ValidateBlockchain(t *testing.T, store storage.Store) {
-	lastBlockHashHex := hex.EncodeToString(store.Get(storage.LastBlockKey))
+func ValidateBlockchain(t *testing.T, store storage.Store, lastblockkey string) {
+	lastBlockHashHex := hex.EncodeToString(store.Get(lastblockkey))
 
 	endBlockHasHex := hex.EncodeToString(make([]byte, 32))
 	var block types.BlockchainBlock
@@ -683,9 +799,12 @@ func ValidateBlockchain(t *testing.T, store storage.Store) {
 		h := sha256.New()
 
 		h.Write([]byte(strconv.Itoa(int(block.Index))))
+		// h.Write([]byte(block.Value.UniqID))
+		// h.Write([]byte(block.Value.Filename))
+		// h.Write([]byte(block.Value.Metahash))
 		h.Write([]byte(block.Value.UniqID))
-		h.Write([]byte(block.Value.Filename))
-		h.Write([]byte(block.Value.Metahash))
+		h.Write([]byte(block.Value.Type))
+		h.Write([]byte(block.Value.Content))
 		h.Write(block.PrevHash)
 
 		blockHash := h.Sum(nil)

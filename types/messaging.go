@@ -186,6 +186,52 @@ func (p PrivateMessage) HTML() string {
 }
 
 // -----------------------------------------------------------------------------
+// PubkeyMessage
+
+// NewEmpty implements types.Message.
+func (p PubkeyMessage) NewEmpty() Message {
+	return &PubkeyMessage{}
+}
+
+// Name implements types.Message.
+func (p PubkeyMessage) Name() string {
+	return "pubkey"
+}
+
+// String implements types.Message.
+func (p PubkeyMessage) String() string {
+	return fmt.Sprintf("{pubkey for %s}", p.Origin)
+}
+
+// HTML implements types.Message.
+func (p PubkeyMessage) HTML() string {
+	return fmt.Sprintf("{pubkey for %s}", p.Origin)
+}
+
+// -----------------------------------------------------------------------------
+// EncryptedMessage
+
+// NewEmpty implements types.Message.
+func (p EncryptedMessage) NewEmpty() Message {
+	return &EncryptedMessage{}
+}
+
+// Name implements types.Message.
+func (p EncryptedMessage) Name() string {
+	return "encrypt"
+}
+
+// String implements types.Message.
+func (p EncryptedMessage) String() string {
+	return fmt.Sprintf("encrypted message %s", string(p))
+}
+
+// HTML implements types.Message.
+func (p EncryptedMessage) HTML() string {
+	return fmt.Sprintf("encrypted message %s", string(p))
+}
+
+// -----------------------------------------------------------------------------
 // utility functions
 
 // RumorByOrigin sorts rumor by origin
