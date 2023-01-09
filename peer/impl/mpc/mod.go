@@ -113,22 +113,14 @@ func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
 
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
 	fmt.Printf("#################### %s Start Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
-	// change infix to postfix
-	postfix, err := infixToPostfix(expr)
+
+	postfix, variablesNeed, err := m.getPostfixAndVariables(expr)
 	if err != nil {
 		return -1, err
 	}
 
 	// get MPC
 	mpc := m.mpcCenter.GetMPC(uniqID)
-
-	variablesNeed := map[string]struct{}{}
-	for _, exp := range postfix {
-		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-		if IsVariableName(exp) {
-			variablesNeed[exp] = struct{}{}
-		}
-	}
 
 	// SSS to all participants that the peer have public key
 	for key := range variablesNeed {
@@ -162,6 +154,23 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 
 // -----------------------------------------------------------------------------
 // Private Helpfer Functions
+
+func (m *MPCModule) getPostfixAndVariables(expr string) ([]string, map[string]struct{}, error) {
+	// change infix to postfix
+	postfix, err := infixToPostfix(expr)
+	if err != nil {
+		return []string{}, map[string]struct{}{}, err
+	}
+
+	variablesNeed := map[string]struct{}{}
+	for _, exp := range postfix {
+		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
+		if IsVariableName(exp) {
+			variablesNeed[exp] = struct{}{}
+		}
+	}
+	return postfix, variablesNeed, nil
+}
 
 func infixToPostfix(infix string) ([]string, error) {
 	// '+', "-", is not used as a unary operation (i.e., "+1", "-(2 + 3)"", "-1", "3-(-2)" are invalid).
