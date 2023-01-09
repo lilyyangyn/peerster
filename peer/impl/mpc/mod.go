@@ -70,6 +70,19 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 }
 
 func (m *MPCModule) SetValueDBAsset(key string, value int, price float64) error {
+	myIdentity := m.getIdentifyKey()
+	assetsMap := m.GetPeerAssetPrices()
+
+	for peer, assets := range assetsMap {
+		if peer == myIdentity {
+			continue
+		}
+		_, found := assets[key]
+		if found {
+			return fmt.Errorf("add Assets failed. key %s duplicate, peer %s already have the same assets", key, peer)
+		}
+	}
+
 	ok := m.valueDB.addAsset(key, value)
 	if !ok {
 		return fmt.Errorf("add Assets failed")

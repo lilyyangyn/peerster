@@ -131,8 +131,8 @@ func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		return err
 	}
 
-	node.SetValueDBAsset(key, int(value), price)
-	return nil
+	return node.SetValueDBAsset(key, int(value), price)
+	// return nil
 }
 
 func addPeer(node *z.TestNode, actionMap map[string]ActionFunc) error {
