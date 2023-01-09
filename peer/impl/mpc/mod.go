@@ -3,9 +3,7 @@ package mpc
 import (
 	"fmt"
 	"math/big"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
@@ -114,7 +112,7 @@ func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
 	fmt.Printf("#################### %s Start Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
 
-	postfix, variablesNeed, err := m.getPostfixAndVariables(expr)
+	postfix, variablesNeed, err := types.GetPostfixAndVariables(expr)
 	if err != nil {
 		return -1, err
 	}
@@ -153,82 +151,7 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 }
 
 // -----------------------------------------------------------------------------
-// Private Helpfer Functions
-
-func (m *MPCModule) getPostfixAndVariables(expr string) ([]string, map[string]struct{}, error) {
-	// change infix to postfix
-	postfix, err := infixToPostfix(expr)
-	if err != nil {
-		return []string{}, map[string]struct{}{}, err
-	}
-
-	variablesNeed := map[string]struct{}{}
-	for _, exp := range postfix {
-		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-		if IsVariableName(exp) {
-			variablesNeed[exp] = struct{}{}
-		}
-	}
-	return postfix, variablesNeed, nil
-}
-
-func infixToPostfix(infix string) ([]string, error) {
-	// '+', "-", is not used as a unary operation (i.e., "+1", "-(2 + 3)"", "-1", "3-(-2)" are invalid).
-	infix = strings.ReplaceAll(infix, " ", "")
-	var NoInValidChar = regexp.MustCompile(`^[a-zA-Z0-9_\+\-\*\/\^()\.]+$`).MatchString
-	if !NoInValidChar(infix) {
-		return []string{}, fmt.Errorf("infix contains illegal character")
-	}
-
-	var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-	s := Stack{}
-	postfix := []string{}
-	valid := true
-
-	curVariable := ""
-	for _, char := range infix {
-		opchar := string(char)
-		// if scanned character is operand, add it to output string
-		if IsVariableName(opchar) {
-			curVariable += opchar
-			continue
-		} else {
-			if curVariable != "" {
-				postfix = append(postfix, curVariable)
-			}
-			curVariable = ""
-		}
-
-		if char == '(' {
-			s.Push(opchar)
-		} else if char == ')' {
-			for s.Top() != "(" {
-				postfix = append(postfix, s.Top())
-				valid = valid && s.Pop()
-			}
-			valid = valid && s.Pop()
-		} else {
-			for !s.IsEmpty() && prec(opchar) <= prec(s.Top()) {
-				postfix = append(postfix, s.Top())
-				valid = valid && s.Pop()
-			}
-			s.Push(opchar)
-		}
-
-		if !valid {
-			return []string{}, fmt.Errorf("infix is invalid")
-		}
-	}
-	if curVariable != "" {
-		postfix = append(postfix, curVariable)
-	}
-	// Pop all the remaining elements from the stack
-	for !s.IsEmpty() {
-		postfix = append(postfix, s.Top())
-		s.Pop()
-	}
-	return postfix, nil
-}
+// Private Helper Functions
 
 func (m *MPCModule) shareSecret(key string, mpc *MPC) error {
 	// log.Printf("%s: start share secret, key: %s, peers: %s",
