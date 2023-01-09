@@ -1,4 +1,4 @@
-# MPCPeer
+# MPC Community
 
 [![Go test](https://github.com/dedis/cs438/actions/workflows/go_test.yml/badge.svg)](https://github.com/dedis/cs438/actions/workflows/go_test.yml)
 [![Go lint](https://github.com/dedis/cs438/actions/workflows/go_lint.yml/badge.svg)](https://github.com/dedis/cs438/actions/workflows/go_lint.yml)
