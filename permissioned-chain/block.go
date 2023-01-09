@@ -98,6 +98,7 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 		}
 	}
 	if hex.EncodeToString(worldState.Hash()) != b.StateHash {
+		fmt.Println(worldState)
 		return fmt.Errorf("block %s has different execution result from expected", b.Hash())
 	}
 	// set state

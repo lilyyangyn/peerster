@@ -24,17 +24,21 @@ type ChainConfig struct {
 	MaxTxnsPerBlk int
 	WaitTimeout   string
 
+	MPCParticipationGain float64
+
 	JoinThreshold float64
 }
 
 // NewChainConfig creates a new config and computes its ID
 func NewChainConfig(participant map[string]string,
-	maxTxnsPerBlk int, waitTimeout string, threshold float64) *ChainConfig {
+	maxTxnsPerBlk int, waitTimeout string, mpcGain float64, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
 
 		MaxTxnsPerBlk: maxTxnsPerBlk,
 		WaitTimeout:   waitTimeout,
+
+		MPCParticipationGain: mpcGain,
 
 		JoinThreshold: threshold,
 	}
@@ -70,9 +74,13 @@ func (c ChainConfig) Hash() string {
 
 	for _, participant := range keys {
 		h.Write([]byte(participant))
+		h.Write([]byte(c.Participants[participant]))
 	}
 	h.Write([]byte(fmt.Sprintf("%d", c.MaxTxnsPerBlk)))
 	h.Write([]byte(c.WaitTimeout))
+
+	h.Write([]byte(fmt.Sprintf("%f", c.MPCParticipationGain)))
+
 	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
@@ -99,10 +107,11 @@ func (c ChainConfig) Copy() storage.Copyable {
 		participants[key] = val
 	}
 	config := ChainConfig{
-		Participants:  participants,
-		MaxTxnsPerBlk: c.MaxTxnsPerBlk,
-		WaitTimeout:   c.WaitTimeout,
-		JoinThreshold: c.JoinThreshold,
+		Participants:         participants,
+		MaxTxnsPerBlk:        c.MaxTxnsPerBlk,
+		WaitTimeout:          c.WaitTimeout,
+		MPCParticipationGain: c.MPCParticipationGain,
+		JoinThreshold:        c.JoinThreshold,
 	}
 	return config
 }

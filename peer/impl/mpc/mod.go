@@ -107,25 +107,15 @@ func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
 		return nil
 	}
 
-	assets := make(map[string]map[string]float64)
 	states := m.bcModule.GetLatestBlock().States
-	config := permissioned.GetConfigFromWorldState(states)
-	for participate := range config.Participants {
-		prices := permissioned.GetAssetsFromWorldState(states,
-			permissioned.AssetsKeyFromUniqID(participate)).Assets
-		if len(prices) == 0 {
-			continue
-		}
-		assets[participate] = prices
-	}
 
-	return assets
+	return permissioned.GetAllAssetsFromWorldState(states)
 }
 
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
 	fmt.Printf("#################### %s Start Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
 
-	postfix, variablesNeed, err := types.GetPostfixAndVariables(expr)
+	postfix, variablesNeed, err := permissioned.GetPostfixAndVariables(expr)
 	if err != nil {
 		return -1, err
 	}

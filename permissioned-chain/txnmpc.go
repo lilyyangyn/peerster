@@ -42,8 +42,18 @@ func execPreMPC(worldState storage.KVStore, config *ChainConfig, txn *Transactio
 		return fmt.Errorf("Transaction data inconsistent")
 	}
 
+	// calculate the total price need for the transaction
+	prices, totalPrice, err := CalculateTotalPrice(worldState, record.Expression)
+	if err != nil {
+		return err
+	}
+	if totalPrice > txn.Value {
+		return fmt.Errorf("price not enough to pay for MPC. Expected: %f. Got: %f", totalPrice, txn.Value)
+	}
+
 	// lock balance to avoid double spending
-	err := lockBalance(worldState, txn.From, record.Budget*float64(len(config.Participants)))
+	// FIXME: now do not support customized fee
+	err = lockBalance(worldState, txn.From, totalPrice)
 	if err != nil {
 		return err
 	}
@@ -53,7 +63,8 @@ func execPreMPC(worldState storage.KVStore, config *ChainConfig, txn *Transactio
 		Peers:     config.Participants,
 		Endorsers: map[string]struct{}{},
 		Initiator: txn.From,
-		Budget:    record.Budget,
+		Budget:    prices,
+		Fee:       config.MPCParticipationGain,
 		Locked:    true,
 	})
 	if err != nil {
@@ -113,105 +124,6 @@ func unmarshalPostMPC(data json.RawMessage) (interface{}, error) {
 }
 
 // -----------------------------------------------------------------------------
-// Transaction Polymophism - RegAssets
-
-func NewTransactionRegAssets(from *Account, assets map[string]float64) *Transaction {
-	return NewTransaction(
-		from,
-		&ZeroAddress,
-		TxnTypeRegAssets,
-		0,
-		assets,
-	)
-}
-
-func execRegAssets(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
-	assets := txn.Data.(map[string]float64)
-
-	key := AssetsKeyFromUniqID(txn.From)
-	oldAssets := GetAssetsFromWorldState(worldState, key)
-	oldAssets.Add(assets)
-
-	err := worldState.Put(key, *oldAssets)
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
-}
-
-func unmarshalRegAssets(data json.RawMessage) (interface{}, error) {
-	var r map[string]float64
-	err := json.Unmarshal(data, &r)
-
-	return r, err
-}
-
-// -----------------------------------------------------------------------------
-// Utilities - Assets
-
-type AssetsRecord struct {
-	Owner  string
-	Assets map[string]float64
-}
-
-// Copy implements Copyable.Copy()
-func (r AssetsRecord) Copy() storage.Copyable {
-	assets := map[string]float64{}
-	for asset, price := range r.Assets {
-		assets[asset] = price
-	}
-	record := AssetsRecord{
-		Owner:  r.Owner,
-		Assets: assets,
-	}
-	return record
-}
-
-// Hash implements Hashable.Hash
-func (r AssetsRecord) Hash() string {
-	h := sha256.New()
-
-	h.Write([]byte(r.Owner))
-	assets := make([]string, 0, len(r.Assets))
-	for asset := range r.Assets {
-		assets = append(assets, asset)
-	}
-	sort.Strings(assets)
-	for _, asset := range assets {
-		h.Write([]byte(asset))
-		h.Write([]byte(fmt.Sprintf("%f", r.Assets[asset])))
-	}
-
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-func NewAssetsRecord() *AssetsRecord {
-	return &AssetsRecord{
-		Assets: map[string]float64{},
-	}
-}
-
-func (r AssetsRecord) Add(newAssets map[string]float64) {
-	for newAsset, price := range newAssets {
-		r.Assets[newAsset] = price
-	}
-}
-
-func GetAssetsFromWorldState(worldState storage.KVStore, key string) *AssetsRecord {
-	object, ok := worldState.Get(key)
-	if !ok {
-		return NewAssetsRecord()
-	}
-	assets := object.(AssetsRecord)
-	return &assets
-}
-
-func AssetsKeyFromUniqID(uniqID string) string {
-	return fmt.Sprintf("assets|%s", uniqID)
-}
-
-// -----------------------------------------------------------------------------
 // Utilities - MPC
 
 var AWARD_UNLOCK_THRESHOLD = 0.5
@@ -221,8 +133,49 @@ type MPCEndorsement struct {
 	Peers     map[string]string
 	Endorsers map[string]struct{}
 	Initiator string
-	Budget    float64
 	Locked    bool
+	Budget    map[string]float64
+	Fee       float64
+}
+
+// Hash implements Hashable.Hash()
+func (e MPCEndorsement) Hash() string {
+	h := sha256.New()
+
+	keys := make([]string, 0, len(e.Peers))
+	for k := range e.Peers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, participant := range keys {
+		h.Write([]byte(participant))
+	}
+
+	keys = make([]string, 0, len(e.Endorsers))
+	for k := range e.Endorsers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, participant := range keys {
+		h.Write([]byte(participant))
+	}
+
+	h.Write([]byte(e.Initiator))
+	h.Write([]byte(fmt.Sprintf("%t", e.Locked)))
+
+	keys = make([]string, 0, len(e.Budget))
+	for k := range e.Endorsers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, participant := range keys {
+		h.Write([]byte(participant))
+		h.Write([]byte(fmt.Sprintf("%f", e.Budget[participant])))
+	}
+
+	h.Write([]byte(fmt.Sprintf("%f", e.Fee)))
+
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Copy implements Copyable.Copy()
@@ -231,11 +184,16 @@ func (e MPCEndorsement) Copy() storage.Copyable {
 	for endorser := range e.Endorsers {
 		endorsers[endorser] = struct{}{}
 	}
+	budget := map[string]float64{}
+	for k, v := range e.Budget {
+		budget[k] = v
+	}
 	endorsement := MPCEndorsement{
 		Peers:     e.Peers,
 		Endorsers: endorsers,
 		Initiator: e.Initiator,
-		Budget:    e.Budget,
+		Budget:    budget,
+		Fee:       e.Fee,
 		Locked:    e.Locked,
 	}
 	return endorsement
@@ -250,8 +208,59 @@ func GetMPCEndorsementFromWorldState(worldState storage.KVStore, key string) (*M
 	return &endorsement, nil
 }
 
+func CalculateTotalPrice(worldState storage.KVStore, expression string) (map[string]float64, float64, error) {
+	prices, err := calculateExprPrices(worldState, expression)
+	if err != nil {
+		return nil, 0, err
+	}
+	var valuePrice float64 = 0
+	for _, price := range prices {
+		valuePrice += price
+	}
+
+	config := GetConfigFromWorldState(worldState)
+	totalPrice := valuePrice + config.MPCParticipationGain*float64(len(config.Participants))
+
+	return prices, totalPrice, nil
+}
+
 func mpcKeyFromUniqID(uniqID string) string {
 	return fmt.Sprintf("ongoging-mpc|%s", uniqID)
+}
+
+func calculateExprPrices(worldState storage.KVStore, expression string) (map[string]float64, error) {
+	_, variables, err := GetPostfixAndVariables(expression)
+	if err != nil {
+		return nil, err
+	}
+
+	// FIXME: now only support all variable names to be distinct
+	assets := GetAllAssetsFromWorldState(worldState)
+
+	prices := make(map[string]float64)
+	for peer, peerAssets := range assets {
+		for asset := range variables {
+			price, ok := peerAssets[asset]
+			if !ok {
+				continue
+			}
+			delete(variables, asset)
+
+			if price > 0 {
+				prices[peer] += price
+			}
+		}
+	}
+	if len(variables) > 0 {
+		missing := ""
+		for v := range variables {
+			missing += fmt.Sprintf(", %s", v)
+		}
+		missing = missing[2:]
+		return nil, fmt.Errorf("expression \"%s\" needs missing variables: {%s}", expression, missing)
+	}
+
+	return prices, nil
 }
 
 func updateMPCEndorsement(worldState storage.KVStore, key string, accountID string) error {
@@ -269,19 +278,23 @@ func updateMPCEndorsement(worldState storage.KVStore, key string, accountID stri
 	endorsement.Endorsers[accountID] = struct{}{}
 	initiator := GetAccountFromWorldState(worldState, endorsement.Initiator)
 	if !endorsement.Locked {
+		err := claimAward(worldState, initiator, accountID, endorsement.Budget[accountID]+endorsement.Fee)
+		if err != nil {
+			return err
+		}
 		if len(endorsement.Endorsers) == len(endorsement.Peers) {
 			err := worldState.Del(key)
 			if err != nil {
 				panic(err)
 			}
 		}
-		return claimAward(worldState, initiator, accountID, endorsement.Budget)
+		return nil
 	}
 
 	threshold := float64(len(endorsement.Peers)) * AWARD_UNLOCK_THRESHOLD
 	if float64(len(endorsement.Endorsers)) > threshold {
 		for endorser := range endorsement.Endorsers {
-			err = claimAward(worldState, initiator, endorser, endorsement.Budget)
+			err = claimAward(worldState, initiator, endorser, endorsement.Budget[endorser]+endorsement.Fee)
 			if err != nil {
 				return err
 			}

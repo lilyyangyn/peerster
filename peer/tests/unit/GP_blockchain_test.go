@@ -46,7 +46,7 @@ func Test_GP_BC_Init(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		10, "2h", 1,
+		10, "2h", 1, 1,
 	)
 	require.Len(t, config.Participants, 2)
 	err = node1.InitBlockchain(*config, nil)
@@ -136,7 +136,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 10000,
@@ -154,12 +154,9 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	// > send Tx to node1. A new block need to be mined
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
@@ -187,7 +184,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	txnMsg1 := z.GetBCTxn(t, private.Msg)
 	require.Equal(t, node1.GetAddr(), txnMsg1.Origin)
-	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypePreMPC)
+	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypeRegAssets)
 
 	// sock2 got the correct txn message
 
@@ -202,7 +199,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	txnMsg2 := z.GetBCTxn(t, private.Msg)
 	require.Equal(t, node1.GetAddr(), txnMsg2.Origin)
-	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypePreMPC)
+	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypeRegAssets)
 
 	time.Sleep(time.Second * 1)
 
@@ -265,7 +262,7 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 22,
@@ -287,12 +284,9 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
@@ -322,12 +316,9 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     1,
-			Expression: "a",
-		})
+	txn2 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn2.From)
 	signedTxn, err = txn2.Sign(privkey1)
 	require.NoError(t, err)
@@ -389,7 +380,7 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 100,
@@ -409,12 +400,9 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
@@ -450,12 +438,9 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     1,
-			Expression: "a",
-		})
+	txn2 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn2.From)
 	signedTxn, err = txn2.Sign(privkey1)
 	require.NoError(t, err)
@@ -538,7 +523,7 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 			addrA.Hex: "",
 			addrB.Hex: "",
 			addrC.Hex: "",
-		}, 1, "2s", 1,
+		}, 1, "2s", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addrA.Hex: 100,
@@ -565,11 +550,9 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 	// send txn. Need to success
 
 	accountA := permissioned.NewAccount(addrA)
-	txn1 := permissioned.NewTransactionPreMPC(accountA,
-		permissioned.MPCPropose{
-			Initiator:  accountA.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
+	txn1 := permissioned.NewTransactionRegAssets(accountA,
+		map[string]float64{
+			"key1": 1,
 		})
 	require.Equal(t, addrA.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkeyA)
@@ -630,7 +613,7 @@ func Test_GP_BC_Announce_Pubkey(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		2, "2h", 1,
+		2, "2h", 1, 1,
 	)
 	require.Len(t, config.Participants, 2)
 	err = node1.InitBlockchain(*config, nil)
@@ -703,7 +686,7 @@ func Test_GP_BC_Set_Get_Assets(t *testing.T) {
 			addr1.Hex: "",
 			addr2.Hex: "",
 		},
-		2, "2h", 1,
+		2, "2h", 1, 1,
 	)
 	require.Len(t, config.Participants, 2)
 	err = node1.InitBlockchain(*config, nil)

@@ -31,10 +31,21 @@ func newMPCModuleWithBlockchain(conf *peer.Configuration, messageModule *message
 // CalculateBlockchain sends a PreMPC txn to the blockchain
 // It will initiate a paxos to start the MPC once it notice the txn is included in the chain
 func (m *MPCModule) CalculateBlockchain(expression string, budget float64) (int, error) {
-	balance := m.bcModule.GetAccountBalance()
-
 	// local check for efficiency
-	if balance < budget*float64(len(m.bcModule.GetConfig().Participants)) {
+	block := m.bcModule.GetLatestBlock()
+	if block == nil {
+		return 0, fmt.Errorf("blockchain not initialized")
+	}
+	_, total, err := permissioned.CalculateTotalPrice(block.States, expression)
+	if err != nil {
+		return 0, err
+	}
+	if budget < total {
+		return 0, fmt.Errorf("budget not enough")
+	}
+
+	balance := m.bcModule.GetAccountBalance()
+	if balance < total {
 		return 0, fmt.Errorf("balance not enough")
 	}
 

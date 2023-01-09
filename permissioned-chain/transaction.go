@@ -86,15 +86,17 @@ func (txn *Transaction) HashBytes() []byte {
 	h.Write([]byte(txn.Type))
 	h.Write([]byte(fmt.Sprintf("%f", txn.Value)))
 
+	// bytes, err := json.Marshal(txn.Data)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// h.Write(bytes)
+
 	switch hh := txn.Data.(type) {
-	case Hashable:
+	case storage.Hashable:
 		h.Write([]byte(hh.Hash()))
 	default:
-		bytes, err := json.Marshal(txn.Data)
-		if err != nil {
-			panic(err)
-		}
-		h.Write([]byte(hash(bytes)))
+		h.Write([]byte(storage.Hash(hh)))
 	}
 
 	return h.Sum(nil)
@@ -280,10 +282,6 @@ type Describable interface {
 	String() string
 }
 
-type Hashable interface {
-	Hash() string
-}
-
 func CheckPariticipation(worldState storage.KVStore, config *ChainConfig, addrID string) bool {
 	if addrID == ZeroAddress.Hex {
 		return true
@@ -384,10 +382,4 @@ func claimAward(worldState storage.KVStore, from *Account, to string, amount flo
 		panic(err)
 	}
 	return nil
-}
-
-func hash(bytes []byte) string {
-	h := sha256.New()
-	h.Write(bytes)
-	return hex.EncodeToString(h.Sum(nil))
 }

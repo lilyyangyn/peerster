@@ -20,7 +20,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 	// init worldstate
 	config := *permissioned.NewChainConfig(
 		map[string]string{account.GetAddress().Hex: ""},
-		1, "2h", 10,
+		1, "2h", 1, 10,
 	)
 	initialGain := map[string]float64{
 		account.GetAddress().Hex: 1000,
@@ -37,12 +37,9 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 
 	pool := NewTxnPool()
 	go pool.Daemon(ctx)
-	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCPropose{
-			Initiator:  account.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		}).Sign(privKey)
+	txn1, err := permissioned.NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
+	}).Sign(privKey)
 	require.NoError(t, err)
 	pool.Push(txn1)
 
@@ -64,6 +61,7 @@ func Test_BC_Miner_Create_Blk_Success(t *testing.T) {
 		t.Error(t, "a block must be built")
 	}
 
+	require.NotNil(t, block)
 	err = bc.AppendBlock(block)
 	require.NoError(t, err)
 }
@@ -78,7 +76,7 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	// init worldstate
 	config := *permissioned.NewChainConfig(
 		map[string]string{account.GetAddress().Hex: ""},
-		1, "2h", 10,
+		1, "2h", 1, 10,
 	)
 	initialGain := map[string]float64{
 		account.GetAddress().Hex: 1000,
@@ -114,12 +112,9 @@ func Test_BC_Miner_Create_Blk_Success_Resume(t *testing.T) {
 	case <-timeout:
 	}
 
-	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCPropose{
-			Initiator:  account.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		}).Sign(privKey)
+	txn1, err := permissioned.NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
+	}).Sign(privKey)
 	require.NoError(t, err)
 	pool.Push(txn1)
 
@@ -146,7 +141,7 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 	// init worldstate
 	config := *permissioned.NewChainConfig(
 		map[string]string{account.GetAddress().Hex: ""},
-		2, "2s", 10,
+		2, "2s", 1, 10,
 	)
 	initialGain := map[string]float64{
 		account.GetAddress().Hex: 1000,
@@ -163,12 +158,9 @@ func Test_BC_Miner_Create_Blk_Success_Timeout(t *testing.T) {
 
 	pool := NewTxnPool()
 	go pool.Daemon(ctx)
-	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCPropose{
-			Initiator:  account.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		}).Sign(privKey)
+	txn1, err := permissioned.NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
+	}).Sign(privKey)
 	require.NoError(t, err)
 	pool.Push(txn1)
 
@@ -215,7 +207,7 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 	// init worldstate
 	config := *permissioned.NewChainConfig(
 		map[string]string{account.GetAddress().Hex: ""},
-		2, "2h", 10,
+		2, "2h", 1, 10,
 	)
 	initialGain := map[string]float64{
 		account.GetAddress().Hex: 1000,
@@ -231,12 +223,9 @@ func Test_BC_Miner_Create_Blk_Ctx_Stop(t *testing.T) {
 
 	pool := NewTxnPool()
 	go pool.Daemon(ctx)
-	txn1, err := permissioned.NewTransactionPreMPC(&account,
-		permissioned.MPCPropose{
-			Initiator:  account.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		}).Sign(privKey)
+	txn1, err := permissioned.NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
+	}).Sign(privKey)
 	require.NoError(t, err)
 	pool.Push(txn1)
 
