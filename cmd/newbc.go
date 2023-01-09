@@ -18,7 +18,7 @@ func startNewBC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		if err == nil {
 			break
 		}
-		fmt.Println("err:", err)
+		printError(err)
 	}
 
 	return nil

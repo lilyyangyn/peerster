@@ -96,13 +96,13 @@ func setAccount(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		method := actionMap[action]
 		err = method(node, actionMap)
 		if err != nil {
-			fmt.Println("err:", err)
+			printError(err)
 			continue
 		}
 
 		addr, err := node.BCGetAddress()
 		if err != nil {
-			fmt.Println("err:", err)
+			printError(err)
 			continue
 		}
 
