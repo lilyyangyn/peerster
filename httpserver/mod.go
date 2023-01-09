@@ -14,8 +14,9 @@ type PeerJson struct {
 }
 
 type AssetJson struct {
-	Key   string `json:"Key"`
-	Value int    `json:"Value"`
+	Key   string  `json:"Key"`
+	Value int     `json:"Value"`
+	Price float64 `json:"Price"`
 }
 
 type MPCRequestJson struct {
@@ -38,6 +39,9 @@ func handler(n *z.TestNode) http.HandlerFunc {
 
 func peerHandler(n *z.TestNode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodPost {
 			// The request is a POST request
 			var peer PeerJson
@@ -64,24 +68,22 @@ func peerHandler(n *z.TestNode) http.HandlerFunc {
 
 func assetHandler(n *z.TestNode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
 		if r.Method == http.MethodGet {
 			// The request is a GET request
-			fmt.Println("showing assets:")
 
 			// Set the content type to JSON
 			w.Header().Set("Content-Type", "application/json")
 
-			assets := map[string]map[string]int{}
-			assets["peerA"] = map[string]int{
-				"a1": 3,
-				"a2": 4,
+			// assets := map[string]map[string]float64{}
+			json, err := json.Marshal(n.GetAllPeerAssetPrices())
+			if err != nil {
+				http.Error(w, "Failed to get assets", http.StatusBadRequest)
+				return
 			}
-			assets["peerB"] = map[string]int{
-				"b": 5,
-			}
-			// TODO: get real assets
-
-			json, _ := json.Marshal(assets)
 			w.Write(json)
 
 		} else if r.Method == http.MethodPost {
@@ -93,8 +95,8 @@ func assetHandler(n *z.TestNode) http.HandlerFunc {
 				return
 			}
 
-			log.Info().Msgf("HTTP adding assets key: %s, value: %d", asset.Key, asset.Value)
-			err = n.SetValueDBAsset(asset.Key, asset.Value)
+			log.Info().Msgf("HTTP adding assets key: %s, value: %d, price: %f", asset.Key, asset.Value, asset.Price)
+			err = n.SetValueDBAsset(asset.Key, asset.Value, asset.Price)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -110,17 +112,17 @@ func assetHandler(n *z.TestNode) http.HandlerFunc {
 
 func balanceHandler(n *z.TestNode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodGet {
 			// The request is a GET request
-			fmt.Println("showing balance:")
+			// fmt.Println("showing balance:")
 
 			// Set the content type to JSON
 			w.Header().Set("Content-Type", "application/json")
 
 			balance := map[string]float64{}
-			balance["peerA"] = 10
-			balance["peerB"] = 20
-			balance["peerC"] = 30
 			addr, _ := n.BCGetAddress()
 			balance[addr.Hex] = n.BCGetBalance()
 
@@ -133,6 +135,9 @@ func balanceHandler(n *z.TestNode) http.HandlerFunc {
 
 func blockchainHandler(n *z.TestNode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodGet {
 			// The request is a GET request
 			fmt.Println("showing blockchain:")
@@ -155,6 +160,9 @@ func blockchainHandler(n *z.TestNode) http.HandlerFunc {
 
 func mpcHandler(n *z.TestNode) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodPost {
 			// The request is a POST request
 			var mpcRequest MPCRequestJson
@@ -201,7 +209,7 @@ func MainHttp(n *z.TestNode, port string) {
 
 	// // get/add assets
 	// curl http://127.0.0.1:7122/asset
-	// curl -X POST -H "Content-Type: application/json" -d '{"key":"a", "value":3}' http://127.0.0.1:7122/asset
+	// curl -X POST -H "Content-Type: application/json" -d '{"Key":"a", "Value":3, "Price": 4}' http://127.0.0.1:7122/asset
 
 	// // get balance
 	// curl http://127.0.0.1:7122/balance
