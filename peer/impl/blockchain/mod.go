@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -27,9 +28,9 @@ type BlockchainModule struct {
 	watchRegistry *WatchRegistry
 	cr            *CreditRecords
 
-	blkChan     chan *permissioned.Block
-	bcReadyChan chan struct{}
-	minerChan   chan uint
+	blkChan   chan *permissioned.Block
+	readyCond sync.Cond
+	minerChan chan uint
 }
 
 func NewBlockchainModule(conf *peer.Configuration, messageModule *message.MessageModule) *BlockchainModule {
@@ -42,7 +43,7 @@ func NewBlockchainModule(conf *peer.Configuration, messageModule *message.Messag
 		watchRegistry: NewWatchRegistry(),
 		cr:            NewCreditRecords(),
 		blkChan:       make(chan *permissioned.Block, 5),
-		bcReadyChan:   make(chan struct{}),
+		readyCond:     *sync.NewCond(&sync.Mutex{}),
 		minerChan:     make(chan uint, 5),
 	}
 
@@ -86,6 +87,29 @@ func (m *BlockchainModule) InitBlockchain(config permissioned.ChainConfig, initi
 	return nil
 }
 
+// WaitBlock blocks until the blockchain has at lest a block block
+func (m *BlockchainModule) WaitBlock() *permissioned.Block {
+	m.readyCond.L.Lock()
+	for {
+		genesis := m.GetLatestBlock()
+		if genesis != nil {
+			m.readyCond.L.Unlock()
+			return genesis
+		}
+		m.readyCond.Wait()
+	}
+}
+
+// GetAccountBalance returns the current balance of the node's account
+func (m *BlockchainModule) GetAccountBalance() float64 {
+	if m.wallet == nil {
+		return 0
+	}
+
+	addr := m.wallet.GetAddress().Hex
+	return m.GetBalance(addr)
+}
+
 // SendTransaction signs and sends a transaction
 func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransaction) error {
 	// get config and send private message
@@ -94,11 +118,12 @@ func (m *BlockchainModule) SendTransaction(signedTxn *permissioned.SignedTransac
 	for p := range config.Participants {
 		participants[p] = struct{}{}
 	}
+
 	return m.broadcastBCTxnMessage(participants, signedTxn)
 }
 
-// GetAddress helps users to know the adress of the node
-func (m *BlockchainModule) GetAddress() (permissioned.Address, error) {
+// GetChainAddress helps users to know the adress of the node
+func (m *BlockchainModule) GetChainAddress() (permissioned.Address, error) {
 	if m.wallet == nil {
 		return permissioned.Address{},
 			fmt.Errorf("node %s does not have an address yet",
@@ -165,6 +190,15 @@ func (m *BlockchainModule) SendPostMPCTransaction(id string, result float64) (st
 	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
+// SendRegAssetsTransaction generates and sends a regAssets transaction
+func (m *BlockchainModule) SendRegAssetsTransaction(assets map[string]float64) (string, error) {
+	signedTxn, err := m.wallet.RegAssets(assets)
+	if err != nil {
+		return "", err
+	}
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
+}
+
 // SprintBlockchain returns a description of the chain
 func (m *BlockchainModule) SprintBlockchain() string {
 	return m.Sprint()
@@ -185,16 +219,30 @@ func (m *BlockchainModule) sync(to string) error {
 	return m.sendBCAskSyncMessage(id, to)
 }
 
+// processBlk process a received block
 func (m *BlockchainModule) processBlk(block *permissioned.Block) error {
 	// if is genesis block. Directly set
 	if block.Height == 0 {
 		err := m.SetGenesisBlock(block)
-		if err == nil {
-			log.Info().Msgf("init genesis block successfully")
-			close(m.bcReadyChan)
-			m.selectNextMiner(block)
+		if err != nil {
+			return err
 		}
-		return err
+
+		log.Info().Msgf("init genesis block successfully")
+		m.readyCond.Broadcast()
+		m.selectNextMiner(block)
+
+		// send SetPubkey Txn
+		if m.conf.DisableAnnonceEnckey {
+			return nil
+		}
+		txnID, err := m.sendRegEnckeyTransaction()
+		if err != nil {
+			return err
+		}
+		log.Info().Msgf("send setPubkey txn %s", txnID)
+
+		return nil
 	}
 
 	// Otherwise,append the block
@@ -215,6 +263,7 @@ func (m *BlockchainModule) selectNextMiner(block *permissioned.Block) {
 	}
 }
 
+// getBlockTimeout returns the maxTimeout configured by chain config
 func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
 	duration, err := time.ParseDuration(config.WaitTimeout)
 	if err != nil {
@@ -223,6 +272,19 @@ func getBlockTimeout(config *permissioned.ChainConfig) time.Duration {
 		duration = math.MaxInt64
 	}
 	return duration
+}
+
+func (m *BlockchainModule) sendRegEnckeyTransaction() (string, error) {
+	pubkey, err := m.GetPubkeyString()
+	if err != nil {
+		return "", err
+	}
+
+	signedTxn, err := m.wallet.RegEnckeyTxn(pubkey)
+	if err != nil {
+		return "", err
+	}
+	return signedTxn.Txn.ID, m.SendTransaction(signedTxn)
 }
 
 // broadcastBCTxnMessage broadcast a BCTxnMessage in private msg

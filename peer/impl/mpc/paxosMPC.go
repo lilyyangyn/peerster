@@ -64,6 +64,9 @@ func (m *MPCModule) CalculatePaxos(expression string, budget float64) (int, erro
 
 func (m *MPCModule) InitMPCWithPaxos(uniqID string, prime string, initiator string,
 	expression string) error {
+	if m.consensusType != peer.MPCConsensusPaxos {
+		return fmt.Errorf("MPC does not use paxos to consensus")
+	}
 	mpcPrime, _ := new(big.Int).SetString(prime, 10)
 	mpc := NewMPC(uniqID, *mpcPrime, initiator, expression)
 

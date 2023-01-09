@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 
 	"go.dedis.ch/cs438/peer"
@@ -44,6 +46,15 @@ func NewEncryptionModule(conf *peer.Configuration, messageModue *MessageModule) 
 }
 
 /** Feature Functions **/
+
+// GetPubkeyString returns a string to descript the pubkey
+func (m *EncryptionModule) GetPubkeyString() (string, error) {
+	pubBytes, err := x509.MarshalPKIXPublicKey((*rsa.PublicKey)(&m.privkey.PublicKey))
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(pubBytes), nil
+}
 
 // SendEncryptedMessage broadcast an encrypted message in private msg
 func (m *EncryptionModule) SendEncryptedMessage(msg transport.Message, to string) error {

@@ -17,27 +17,33 @@ import (
 type TxnType string
 
 const (
-	TxnTypeCoinbase TxnType = "txn-coinbase"
-	TxnTypePreMPC   TxnType = "txn-prempc"
-	TxnTypePostMPC  TxnType = "txn-postmpc"
+	TxnTypeCoinbase  TxnType = "txn-coinbase"
+	TxnTypePreMPC    TxnType = "txn-preMPC"
+	TxnTypePostMPC   TxnType = "txn-postMPC"
+	TxnTypeRegAssets TxnType = "txn-regAssets"
 
-	TxnTypeInitConfig TxnType = "txn-initconfig"
+	TxnTypeInitConfig TxnType = "txn-initConfig"
+	TxnTypeSetPubkey  TxnType = "txn-regEnckey"
 )
 
 var txnHandlerStore = map[TxnType]func(storage.KVStore, *ChainConfig, *Transaction) error{
-	TxnTypeCoinbase: execCoinbase,
-	TxnTypePreMPC:   execPreMPC,
-	TxnTypePostMPC:  execPostMPC,
+	TxnTypeCoinbase:  execCoinbase,
+	TxnTypePreMPC:    execPreMPC,
+	TxnTypePostMPC:   execPostMPC,
+	TxnTypeRegAssets: execRegAssets,
 
 	TxnTypeInitConfig: execInitConfig,
+	TxnTypeSetPubkey:  execRegEnckey,
 }
 
 var txnUnmarshalerStore = map[TxnType]func(json.RawMessage) (interface{}, error){
-	TxnTypeCoinbase: unmarshalCoinbase,
-	TxnTypePreMPC:   unmarshalPreMPC,
-	TxnTypePostMPC:  unmarshalPostMPC,
+	TxnTypeCoinbase:  unmarshalCoinbase,
+	TxnTypePreMPC:    unmarshalPreMPC,
+	TxnTypePostMPC:   unmarshalPostMPC,
+	TxnTypeRegAssets: unmarshalRegAssets,
 
 	TxnTypeInitConfig: unmarshalInitConfig,
+	TxnTypeSetPubkey:  unmarshalRegEnckey,
 }
 
 // -----------------------------------------------------------------------------
@@ -80,15 +86,17 @@ func (txn *Transaction) HashBytes() []byte {
 	h.Write([]byte(txn.Type))
 	h.Write([]byte(fmt.Sprintf("%f", txn.Value)))
 
+	// bytes, err := json.Marshal(txn.Data)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// h.Write(bytes)
+
 	switch hh := txn.Data.(type) {
-	case Hashable:
+	case storage.Hashable:
 		h.Write([]byte(hh.Hash()))
 	default:
-		bytes, err := json.Marshal(txn.Data)
-		if err != nil {
-			panic(err)
-		}
-		h.Write(bytes)
+		h.Write([]byte(storage.Hash(hh)))
 	}
 
 	return h.Sum(nil)
@@ -112,7 +120,8 @@ func (txn *Transaction) Unmarshal() error {
 
 	dict, ok := txn.Data.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("invalid data type")
+		// simple type, no need to do futhur operations
+		return nil
 	}
 	jsonbody, err := json.Marshal(dict)
 	if err != nil {
@@ -134,7 +143,9 @@ func (txn *Transaction) Unmarshal() error {
 }
 
 // Exec executes the transaction based on the input worldState
-func (txn *Transaction) Exec(worldState storage.KVStore, config *ChainConfig) error {
+func (txn *Transaction) Exec(worldState storage.KVStore) error {
+	config := GetConfigFromWorldState(worldState)
+
 	// check nonce
 	err := checkNonce(worldState, txn)
 	if err != nil {
@@ -202,8 +213,9 @@ func (signedTxn *SignedTransaction) String() string {
 }
 
 // Verify verify the signature and then execute to see whether the result is consistent with worldState
-func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *ChainConfig) error {
+func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore) error {
 	txn := signedTxn.Txn
+	config := GetConfigFromWorldState(worldState)
 
 	// verify origin is inside the chain
 	if !CheckPariticipation(worldState, config, txn.From) {
@@ -219,21 +231,21 @@ func (signedTxn *SignedTransaction) Verify(worldState storage.KVStore, config *C
 		}
 		addr := NewAddress(publicKey)
 		if addr.Hex != txn.From {
-			return fmt.Errorf("transaction %s is not signed by sender %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+			return fmt.Errorf("transaction (%s) %s is not signed by sender %s", signedTxn.Txn.Type, signedTxn.Txn.ID, signedTxn.Txn.From)
 		}
 		// verify sig input needs to be in [R || S] format
 		sigValid := crypto.VerifySignature(crypto.FromECDSAPub(publicKey), digestHash, signedTxn.Signature[:len(signedTxn.Signature)-1])
 		if !sigValid {
-			return fmt.Errorf("transaction %s has invalid signature from %s", signedTxn.Txn.ID, signedTxn.Txn.From)
+			return fmt.Errorf("transaction (%s) %s has invalid signature from %s", signedTxn.Txn.Type, signedTxn.Txn.ID, signedTxn.Txn.From)
 		}
 	}
 
 	// execute txn
 	stateCopy := worldState.Copy()
-	err := txn.Exec(stateCopy, config)
+	err := txn.Exec(stateCopy)
 	if err == nil {
 		// check before real execution
-		_ = txn.Exec(worldState, config)
+		_ = txn.Exec(worldState)
 	}
 
 	return err
@@ -270,10 +282,6 @@ type Describable interface {
 	String() string
 }
 
-type Hashable interface {
-	Hash() string
-}
-
 func CheckPariticipation(worldState storage.KVStore, config *ChainConfig, addrID string) bool {
 	if addrID == ZeroAddress.Hex {
 		return true
@@ -304,10 +312,6 @@ func GetConfigFromWorldState(worldState storage.KVStore) *ChainConfig {
 	}
 	config := object.(ChainConfig)
 	return &config
-}
-
-func mpcKeyFromUniqID(uniqID string) string {
-	return fmt.Sprintf("ongoging-mpc-%s", uniqID)
 }
 
 func checkNonce(worldState storage.KVStore, txn *Transaction) error {

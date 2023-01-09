@@ -57,6 +57,9 @@ type Messaging interface {
 
 	// SendEncryptedMessage broadcast an encrypted message in private msg
 	SendEncryptedMessage(msg transport.Message, to string) error
+
+	// GetPubkeyString returns a string to descript the pubkey
+	GetPubkeyString() (string, error)
 }
 
 type PubkeyStore map[string]types.Pubkey

@@ -9,12 +9,12 @@ import (
 
 func Test_BC_Init_Genesis(t *testing.T) {
 	config := *NewChainConfig(
-		map[string][]byte{
-			"addr1": {},
-			"addr2": {},
-			"addr3": {},
+		map[string]string{
+			"addr1": "",
+			"addr2": "",
+			"addr3": "",
 		},
-		10, "2h", 10,
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		"addr2": 100,
@@ -52,8 +52,8 @@ func Test_BC_Append_Correct(t *testing.T) {
 
 	// create blockchain
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -68,13 +68,11 @@ func Test_BC_Append_Correct(t *testing.T) {
 
 	worldstate := block0.GetWorldStateCopy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
-		Initiator:  account.addr.Hex,
-		Budget:     10,
-		Expression: "a",
+	txn1, err := NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -101,8 +99,8 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	// create blockchain
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -117,13 +115,11 @@ func Test_BC_Append_Check_Fail(t *testing.T) {
 
 	worldstate := block0.GetWorldStateCopy()
 
-	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
-		Initiator:  account.addr.Hex,
-		Budget:     10,
-		Expression: "a",
+	txn1, err := NewTransactionRegAssets(&account, map[string]float64{
+		"key1": 1,
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	// > block too stale
@@ -168,8 +164,8 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 
 	// create blockchain
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -190,7 +186,7 @@ func Test_BC_Append_Verify_Fail(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.Error(t, err)
 
 	bb := NewBlockBuilder()
@@ -217,8 +213,8 @@ func Test_BC_Has_Txn(t *testing.T) {
 
 	// create blockchain
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,
@@ -231,14 +227,12 @@ func Test_BC_Has_Txn(t *testing.T) {
 
 	// first block has txn1 and txn2
 	worldstate := block0.GetWorldStateCopy()
-	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
-		Initiator:  account.addr.Hex,
-		Budget:     10,
-		Expression: "a",
+	txn1, err := NewTransactionRegAssets(&account, map[string]float64{
+		"b": 1,
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn1.Verify(worldstate, &config)
+	err = txn1.Verify(worldstate)
 	require.NoError(t, err)
 
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
@@ -248,7 +242,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn2.Verify(worldstate, &config)
+	err = txn2.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -264,12 +258,12 @@ func Test_BC_Has_Txn(t *testing.T) {
 	// second block has txn3
 	worldstate = block1.GetWorldStateCopy()
 	txn3, err := NewTransactionPostMPC(&account, MPCRecord{
-		UniqID: txn1.Txn.ID,
+		UniqID: txn2.Txn.ID,
 		Result: 10,
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
-	err = txn3.Verify(worldstate, &config)
+	err = txn3.Verify(worldstate)
 	require.NoError(t, err)
 
 	bb = NewBlockBuilder()
@@ -308,8 +302,8 @@ func Test_BC_Append_Genesis(t *testing.T) {
 
 	// create blockchain
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	initialGain := map[string]float64{
 		account.addr.Hex: 1000,

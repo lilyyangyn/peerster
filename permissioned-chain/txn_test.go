@@ -54,15 +54,18 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		1, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		1, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	asset.Add(map[string]float64{"a": budget})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	// Execute transaction
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// verify worldState
@@ -76,7 +79,7 @@ func Test_Txn_Execution_PreMPC_Correct(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(mpcendorse.Peers))
 	require.Equal(t, 0, len(mpcendorse.Endorsers))
-	require.Equal(t, budget, mpcendorse.Budget)
+	require.Equal(t, budget, mpcendorse.Budget[account.addr.Hex])
 	require.True(t, mpcendorse.Locked)
 }
 
@@ -99,10 +102,13 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: nil},
-		1, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		1, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
+	asset := NewAssetsRecord(account.addr.Hex)
+	asset.Add(map[string]float64{"a": budget})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 
 	// > balance not enough should fail
 
@@ -114,7 +120,7 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	}
 	worldState.Put(account.addr.Hex, testAccount)
 	stateCopy := worldState.Copy()
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	// worldState should not change
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
@@ -129,11 +135,11 @@ func Test_Txn_Execution_PreMPC_InCorrect(t *testing.T) {
 	}
 	worldState.Put(account.addr.Hex, account)
 	//  execution should success
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 	stateCopy = worldState.Copy()
 	// second execution should fail
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 
 	// worldState should not change for second execution
@@ -159,10 +165,10 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{
-			account.addr.Hex:   {},
-			initiator.addr.Hex: {}},
-		1, "2h", 10,
+		map[string]string{
+			account.addr.Hex:   "",
+			initiator.addr.Hex: ""},
+		1, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(initiator.addr.Hex, initiator)
@@ -170,7 +176,9 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	worldState.Put(mpcKeyFromUniqID(uniqID), MPCEndorsement{
 		Peers:     config.Participants,
 		Endorsers: map[string]struct{}{},
-		Budget:    budget,
+		Budget: map[string]float64{
+			account.addr.Hex:   budget,
+			initiator.addr.Hex: budget},
 		Initiator: initiator.addr.Hex,
 		Locked:    true,
 	})
@@ -178,7 +186,7 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	//> Execute first transaction
 
 	txn := NewTransactionPostMPC(&account, record)
-	err := txn.Exec(worldState, &config)
+	err := txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// > verify worldState
@@ -207,7 +215,7 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	//> Execute second transaction
 
 	txn = NewTransactionPostMPC(&initiator, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 
 	// > verify worldState
@@ -252,10 +260,10 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{
-			account.addr.Hex:   {},
-			initiator.addr.Hex: {}},
-		1, "2h", 10,
+		map[string]string{
+			account.addr.Hex:   "",
+			initiator.addr.Hex: ""},
+		1, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(initiator.addr.Hex, initiator)
@@ -265,7 +273,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 
 	stateCopy := worldState.Copy()
 	txn := NewTransactionPostMPC(&account, record)
-	err := txn.Exec(worldState, &config)
+	err := txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 
@@ -274,14 +282,16 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	worldState.Put(mpcKeyFromUniqID(uniqID), MPCEndorsement{
 		Peers:     config.Participants,
 		Endorsers: map[string]struct{}{},
-		Budget:    budget,
-		Locked:    true,
+		Budget: map[string]float64{
+			account.addr.Hex:   budget,
+			initiator.addr.Hex: budget},
+		Locked: true,
 	})
 	worldState.Put(account2.addr.Hex, account2)
 
 	stateCopy = worldState.Copy()
 	txn = NewTransactionPostMPC(&account2, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 
@@ -289,7 +299,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 
 	// first claim should succeed
 	txn = NewTransactionPostMPC(&account, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.NoError(t, err)
 	// second claim should fail
 	stateCopy = worldState.Copy()
@@ -297,7 +307,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	require.Equal(t, account.addr.Hex, newAccount.addr.Hex)
 	require.Equal(t, account.nonce+1, newAccount.nonce)
 	txn = NewTransactionPostMPC(&newAccount, record)
-	err = txn.Exec(worldState, &config)
+	err = txn.Exec(worldState)
 	require.Error(t, err)
 	require.Equal(t, stateCopy.Hash(), worldState.Hash())
 }

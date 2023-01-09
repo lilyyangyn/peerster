@@ -3,6 +3,7 @@ package mpc
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sync"
@@ -179,55 +180,6 @@ func (c *MPCCenter) Listen(id string, timeout time.Duration) MPCResult {
 }
 
 // --------------------------------------------------------
-
-type Stack []string
-
-// IsEmpty: check if stack is empty
-func (st *Stack) IsEmpty() bool {
-	return len(*st) == 0
-}
-
-// Push a new value onto the stack
-func (st *Stack) Push(str string) {
-	*st = append(*st, str) //Simply append the new value to the end of the stack
-}
-
-// Remove top element of stack. Return false if stack is empty.
-func (st *Stack) Pop() bool {
-	if st.IsEmpty() {
-		return false
-	} else {
-		index := len(*st) - 1 // Get the index of top most element.
-		*st = (*st)[:index]   // Remove it from the stack by slicing it off.
-		return true
-	}
-}
-
-// Return top element of stack. Return false if stack is empty.
-func (st *Stack) Top() string {
-	if st.IsEmpty() {
-		return ""
-	} else {
-		index := len(*st) - 1   // Get the index of top most element.
-		element := (*st)[index] // Index onto the slice and obtain the element.
-		return element
-	}
-}
-
-// Function to return precedence of operators
-func prec(s string) int {
-	if s == "^" {
-		return 3
-	} else if (s == "/") || (s == "*") {
-		return 2
-	} else if (s == "+") || (s == "-") {
-		return 1
-	} else {
-		return -1
-	}
-}
-
-// --------------------------------------------------------
 // PubkeyStore
 
 type PubkeyStore struct {
@@ -250,19 +202,24 @@ func (s *PubkeyStore) Get(id string) (*types.Pubkey, bool) {
 	return (*types.Pubkey)(key), ok
 }
 
-func (s *PubkeyStore) Add(raw map[string][]byte) error {
+func (s *PubkeyStore) Add(raw map[string]string) error {
 	s.Lock()
 	defer s.Unlock()
 
 	failed := make([]string, 0)
 
-	for addr, pubBytes := range raw {
+	for addr, pubEncode := range raw {
 		// now do not support pubkey change
 		_, ok := s.store[addr]
 		if ok {
 			continue
 		}
 
+		pubBytes, err := hex.DecodeString(pubEncode)
+		if err != nil {
+			failed = append(failed, addr)
+			continue
+		}
 		pubkey, err := x509.ParsePKIXPublicKey(pubBytes)
 		if err != nil {
 			failed = append(failed, addr)

@@ -17,12 +17,12 @@ func (MPCShareMessage) Name() string {
 
 // String implements types.Message.
 func (m MPCShareMessage) String() string {
-	return fmt.Sprintf("{mpc secretshare for round %d: %s-%s}", m.ReqID, m.Value.Owner, m.Value.Key)
+	return fmt.Sprintf("{mpc secretshare for round %s: %s-%s}", m.ReqID, m.Value.Owner, m.Value.Key)
 }
 
 // HTML implements types.Message.
 func (m MPCShareMessage) HTML() string {
-	return fmt.Sprintf("{mpc secretshare for round %d: %s-%s}", m.ReqID, m.Value.Owner, m.Value.Key)
+	return fmt.Sprintf("{mpc secretshare for round %s: %s-%s}", m.ReqID, m.Value.Owner, m.Value.Key)
 }
 
 // -----------------------------------------------------------------------------
@@ -40,10 +40,10 @@ func (MPCInterpolationMessage) Name() string {
 
 // String implements types.Message.
 func (m MPCInterpolationMessage) String() string {
-	return fmt.Sprintf("{mpc interpolation for round %d from %s}", m.ReqID, m.Owner)
+	return fmt.Sprintf("{mpc interpolation for round %s from %s}", m.ReqID, m.Owner)
 }
 
 // HTML implements types.Message.
 func (m MPCInterpolationMessage) HTML() string {
-	return fmt.Sprintf("{mpc interpolation for round %d from %s}", m.ReqID, m.Owner)
+	return fmt.Sprintf("{mpc interpolation for round %s from %s}", m.ReqID, m.Owner)
 }

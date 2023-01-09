@@ -24,6 +24,9 @@ type PermissionedChain interface {
 	// the blockchain. It returns nil if txn not exists
 	BCGetTransaction(txnID string) *permissioned.SignedTransaction
 
+	// BCWaitBlock blocks the thread until the genesis block is found
+	BCWaitBlock() *permissioned.Block
+
 	// BCGetLastBlock returns the latest block of the blockchain
 	// it returns nil if blockchain not initialize
 	BCGetLatestBlock() *permissioned.Block
@@ -37,6 +40,9 @@ type PermissionedChain interface {
 	// or not yep have an address
 	BCGetAddress() (permissioned.Address, error)
 
+	// BCGetBalance returns the current balance of the node's account
+	BCGetBalance() float64
+
 	// BCGenerateKeyPair generates an ECDSA key pair
 	// and write it in the file
 	BCGenerateKeyPair(path string) error
@@ -46,6 +52,9 @@ type PermissionedChain interface {
 
 	// BCLoadKeyPair loads an ECDSA key pair from file
 	BCLoadKeyPair(path string) error
+
+	// BCAllEncryptKeySet checks if all encryption keys of nodes are registered
+	BCAllEncryptKeySet() bool
 
 	// BCSprintBlockchain returns a decription string of the blockchain
 	BCSprintBlockchain() string

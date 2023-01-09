@@ -92,12 +92,13 @@ func (b *Block) Verify(worldState storage.KVStore) error {
 
 	// check state
 	for _, txn := range b.Transactions {
-		err := txn.Verify(worldState, config)
+		err := txn.Verify(worldState)
 		if err != nil {
 			return fmt.Errorf("block %s has invalid transaction: %t", b.Hash(), err)
 		}
 	}
 	if hex.EncodeToString(worldState.Hash()) != b.StateHash {
+		fmt.Println(worldState)
 		return fmt.Errorf("block %s has different execution result from expected", b.Hash())
 	}
 	// set state

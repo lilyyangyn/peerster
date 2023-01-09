@@ -89,6 +89,28 @@ func (bc *Blockchain) SetGenesisBlock(block *Block) error {
 	return nil
 }
 
+// AllEncryptKeySet checks if all public keys of nodes are registered
+func (bc *Blockchain) AllEncryptKeySet() bool {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	if bc.latestBlock == nil {
+		return false
+	}
+
+	config := GetConfigFromWorldState(bc.latestBlock.States)
+	if config == nil {
+		return false
+	}
+
+	for _, pubkey := range config.Participants {
+		if len(pubkey) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // GetBlock returns a copy of the whole chain
 func (bc *Blockchain) GetBlock(blockID string) *Block {
 	bc.RLock()
@@ -137,6 +159,19 @@ const (
 	BlockCompareInvalidHash
 	BlockCompareNotInitialize
 )
+
+// GetBalance returns the current account balance of the address
+func (bc *Blockchain) GetBalance(addr string) float64 {
+	bc.RLock()
+	defer bc.RUnlock()
+
+	if bc.latestBlock == nil {
+		return 0
+	}
+
+	account := GetAccountFromWorldState(bc.latestBlock.States, addr)
+	return account.balance
+}
 
 // GetTxn checks if the target transaction is in blockchain
 func (bc *Blockchain) GetTxn(txnID string) *SignedTransaction {

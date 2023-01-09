@@ -3,15 +3,14 @@ package mpc
 import (
 	"fmt"
 	"math/big"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 	"go.dedis.ch/cs438/peer"
 	"go.dedis.ch/cs438/peer/impl/blockchain"
 	"go.dedis.ch/cs438/peer/impl/message"
 	"go.dedis.ch/cs438/peer/impl/paxos"
+	"go.dedis.ch/cs438/permissioned-chain"
 	"go.dedis.ch/cs438/types"
 )
 
@@ -70,32 +69,59 @@ func (m *MPCModule) Calculate(expression string, budget float64) (int, error) {
 	panic("invalid MPC type")
 }
 
-func (m *MPCModule) SetValueDBAsset(key string, value int) error {
+func (m *MPCModule) SetValueDBAsset(key string, value int, price float64) error {
+	myIdentity := m.getIdentifyKey()
+	assetsMap := m.GetPeerAssetPrices()
+
+	for peer, assets := range assetsMap {
+		if peer == myIdentity {
+			continue
+		}
+		_, found := assets[key]
+		if found {
+			return fmt.Errorf("add Assets failed. key %s duplicate, peer %s already have the same assets", key, peer)
+		}
+	}
+
 	ok := m.valueDB.addAsset(key, value)
 	if !ok {
 		return fmt.Errorf("add Assets failed")
 	}
+
+	if m.consensusType != peer.MPCConsensusBC {
+		return nil
+	}
+
+	id, err := m.bcModule.SendRegAssetsTransaction(map[string]float64{key: price})
+	if err != nil {
+		return err
+	}
+	log.Info().Msgf("send regAssets txn %s for Assets %s", id, key)
+
 	return nil
+}
+
+// GetPeerAssetPrices returns the assets inside the network with the keys and prices
+func (m *MPCModule) GetPeerAssetPrices() map[string]map[string]float64 {
+	if m.consensusType != peer.MPCConsensusBC {
+		return nil
+	}
+
+	states := m.bcModule.GetLatestBlock().States
+
+	return permissioned.GetAllAssetsFromWorldState(states)
 }
 
 func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) (int, error) {
 	fmt.Printf("#################### %s Start Expression %s(%s) #############################\n", m.conf.Socket.GetAddress(), expr, uniqID)
-	// change infix to postfix
-	postfix, err := infixToPostfix(expr)
+
+	postfix, variablesNeed, err := permissioned.GetPostfixAndVariables(expr)
 	if err != nil {
 		return -1, err
 	}
 
 	// get MPC
 	mpc := m.mpcCenter.GetMPC(uniqID)
-
-	variablesNeed := map[string]struct{}{}
-	for _, exp := range postfix {
-		var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-		if IsVariableName(exp) {
-			variablesNeed[exp] = struct{}{}
-		}
-	}
 
 	// SSS to all participants that the peer have public key
 	for key := range variablesNeed {
@@ -128,65 +154,7 @@ func (m *MPCModule) ComputeExpression(uniqID string, expr string, prime string) 
 }
 
 // -----------------------------------------------------------------------------
-// Private Helpfer Functions
-
-func infixToPostfix(infix string) ([]string, error) {
-	// '+', "-", is not used as a unary operation (i.e., "+1", "-(2 + 3)"", "-1", "3-(-2)" are invalid).
-	infix = strings.ReplaceAll(infix, " ", "")
-	var NoInValidChar = regexp.MustCompile(`^[a-zA-Z0-9_\+\-\*\/\^()\.]+$`).MatchString
-	if !NoInValidChar(infix) {
-		return []string{}, fmt.Errorf("infix contains illegal character")
-	}
-
-	var IsVariableName = regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`).MatchString
-	s := Stack{}
-	postfix := []string{}
-	valid := true
-
-	curVariable := ""
-	for _, char := range infix {
-		opchar := string(char)
-		// if scanned character is operand, add it to output string
-		if IsVariableName(opchar) {
-			curVariable += opchar
-			continue
-		} else {
-			if curVariable != "" {
-				postfix = append(postfix, curVariable)
-			}
-			curVariable = ""
-		}
-
-		if char == '(' {
-			s.Push(opchar)
-		} else if char == ')' {
-			for s.Top() != "(" {
-				postfix = append(postfix, s.Top())
-				valid = valid && s.Pop()
-			}
-			valid = valid && s.Pop()
-		} else {
-			for !s.IsEmpty() && prec(opchar) <= prec(s.Top()) {
-				postfix = append(postfix, s.Top())
-				valid = valid && s.Pop()
-			}
-			s.Push(opchar)
-		}
-
-		if !valid {
-			return []string{}, fmt.Errorf("infix is invalid")
-		}
-	}
-	if curVariable != "" {
-		postfix = append(postfix, curVariable)
-	}
-	// Pop all the remaining elements from the stack
-	for !s.IsEmpty() {
-		postfix = append(postfix, s.Top())
-		s.Pop()
-	}
-	return postfix, nil
-}
+// Private Helper Functions
 
 func (m *MPCModule) shareSecret(key string, mpc *MPC) error {
 	// log.Printf("%s: start share secret, key: %s, peers: %s",
@@ -360,7 +328,7 @@ func (m *MPCModule) getIdentifyKey() string {
 	case peer.MPCConsensusPaxos:
 		return m.conf.Socket.GetAddress()
 	case peer.MPCConsensusBC:
-		addr, err := m.bcModule.GetAddress()
+		addr, err := m.bcModule.GetChainAddress()
 		if err != nil {
 			panic(err)
 		}

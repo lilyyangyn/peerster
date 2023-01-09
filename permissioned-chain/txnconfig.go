@@ -19,44 +19,45 @@ var STATE_CONFIG_KEY = "PermissionedChain-Config"
 
 // ChainConfig represents the config of the permissioned chain
 type ChainConfig struct {
-	ID           string
-	Participants map[string][]byte
+	Participants map[string]string
 
 	MaxTxnsPerBlk int
 	WaitTimeout   string
+
+	MPCParticipationGain float64
 
 	JoinThreshold float64
 }
 
 // NewChainConfig creates a new config and computes its ID
-func NewChainConfig(participant map[string][]byte,
-	maxTxnsPerBlk int, waitTimeout string, threshold float64) *ChainConfig {
+func NewChainConfig(participant map[string]string,
+	maxTxnsPerBlk int, waitTimeout string, mpcGain float64, threshold float64) *ChainConfig {
 	cc := ChainConfig{
 		Participants: participant,
 
 		MaxTxnsPerBlk: maxTxnsPerBlk,
 		WaitTimeout:   waitTimeout,
 
+		MPCParticipationGain: mpcGain,
+
 		JoinThreshold: threshold,
 	}
-	cc.ID = cc.Hash()
 
 	return &cc
 }
 
 // ChainConfigFromYAML creates a new config based on yaml and computes its ID
 func ChainConfigFromYAML(path string) (*ChainConfig, error) {
-	yamlFile, err := os.ReadFile("conf.yaml")
+	yamlFile, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := ChainConfig{}
+	var cc ChainConfig
 	err = yaml.Unmarshal(yamlFile, &cc)
 	if err != nil {
 		return nil, err
 	}
-	cc.ID = cc.Hash()
 
 	return &cc, nil
 }
@@ -73,9 +74,13 @@ func (c ChainConfig) Hash() string {
 
 	for _, participant := range keys {
 		h.Write([]byte(participant))
+		h.Write([]byte(c.Participants[participant]))
 	}
 	h.Write([]byte(fmt.Sprintf("%d", c.MaxTxnsPerBlk)))
 	h.Write([]byte(c.WaitTimeout))
+
+	h.Write([]byte(fmt.Sprintf("%f", c.MPCParticipationGain)))
+
 	h.Write([]byte(fmt.Sprintf("%f", c.JoinThreshold)))
 
 	return hex.EncodeToString(h.Sum(nil))
@@ -97,16 +102,16 @@ func (c ChainConfig) String() string {
 
 // Copy implements Copyable.Copy
 func (c ChainConfig) Copy() storage.Copyable {
-	participants := make(map[string][]byte)
+	participants := make(map[string]string)
 	for key, val := range c.Participants {
 		participants[key] = val
 	}
 	config := ChainConfig{
-		ID:            c.ID,
-		Participants:  participants,
-		MaxTxnsPerBlk: c.MaxTxnsPerBlk,
-		WaitTimeout:   c.WaitTimeout,
-		JoinThreshold: c.JoinThreshold,
+		Participants:         participants,
+		MaxTxnsPerBlk:        c.MaxTxnsPerBlk,
+		WaitTimeout:          c.WaitTimeout,
+		MPCParticipationGain: c.MPCParticipationGain,
+		JoinThreshold:        c.JoinThreshold,
 	}
 	return config
 }
@@ -135,6 +140,37 @@ func execInitConfig(worldState storage.KVStore, config *ChainConfig, txn *Transa
 }
 
 func unmarshalInitConfig(data json.RawMessage) (interface{}, error) {
+	var c ChainConfig
+	err := json.Unmarshal(data, &c)
+
+	return c, err
+}
+
+// -----------------------------------------------------------------------------
+// Transaction Polymophism - RegEnckey
+
+func NewTransactionRegEnckey(peer *Account, pubkey string) *Transaction {
+	return NewTransaction(
+		peer,
+		&ZeroAddress,
+		TxnTypeSetPubkey,
+		0,
+		pubkey,
+	)
+}
+
+func execRegEnckey(worldState storage.KVStore, config *ChainConfig, txn *Transaction) error {
+	if len(config.Participants[txn.From]) > 0 {
+		return fmt.Errorf("public key for account %s is already set", txn.From)
+	}
+
+	pubkey := txn.Data.(string)
+	config.Participants[txn.From] = pubkey
+
+	return nil
+}
+
+func unmarshalRegEnckey(data json.RawMessage) (interface{}, error) {
 	var c ChainConfig
 	err := json.Unmarshal(data, &c)
 

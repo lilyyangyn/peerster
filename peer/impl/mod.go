@@ -168,6 +168,11 @@ func (n *node) SearchFirst(pattern regexp.Regexp, conf peer.ExpandingRing) (name
 	return n.datasharing.SearchFirst(pattern, conf)
 }
 
+// GetPubkeyString implements peer.GetPubkeyString
+func (n *node) GetPubkeyString() (string, error) {
+	return n.message.GetPubkeyString()
+}
+
 // SendEncryptedMessage implements peer.SendEncryptedMessage
 func (n *node) SendEncryptedMessage(msg transport.Message, to string) error {
 	return n.message.SendEncryptedMessage(msg, to)
@@ -195,8 +200,13 @@ func (n *node) ComputeExpression(uniqID string, expr string, prime string) (int,
 }
 
 // GetPubkeyStore implements peer.SetValueDBAsset
-func (n *node) SetValueDBAsset(key string, value int) error {
-	return n.mpc.SetValueDBAsset(key, value)
+func (n *node) SetValueDBAsset(key string, value int, price float64) error {
+	return n.mpc.SetValueDBAsset(key, value, price)
+}
+
+// ShowAllPeerAssets implements peer.ShowAllPeerAssets
+func (n *node) GetAllPeerAssetPrices() map[string]map[string]float64 {
+	return n.mpc.GetPeerAssetPrices()
 }
 
 // Calculate implements peer.Calculate
@@ -207,6 +217,11 @@ func (n *node) Calculate(expression string, budget float64) (int, error) {
 // InitBlockchain implements peer.InitBlockchain
 func (n *node) InitBlockchain(config permissioned.ChainConfig, initialGain map[string]float64) error {
 	return n.blockchain.InitBlockchain(config, initialGain)
+}
+
+// BCWaitBlock implements peer.BCWaitBlock
+func (n *node) BCWaitBlock() *permissioned.Block {
+	return n.blockchain.WaitBlock()
 }
 
 // BCSendTransaction implements peer.BCSendTransaction
@@ -236,7 +251,12 @@ func (n *node) BCGetBlock(blockID string) *permissioned.Block {
 
 // BCGetAddress implements peer.BCGetAddress
 func (n *node) BCGetAddress() (permissioned.Address, error) {
-	return n.blockchain.GetAddress()
+	return n.blockchain.GetChainAddress()
+}
+
+// BCGetBalance implements peer.BCGetBalance
+func (n *node) BCGetBalance() float64 {
+	return n.blockchain.GetAccountBalance()
 }
 
 // BCGenerateKeyPair implements peer.BCGenerateKeyPair
@@ -252,6 +272,11 @@ func (n *node) BCSetKeyPair(privkey ecdsa.PrivateKey) error {
 // BCLoadKeyPair implements peer.BCLoadKeyPair
 func (n *node) BCLoadKeyPair(path string) error {
 	return n.blockchain.LoadKeyPair(path)
+}
+
+// BCAllEncryptKeySet implements peer.BCAllEncryptKeySet
+func (n *node) BCAllEncryptKeySet() bool {
+	return n.blockchain.AllEncryptKeySet()
 }
 
 // BCSprintBlockchain implements peer.BCSprintBlockchain

@@ -17,10 +17,10 @@ func Test_GP_BC_Init(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node1.Stop()
 
-	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node2.Stop()
 
 	node1.AddPeer(node2.GetAddr())
@@ -42,11 +42,11 @@ func Test_GP_BC_Init(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
-		10, "2h", 1,
+		10, "2h", 1, 1,
 	)
 	require.Len(t, config.Participants, 2)
 	err = node1.InitBlockchain(*config, nil)
@@ -99,7 +99,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer node1.Stop()
 
 	sock2, err := transp.CreateSocket("127.0.0.1:0")
@@ -132,11 +132,11 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 	// > init blockchain on node1. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 10000,
@@ -154,18 +154,15 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	// > send Tx to node1. A new block need to be mined
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
 
 	worldState := block0.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = node1.BCSendTransaction(signedTxn)
@@ -187,7 +184,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	txnMsg1 := z.GetBCTxn(t, private.Msg)
 	require.Equal(t, node1.GetAddr(), txnMsg1.Origin)
-	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypePreMPC)
+	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypeRegAssets)
 
 	// sock2 got the correct txn message
 
@@ -202,7 +199,7 @@ func Test_GP_BC_Mine_Block_Simple(t *testing.T) {
 
 	txnMsg2 := z.GetBCTxn(t, private.Msg)
 	require.Equal(t, node1.GetAddr(), txnMsg2.Origin)
-	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypePreMPC)
+	require.Equal(t, txnMsg1.Txn.Txn.Type, permissioned.TxnTypeRegAssets)
 
 	time.Sleep(time.Second * 1)
 
@@ -235,10 +232,10 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeB.Stop()
 
 	nodeA.AddPeer(nodeB.GetAddr())
@@ -261,11 +258,11 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 22,
@@ -287,19 +284,16 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
 	account1.IncreaseNonce()
 
 	worldState := block0a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -322,19 +316,16 @@ func Test_GP_BC_Mine_Block(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     1,
-			Expression: "a",
-		})
+	txn2 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn2.From)
 	signedTxn, err = txn2.Sign(privkey1)
 	require.NoError(t, err)
 	account1.IncreaseNonce()
 
 	worldState = block1a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -361,10 +352,10 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeB.Stop()
 
 	// generate key pairs
@@ -385,11 +376,11 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 	// > init blockchain on nodeA. Should success
 
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addr1.Hex: {},
-			addr2.Hex: {},
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
 		},
-		1, "2h", 1,
+		1, "2h", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addr1.Hex: 100,
@@ -409,19 +400,16 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn1 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
-		})
+	txn1 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkey1)
 	require.NoError(t, err)
 	account1.IncreaseNonce()
 
 	worldState := block0a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -450,19 +438,16 @@ func Test_GP_BC_Late_Joing(t *testing.T) {
 
 	// > send Tx to nodeA. need to succeed
 
-	txn2 := permissioned.NewTransactionPreMPC(account1,
-		permissioned.MPCPropose{
-			Initiator:  account1.GetAddress().Hex,
-			Budget:     1,
-			Expression: "a",
-		})
+	txn2 := permissioned.NewTransactionRegAssets(account1, map[string]float64{
+		"key1": 1,
+	})
 	require.Equal(t, addr1.Hex, txn2.From)
 	signedTxn, err = txn2.Sign(privkey1)
 	require.NoError(t, err)
 	account1.IncreaseNonce()
 
 	worldState = block1a.States.Copy()
-	err = signedTxn.Verify(worldState, config)
+	err = signedTxn.Verify(worldState)
 	require.NoError(t, err)
 
 	err = nodeA.BCSendTransaction(signedTxn)
@@ -501,9 +486,9 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	transp := channel.NewTransport()
 
-	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
-	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
-	nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	nodeA := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	nodeB := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	nodeC := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
 	defer nodeA.Stop()
 	defer nodeB.Stop()
 	defer nodeC.Stop()
@@ -534,11 +519,11 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	// init blockchain
 	config := permissioned.NewChainConfig(
-		map[string][]byte{
-			addrA.Hex: {},
-			addrB.Hex: {},
-			addrC.Hex: {},
-		}, 1, "2s", 1,
+		map[string]string{
+			addrA.Hex: "",
+			addrB.Hex: "",
+			addrC.Hex: "",
+		}, 1, "2s", 1, 1,
 	)
 	initialGain := map[string]float64{
 		addrA.Hex: 100,
@@ -565,11 +550,9 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 	// send txn. Need to success
 
 	accountA := permissioned.NewAccount(addrA)
-	txn1 := permissioned.NewTransactionPreMPC(accountA,
-		permissioned.MPCPropose{
-			Initiator:  accountA.GetAddress().Hex,
-			Budget:     10,
-			Expression: "a",
+	txn1 := permissioned.NewTransactionRegAssets(accountA,
+		map[string]float64{
+			"key1": 1,
 		})
 	require.Equal(t, addrA.Hex, txn1.From)
 	signedTxn, err := txn1.Sign(privkeyA)
@@ -594,5 +577,168 @@ func Test_GP_BC_Consensus_Equal_Credit(t *testing.T) {
 
 	require.Equal(t, block1a, block1b)
 	require.Equal(t, block1a, block1c)
+}
 
+func Test_GP_BC_Announce_Pubkey(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
+	transp := channel.NewTransport()
+
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer node1.Stop()
+
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0")
+	defer node2.Stop()
+
+	node1.AddPeer(node2.GetAddr())
+
+	// generate key pairs
+
+	privkey1, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node1.BCSetKeyPair(*privkey1)
+	addr1, err := node1.BCGetAddress()
+	require.NoError(t, err)
+
+	privkey2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node2.BCSetKeyPair(*privkey2)
+	addr2, err := node2.BCGetAddress()
+	require.NoError(t, err)
+
+	// > init blockchain on node1. Should success
+
+	config := permissioned.NewChainConfig(
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
+		},
+		2, "2h", 1, 1,
+	)
+	require.Len(t, config.Participants, 2)
+	err = node1.InitBlockchain(*config, nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
+	// > both nodes have its first block
+	blk11 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk11)
+	blk12 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk12)
+	require.Equal(t, blk11.Hash(), blk12.Hash())
+	require.Equal(t, uint(1), blk11.Height)
+
+	// this block should contain two public info
+
+	require.Len(t, blk11.Transactions, 2)
+	txn1 := blk11.Transactions[0]
+	txn2 := blk11.Transactions[1]
+
+	pubkey1, err := node1.GetPubkeyString()
+	require.NoError(t, err)
+	pubkey2, err := node2.GetPubkeyString()
+	require.NoError(t, err)
+
+	if txn1.Txn.From == addr1.Hex {
+		require.Equal(t, addr2.Hex, txn2.Txn.From)
+		require.Equal(t, pubkey1, txn1.Txn.Data.(string))
+		require.Equal(t, pubkey2, txn2.Txn.Data.(string))
+		return
+	}
+
+	require.Equal(t, addr1.Hex, txn2.Txn.From)
+	require.Equal(t, pubkey2, txn1.Txn.Data.(string))
+	require.Equal(t, pubkey1, txn2.Txn.Data.(string))
+}
+
+func Test_GP_BC_Set_Get_Assets(t *testing.T) {
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+
+	transp := channel.NewTransport()
+
+	node1 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	defer node1.Stop()
+
+	node2 := z.NewTestNode(t, peerFac, transp, "127.0.0.1:0", z.WithDisableAnnonceEnckey())
+	defer node2.Stop()
+
+	node1.AddPeer(node2.GetAddr())
+
+	// generate key pairs
+
+	privkey1, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node1.BCSetKeyPair(*privkey1)
+	addr1, err := node1.BCGetAddress()
+	require.NoError(t, err)
+
+	privkey2, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	node2.BCSetKeyPair(*privkey2)
+	addr2, err := node2.BCGetAddress()
+	require.NoError(t, err)
+
+	// > init blockchain on node1. Should success
+
+	config := permissioned.NewChainConfig(
+		map[string]string{
+			addr1.Hex: "",
+			addr2.Hex: "",
+		},
+		2, "2h", 1, 1,
+	)
+	require.Len(t, config.Participants, 2)
+	err = node1.InitBlockchain(*config, nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
+	// > both nodes have its first block
+	blk11 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk11)
+	blk12 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk12)
+	require.Equal(t, blk11.Hash(), blk12.Hash())
+	require.Equal(t, uint(0), blk11.Height)
+
+	// set asssets
+
+	err = node1.SetValueDBAsset("a", 1, 1)
+	require.NoError(t, err)
+	err = node2.SetValueDBAsset("b", 2, 2)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 500)
+
+	// > a new block should be mined
+
+	blk21 := node1.BCGetLatestBlock()
+	require.NotNil(t, blk21)
+	blk22 := node2.BCGetLatestBlock()
+	require.NotNil(t, blk22)
+	require.Equal(t, blk21.Hash(), blk22.Hash())
+	require.Equal(t, uint(1), blk21.Height)
+
+	// > should get all value keys
+
+	priceMap := node1.GetAllPeerAssetPrices()
+	price1, ok := priceMap[addr1.Hex]
+	require.True(t, ok)
+	require.Len(t, price1, 1)
+	require.Equal(t, float64(1), price1["a"])
+	price2, ok := priceMap[addr2.Hex]
+	require.True(t, ok)
+	require.Len(t, price2, 1)
+	require.Equal(t, float64(2), price2["b"])
+
+	priceMap = node2.GetAllPeerAssetPrices()
+	price1, ok = priceMap[addr1.Hex]
+	require.True(t, ok)
+	require.Len(t, price1, 1)
+	require.Equal(t, float64(1), price1["a"])
+	price2, ok = priceMap[addr2.Hex]
+	require.True(t, ok)
+	require.Len(t, price2, 1)
+	require.Equal(t, float64(2), price2["b"])
 }

@@ -69,30 +69,36 @@ func Test_Block_Verify_Correct(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	var budgetA float64 = 10
+	asset.Add(map[string]float64{"a": budgetA})
+	var budgetB float64 = 5
+	asset.Add(map[string]float64{"b": budgetB})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     10,
+		Budget:     budgetA,
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     5,
+		Budget:     budgetB,
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -121,30 +127,36 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	var budgetA float64 = 10
+	asset.Add(map[string]float64{"a": budgetA})
+	var budgetB float64 = 5
+	asset.Add(map[string]float64{"b": budgetB})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     10,
+		Budget:     budgetA,
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     5,
+		Budget:     budgetB,
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -163,7 +175,7 @@ func Test_Block_Verify_Invalid_Miner(t *testing.T) {
 	require.Error(t, err)
 }
 
-func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
+func Test_Block_Verify_Invalid_TXN_Hash(t *testing.T) {
 	// init account
 	privKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
@@ -174,30 +186,36 @@ func Test_Block_Verify_Invalid_TXNHash(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	var budgetA float64 = 10
+	asset.Add(map[string]float64{"a": budgetA})
+	var budgetB float64 = 5
+	asset.Add(map[string]float64{"b": budgetB})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     10,
+		Budget:     budgetA,
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     5,
+		Budget:     budgetB,
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()
@@ -228,30 +246,36 @@ func Test_Block_Verify_Invalid_TXN(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	var budgetA float64 = 10
+	asset.Add(map[string]float64{"a": budgetA})
+	var budgetB float64 = 10
+	asset.Add(map[string]float64{"b": budgetB})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     10,
+		Budget:     budgetA,
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
 	txn2, err := NewTransactionPreMPC(&account, MPCPropose{
 		Initiator:  account.addr.Hex,
-		Budget:     10,
+		Budget:     budgetB,
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.Error(t, err)
 
 	bb := NewBlockBuilder()
@@ -281,11 +305,17 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 	// create worldstate
 	worldState := storage.NewBasicKV()
 	config := *NewChainConfig(
-		map[string][]byte{account.addr.Hex: {}},
-		10, "2h", 10,
+		map[string]string{account.addr.Hex: ""},
+		10, "2h", 0, 10,
 	)
 	worldState.Put(STATE_CONFIG_KEY, config)
 	worldState.Put(account.addr.Hex, account)
+	asset := NewAssetsRecord(account.addr.Hex)
+	var budgetA float64 = 10
+	asset.Add(map[string]float64{"a": budgetA})
+	var budgetB float64 = 5
+	asset.Add(map[string]float64{"b": budgetB})
+	worldState.Put(AssetsKeyFromUniqID(account.addr.Hex), *asset)
 	stateCopy := worldState.Copy()
 
 	txn1, err := NewTransactionPreMPC(&account, MPCPropose{
@@ -294,7 +324,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 		Expression: "a",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn1.Verify(worldState, &config)
+	err = txn1.Verify(worldState)
 	require.NoError(t, err)
 
 	account.nonce++
@@ -304,7 +334,7 @@ func Test_Block_Verify_Inconsistent_State(t *testing.T) {
 		Expression: "b",
 	}).Sign(privKey)
 	require.NoError(t, err)
-	err = txn2.Verify(worldState, &config)
+	err = txn2.Verify(worldState)
 	require.NoError(t, err)
 
 	bb := NewBlockBuilder()

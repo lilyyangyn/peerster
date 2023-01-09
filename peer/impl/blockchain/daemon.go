@@ -13,7 +13,7 @@ import (
 
 func (m *BlockchainModule) Mine(ctx context.Context, txnPool *TxnPool) {
 	// wait until the blockchain's genesis block is set
-	<-m.bcReadyChan
+	_ = m.WaitBlock()
 	log.Info().Msgf("Start mining")
 out:
 	for {
@@ -29,9 +29,8 @@ out:
 			}
 
 			log.Info().Msgf("Mining on height=%d...", prevHeight+1)
-			config := latestBlock.GetConfig()
 			newBlock := createBlock(ctx, txnPool,
-				m.wallet.GetAddress().Hex, latestBlock, &config)
+				m.wallet.GetAddress().Hex, latestBlock)
 			if newBlock == nil {
 				continue
 			}
@@ -48,6 +47,7 @@ out:
 
 			// broadcast block
 			participants := make(map[string]struct{})
+			config := latestBlock.GetConfig()
 			for p := range config.Participants {
 				participants[p] = struct{}{}
 			}
@@ -60,10 +60,10 @@ out:
 }
 
 func createBlock(ctx context.Context, txnPool *TxnPool,
-	miner string, prevBlock *permissioned.Block,
-	config *permissioned.ChainConfig) *permissioned.Block {
+	miner string, prevBlock *permissioned.Block) *permissioned.Block {
 
 	worldState := prevBlock.GetWorldStateCopy()
+	config := permissioned.GetConfigFromWorldState(worldState)
 	blkBuilder := permissioned.NewBlockBuilder()
 	blkBuilder.SetPrevHash(prevBlock.Hash()).
 		SetHeight(prevBlock.Height + 1).
@@ -88,7 +88,7 @@ out:
 				continue
 			}
 
-			err := signedTxn.Verify(worldState, config)
+			err := signedTxn.Verify(worldState)
 			if err != nil {
 				log.Warn().Msgf("%s", err)
 				continue

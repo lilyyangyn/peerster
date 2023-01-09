@@ -2,12 +2,18 @@ package storage
 
 import (
 	"crypto"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"sort"
 )
 
 type Copyable interface {
 	Copy() Copyable
+}
+
+type Hashable interface {
+	Hash() string
 }
 
 type KVStore interface {
@@ -78,18 +84,32 @@ func (kv *BasicKV) Hash() []byte {
 
 	h := crypto.SHA256.New()
 	for _, key := range sorted {
-		value, ok := kv.store[key]
+		v, ok := kv.store[key]
 		if !ok {
 			continue
 		}
 		h.Write([]byte(key))
 
-		bytes, err := json.Marshal(value)
-		if err != nil {
-			panic(err)
+		switch vv := v.(type) {
+		case Hashable:
+			hash := vv.Hash()
+			h.Write([]byte(hash))
+		default:
+			hash := Hash(vv)
+			h.Write([]byte(hash))
 		}
-		h.Write(bytes)
 	}
 
 	return h.Sum(nil)
+}
+
+func Hash(value interface{}) string {
+	h := sha256.New()
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	h.Write(bytes)
+
+	return hex.EncodeToString(h.Sum(nil))
 }

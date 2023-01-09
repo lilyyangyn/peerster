@@ -1,4 +1,4 @@
-package mpc
+package permissioned
 
 import (
 	"fmt"
