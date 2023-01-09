@@ -83,7 +83,8 @@ func startMPC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 
 	value, err := node.Calculate(expr, budget)
 	if err != nil {
-		return err
+		printError(fmt.Errorf("calculation fails: %s", err))
+		return nil
 	}
 	printData("The result of %s is %d\n", expr, value)
 	printData("Your balance is %f\nPlease check balance later for the automatical deposit claim\n", node.BCGetBalance())
@@ -131,8 +132,11 @@ func addAsset(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		return err
 	}
 
-	return node.SetValueDBAsset(key, int(value), price)
-	// return nil
+	err = node.SetValueDBAsset(key, int(value), price)
+	if err != nil {
+		printError(fmt.Errorf("fail to set value: %s", err))
+	}
+	return nil
 }
 
 func addPeer(node *z.TestNode, actionMap map[string]ActionFunc) error {
