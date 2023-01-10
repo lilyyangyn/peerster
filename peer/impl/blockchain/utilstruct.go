@@ -232,9 +232,11 @@ func (w *Wallet) PostMPCTxn(id string, result float64) (*permissioned.SignedTran
 	w.Lock()
 	defer w.Unlock()
 
+	ResultHash := storage.Hash(result)
+
 	record := permissioned.MPCRecord{
 		UniqID: id,
-		Result: result,
+		Result: ResultHash,
 	}
 	txn := permissioned.NewTransactionPostMPC(w.account, record)
 	signedTxn, err := txn.Sign(w.privKey)

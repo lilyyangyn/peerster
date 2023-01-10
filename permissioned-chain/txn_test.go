@@ -159,7 +159,7 @@ func Test_Txn_Execution_PostMPC_Correct(t *testing.T) {
 	var uniqID = "test"
 	record := MPCRecord{
 		UniqID: uniqID,
-		Result: 5,
+		Result: "",
 	}
 
 	// create worldstate
@@ -254,7 +254,7 @@ func Test_Txn_Execution_PostMPC_InCorrect(t *testing.T) {
 	var uniqID = "test"
 	record := MPCRecord{
 		UniqID: uniqID,
-		Result: 5,
+		Result: "",
 	}
 
 	// create worldstate

@@ -86,12 +86,12 @@ func unmarshalPreMPC(data json.RawMessage) (interface{}, error) {
 
 type MPCRecord struct {
 	UniqID string
-	Result float64
+	Result string
 }
 
 // String implements Describable.String()
 func (p MPCRecord) String() string {
-	return fmt.Sprintf("UniqID: %s, Result: %f\n", p.UniqID, p.Result)
+	return fmt.Sprintf("UniqID: %s, ResultHash: %s\n", p.UniqID, p.Result)
 }
 
 func NewTransactionPostMPC(from *Account, data MPCRecord) *Transaction {
@@ -252,6 +252,7 @@ func calculateExprPrices(worldState storage.KVStore, expression string) (map[str
 		}
 	}
 	if len(variables) > 0 {
+		fmt.Println(variables)
 		missing := ""
 		for v := range variables {
 			missing += fmt.Sprintf(", %s", v)

@@ -259,7 +259,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 	worldstate = block1.GetWorldStateCopy()
 	txn3, err := NewTransactionPostMPC(&account, MPCRecord{
 		UniqID: txn2.Txn.ID,
-		Result: 10,
+		Result: "",
 	}).Sign(privKey)
 	require.NoError(t, err)
 	account.nonce++
@@ -288,7 +288,7 @@ func Test_BC_Has_Txn(t *testing.T) {
 
 	txn4 := NewTransactionPostMPC(&account, MPCRecord{
 		UniqID: txn2.Txn.ID,
-		Result: 10,
+		Result: "",
 	})
 	ok = bc.GetTxn(txn4.ID)
 	require.Nil(t, ok)

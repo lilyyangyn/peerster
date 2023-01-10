@@ -74,15 +74,15 @@ func Test_GP_MPC_Pure_BC_Single(t *testing.T) {
 	defer nodeB.Stop()
 	defer nodeC.Stop()
 
+	err := nodeA.SetValueDBAsset("a", 1, 1)
+	require.NoError(t, err)
+	err = nodeB.SetValueDBAsset("b", 1, 6)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 200)
+
 	mpcDone := make(chan struct{})
 	go func() {
-		err := nodeA.SetValueDBAsset("a", 1, 1)
-		require.NoError(t, err)
-		err = nodeB.SetValueDBAsset("b", 1, 6)
-		require.NoError(t, err)
-
-		time.Sleep(time.Millisecond * 200)
-
 		_, err = nodeA.Calculate("a+b", 10)
 		require.NoError(t, err)
 

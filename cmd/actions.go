@@ -81,6 +81,29 @@ func startMPC(node *z.TestNode, actionMap map[string]ActionFunc) error {
 		return err
 	}
 
+	// local check for efficiency
+	block := node.BCGetLatestBlock()
+	if block == nil {
+		printError(fmt.Errorf("blockchain not initialized"))
+		return nil
+	}
+	_, total, err := permissioned.CalculateTotalPrice(block.States, expr)
+	if err != nil {
+		printError(err)
+		return nil
+	}
+	if budget < total {
+		printError(fmt.Errorf("budget not enough"))
+		return nil
+	}
+
+	balance := node.BCGetBalance()
+	if balance < total {
+		printError(fmt.Errorf("balance not enough"))
+		return nil
+	}
+
+	// calculate
 	value, err := node.Calculate(expr, budget)
 	if err != nil {
 		printError(fmt.Errorf("calculation fails: %s", err))
