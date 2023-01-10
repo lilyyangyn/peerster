@@ -1,6 +1,8 @@
 participants:
     0xa369dEdd2e8633d1AbEDDdCBC451C4B1D7aBF985: ""
+    0x7908F4c70f3933081c9c058610772862D9043Caa: ""
     0xbEEDfdE33a66786C7A7661A2F6f3FAc813C7058c: ""
 maxtxnsperblk: 10
-waittimeout: 5s
+waittimeout: 2s
+mpcparticipationgain: 1
 jointhreshold: 1

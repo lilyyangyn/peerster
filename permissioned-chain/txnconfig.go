@@ -94,8 +94,8 @@ func (c ChainConfig) String() string {
 	}
 	participants = participants[:len(participants)-2] + "]"
 	description := fmt.Sprintf(`Participants: %s, MaxNumTxn: %d, 
-	MaxBlockWaitTime: %s, JoinThreshold: %f\n`,
-		participants, c.MaxTxnsPerBlk, c.WaitTimeout, c.JoinThreshold)
+	MaxBlockWaitTime: %s, MPCParticipationGain %f, JoinThreshold: %f, `,
+		participants, c.MaxTxnsPerBlk, c.WaitTimeout, c.MPCParticipationGain, c.JoinThreshold)
 	return description
 
 }
